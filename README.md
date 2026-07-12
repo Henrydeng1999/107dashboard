@@ -48,6 +48,27 @@
 └── README.md
 ```
 
+## 项目入口
+
+新成员或开发 Agent 进入项目后，从以下入口开始：
+
+| 入口 | 用途 |
+| --- | --- |
+| `AGENTS.md` | Agent 工作约束、平台事实和验证要求 |
+| `docs/01-PLAN.md` | 比赛 MVP 阶段、范围和验收标准 |
+| `docs/02-ARCHITECTURE.md` | 产品架构、Slurm 集成和安全边界 |
+| `docs/03-ENVIRONMENT_CHECK.md` | 已验证的服务器、QoS、GPU 和用户权限 |
+| `docs/04-COLLABORATION.md` | 四人分工、Gitee 工作流和演示保障 |
+| `docs/05-DIRECTORY-STRUCTURE.md` | 文件归属和目录扩展规则 |
+| `backend/README.md` | FastAPI 后端目录说明 |
+| `frontend/README.md` | React 前端目录说明 |
+| `deploy/README.md` | 用户级服务和部署配置说明 |
+| `fixtures/README.md` | 脱敏 mock 数据说明 |
+| `examples/README.md` | 示例 Slurm 作业说明 |
+| `tests/README.md` | 测试分层和端到端测试说明 |
+
+开发时先确认任务属于哪个目录，再创建文件。新增一级目录前必须同步更新 [05 目录规范](docs/05-DIRECTORY-STRUCTURE.md)。
+
 ## 本地开发依赖
 
 - Git
