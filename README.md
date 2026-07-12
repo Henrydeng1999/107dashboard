@@ -72,6 +72,8 @@
 
 当前仓库处于初始化阶段，暂不包含具体业务代码。开发计划见 [docs/PLAN.md](docs/PLAN.md)，架构和安全边界见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
+算力平台环境检查命令见 [docs/ENVIRONMENT_CHECK.md](docs/ENVIRONMENT_CHECK.md)。
+
 ## 协作约定
 
 - 功能开发前先在 `docs/PLAN.md` 中记录目标和验收标准。
