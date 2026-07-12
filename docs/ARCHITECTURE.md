@@ -21,6 +21,43 @@ Slurm 接口
   +--> scancel：取消作业
 ```
 
+## SSH ControlMaster 与 tmux
+
+Dashboard 后端部署在算力平台服务器上时，可以复用现有的 SSH/命令包装模式：
+
+```text
+API 请求
+  -> 连接管理器：检查或建立 SSH ControlMaster
+  -> 复用 ControlPath 执行远程命令
+  -> tmux：保持需要长期运行的交互会话
+  -> Slurm：提交、调度和记录真正的作业
+```
+
+这四层职责不同：
+
+- `ControlMaster` 负责复用认证后的 SSH 连接，避免每次命令重新登录；
+- `tmux` 负责在 SSH 断开后保持交互式 shell 或辅助进程；
+- `sbatch`/`srun` 负责把计算任务交给 Slurm，而不是在登录节点直接运行；
+- `squeue`、`sacct` 和作业日志是 Dashboard 展示作业状态的主要来源。
+
+现有 `gpu-*` 命令可以作为连接层和会话层的参考，核心模式包括：
+
+1. 检查 ControlMaster 是否存在，不存在时建立后台连接；
+2. 检查 tmux session 是否存在，不存在时创建；
+3. 使用 `tmux send-keys` 发送受控命令；
+4. 使用 `tmux capture-pane` 或日志文件读取输出；
+5. 使用 Slurm 命令确认作业状态，而不是只依赖 tmux 是否存在。
+
+Dashboard 中不建议所有用户共用一个 tmux session。推荐使用可追踪的会话名，例如：
+
+```text
+dashboard-u<user_id>-j<job_id>
+```
+
+作业提交后，应保存 `job_id`、tmux session 名称、工作目录和日志路径之间的映射。对于普通批处理作业，优先直接生成受控 `sbatch` 脚本并提交；只有需要交互式调试、保持 `srun` 分配或运行长期辅助进程时才使用 tmux。
+
+后端需要对 tmux 和 SSH 命令增加超时、退出码检查、并发锁和清理逻辑，避免两个 API 请求同时创建同一个 session 或向同一个窗口发送相互覆盖的命令。
+
 ## 容器部署
 
 初步计划使用 Docker Compose 管理：
