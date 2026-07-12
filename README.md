@@ -34,8 +34,9 @@
 ├── backend/              # FastAPI 服务，后续创建
 ├── frontend/             # React 前端，后续创建
 ├── docs/
-│   ├── PLAN.md           # 分阶段开发计划
-│   └── ARCHITECTURE.md   # 架构与安全边界
+│   ├── 01-PLAN.md        # 分阶段开发计划
+│   ├── 02-ARCHITECTURE.md # 架构与安全边界
+│   └── 03-ENVIRONMENT_CHECK.md # 算力平台环境检查
 ├── deploy/               # Docker、反向代理和部署配置，后续创建
 ├── .env.example          # 环境变量模板，后续创建
 └── README.md
@@ -70,13 +71,13 @@
 
 ## 当前状态
 
-当前仓库处于初始化阶段，暂不包含具体业务代码。开发计划见 [docs/PLAN.md](docs/PLAN.md)，架构和安全边界见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+当前仓库处于初始化阶段，暂不包含具体业务代码。按章节顺序阅读：[01 开发计划](docs/01-PLAN.md)、[02 系统架构](docs/02-ARCHITECTURE.md)、[03 环境检查](docs/03-ENVIRONMENT_CHECK.md)。
 
-算力平台环境检查命令见 [docs/ENVIRONMENT_CHECK.md](docs/ENVIRONMENT_CHECK.md)。
+算力平台环境检查命令见 [03 环境检查](docs/03-ENVIRONMENT_CHECK.md)。
 
 ## 协作约定
 
-- 功能开发前先在 `docs/PLAN.md` 中记录目标和验收标准。
+- 功能开发前先在 `docs/01-PLAN.md` 中记录目标和验收标准。
 - 一个提交尽量只解决一个明确问题。
 - 不提交密码、Token、SSH 私钥、生产环境配置或真实用户数据。
 - 所有来自用户的作业参数都必须经过后端校验，禁止直接拼接 shell 命令。
