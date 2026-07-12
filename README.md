@@ -2,6 +2,8 @@
 
 面向学生的算力平台作业管理与可视化 Dashboard。
 
+在线项目文档：[https://henrydeng1999.github.io/107dashboard/](https://henrydeng1999.github.io/107dashboard/)
+
 项目目标是通过一个简单清晰的 Web 服务降低 Slurm 算力平台的使用门槛，让学生可以完成作业提交、状态查看、日志查看、作业克隆和资源使用统计。
 
 ## 目标功能
