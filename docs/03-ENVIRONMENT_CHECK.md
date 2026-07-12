@@ -1,141 +1,151 @@
-# 03 算力平台环境快速检查
+# 03 算力平台环境检查结果
 
-这组命令用于快速了解算力平台当前环境，全部为只读检查，不会安装依赖、提交作业或修改系统配置。
+## 检查范围
 
-请在算力平台登录节点执行。输出中可能包含节点名、用户名和网络信息，分享前请确认没有密码、Token、私钥或其他敏感内容。
+检查时间：2026-07-13。检查对象为中国科学技术大学本科生算力平台登录节点 `tradmin-02`，使用账号 `pb24030760`。本章记录已经获得的实际结果，不要求团队成员重复执行检查命令。
 
-## 一键检查
+## 系统与资源
 
-```bash
-printf '\\n== Host ==\\n'
-hostname
-uname -a
-cat /etc/os-release 2>/dev/null | sed -n '1,8p'
-
-printf '\\n== CPU and Memory ==\\n'
-lscpu 2>/dev/null | grep -E 'Model name|CPU\\(s\\)|Thread|Core|Socket' | head -10
-free -h
-
-printf '\\n== Storage ==\\n'
-df -hT "$HOME" /tmp 2>/dev/null
-
-printf '\\n== Python ==\\n'
-command -v python || true
-python --version 2>/dev/null || true
-command -v python3 || true
-python3 --version 2>/dev/null || true
-python3 -m pip --version 2>/dev/null || true
-
-printf '\\n== Conda ==\\n'
-command -v conda || true
-conda --version 2>/dev/null || true
-conda env list 2>/dev/null || true
-
-printf '\\n== Common Python Packages ==\\n'
-python3 - <<'PY'
-from importlib.util import find_spec
-
-packages = [
-    "torch", "torchvision", "torchaudio", "transformers", "numpy",
-    "pandas", "scipy", "sklearn", "fastapi", "uvicorn", "sqlalchemy",
-]
-
-for package in packages:
-    print(f"{package}: {'installed' if find_spec(package) else 'missing'}")
-PY
-
-printf '\\n== GPU ==\\n'
-command -v nvidia-smi && nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader || true
-command -v rocm-smi && rocm-smi --showproductname --showmeminfo vram 2>/dev/null || true
-
-printf '\\n== Docker ==\\n'
-command -v docker || true
-docker --version 2>/dev/null || true
-docker compose version 2>/dev/null || true
-docker info --format 'server={{.ServerVersion}}; rootless={{.SecurityOptions}}' 2>/dev/null || true
-
-printf '\\n== Slurm ==\\n'
-command -v sbatch || true
-command -v squeue || true
-command -v sacct || true
-command -v scancel || true
-sinfo -o '%P %a %l %G %c %m' 2>/dev/null | head -20 || true
-squeue -u "$USER" -o '%.18i %.12P %.24j %.10T %.10M %.10l %.12R' 2>/dev/null | head -20 || true
-
-printf '\\n== Network ==\\n'
-getent hosts gitee.com github.com 2>/dev/null || true
-curl -I --max-time 5 https://gitee.com 2>/dev/null | head -5 || true
-curl -I --max-time 5 https://github.com 2>/dev/null | head -5 || true
+```text
+操作系统：Ubuntu 24.04.3 LTS
+内核：Linux 6.8.0-53-generic
+架构：x86_64
+CPU：Intel Xeon Silver 4510
+逻辑 CPU：48
+物理配置：2 sockets, 12 cores/socket, 2 threads/core
+内存：125 GiB total, 22 GiB available
+Swap：8 GiB
 ```
 
-## 重点记录内容
+存储结果：
 
-执行后，建议把以下信息整理到项目的部署记录中：
-
-- 操作系统和内核版本；
-- Python 和 Conda 版本；
-- 可用 Conda 环境；
-- 是否存在 Docker，以及当前用户是否有 Docker 权限；
-- Slurm 命令是否可用；
-- 可用分区、最长运行时间和 GPU 类型；
-- Web 服务容器是否能调用 Slurm 命令；
-- 日志目录和作业工作目录的实际路径；
-- Gitee、GitHub 等外网 HTTPS 是否可访问。
-
-## 检查 Dashboard 所需的关键能力
-
-Dashboard 正式开发前，至少需要确认：
-
-```bash
-command -v sbatch squeue sacct scancel
-docker version
-docker compose version
-test -r /etc/slurm/slurm.conf && echo 'slurm.conf readable' || true
+```text
+/home：983 TB total, 950 TB available, 4% used
+/：437 GB total, 96 GB available, 78% used
 ```
 
-后端容器能否调用 Slurm 是部署成败的关键。不能只在宿主机上验证命令可用，还需要在最终的 `api` 容器中验证：
+比赛原型的数据、日志和 SQLite 文件可以放在用户 Home 目录。大型计算仍由 Slurm 调度，Dashboard 本身只运行轻量 Web 服务。
 
-```bash
-docker compose exec api sbatch --version
-docker compose exec api squeue --version
+## Python 与前端运行时
+
+```text
+Python：3.12.3
+pip：24.0
+venv：可用
+ensurepip：可用
+SQLite library：3.45.1
+OpenSSL：3.0.13
+Git：2.43.0
+gcc：可用
+make：可用
+Conda：未安装
+Node.js：未安装
+npm/pnpm/yarn：未安装
+uv：未安装
 ```
 
-如果 Slurm 客户端配置、认证文件或命令路径不能直接挂载到容器，需要由平台管理员确定受控的提交方式，例如宿主机代理服务或专用提交用户。
+系统 Python 中未预装以下项目依赖：
 
-## 当前容器部署结论
+```text
+FastAPI、Uvicorn、SQLAlchemy
+NumPy、Pandas、SciPy、scikit-learn
+PyTorch、TorchVision、TorchAudio、Transformers
+```
 
-本次在 `tradmin-02` 登录节点检查到：
+这不会阻塞原型。后端可以创建项目独立的 `.venv` 并安装少量 Web 依赖；前端在开发电脑构建后，把静态产物部署到服务器，不要求服务器安装 Node.js。
 
-- Docker CLI、Buildx 和 Compose 已安装；
-- 当前用户不能访问系统 Docker socket；
-- `rootlesskit`、`slirp4netns` 已安装；
-- 当前用户没有 `/etc/subuid` 和 `/etc/subgid` 映射；
-- user namespace 当前不可用；
-- 没有发现可用的 Podman 或 Buildah。
+## Slurm
 
-因此，当前环境还不能直接运行用户级 Docker daemon。Dashboard 仍然可以采用用户级容器部署，但需要平台管理员完成 Rootless Docker 的最小准备：
+平台已经安装 Slurm `25.11.2`，当前账号可以直接使用：
 
-1. 为部署账号配置 subordinate UID/GID 映射；
-2. 允许该账号使用 user namespace；
-3. 配置 Rootless Docker daemon 和用户级 systemd 服务；
-4. 确定 Dashboard 的监听端口、日志目录和重启策略。
+```text
+/usr/bin/sbatch
+/usr/bin/squeue
+/usr/bin/sacct
+/usr/bin/scancel
+/usr/bin/sinfo
+/usr/bin/srun
+```
 
-不建议为了 Dashboard 把普通学生账号加入系统 `docker` 组，因为 Docker socket 权限通常等同于主机 root 权限。若平台不允许 Rootless Docker，可以考虑以下替代方案：
+Slurm 配置文件 `/etc/slurm/slurm.conf` 可读，集群名称为 `training`，控制节点为 `tradmin-01`。
 
-- 由管理员在专用服务节点运行 Dashboard 容器；
-- 使用管理员提供的受控部署服务；
-- 直接以用户级 Python/Node 服务运行 Dashboard，并由反向代理转发；
-- 在其他机器构建镜像，再由管理员负责运行生产容器。
+当前可见资源：
 
-Dashboard 只需要运行自身的 API、前端和数据库服务，不需要管理平台上其他用户的容器；但“只运行自己的服务”并不能绕过 Docker daemon、user namespace 和端口监听权限要求。
+```text
+分区             GPU             CPU/node   Memory/node
+CPU-6530         RTX5090 x8      128        512000 MB
+CPU-8358P        A100 x8         128        1024000 MB
+GPU-RTX5090      RTX5090 x8      128        512000 MB
+GPU-A100         A100 x8         128        1024000 MB
+P107-RTX5090     RTX5090 x8      128        512000 MB
+P107-A100        A100 x8         128        1024000 MB
+Students         A100/RTX5090 x8 128        512000-1024000 MB
+```
 
-## 不要收集或提交的内容
+检查时账号没有正在运行的作业。Dashboard 可以直接围绕 `sbatch`、`squeue`、`sacct` 和 `scancel` 实现提交、状态、历史、取消和资源统计。
 
-以下内容不应写入项目文档、Issue 或 Git：
+## GPU
 
-- 登录密码和 TOTP 密钥；
-- SSH 私钥和 Gitee Token；
-- 完整的用户环境变量；
-- 其他用户的作业命令和日志；
-- 生产数据库凭据；
-- 未脱敏的内部主机地址和访问令牌。
+登录节点存在 `/usr/bin/nvidia-smi`，但不能连接 NVIDIA 驱动。这个结果符合登录节点不直接提供 GPU 的平台模式，不代表计算节点没有 GPU。
+
+Dashboard 不在登录节点执行 GPU 任务。GPU 类型来自 Slurm 分区信息，实际 GPU 使用数据后续从 Slurm 记录或计算节点作业日志获取。
+
+## 用户级服务
+
+```text
+systemd --user：可用并处于 running 状态
+XDG_RUNTIME_DIR：/run/user/68311
+Linger：no
+绑定本地随机端口：成功
+文件描述符上限：10240
+进程数上限：unlimited
+```
+
+服务器没有预装 Nginx、Caddy、Apache 或 Lighttpd。比赛演示阶段可以让 FastAPI/Uvicorn 同时提供 API 和前端静态文件，并通过 SSH 端口转发访问。
+
+`Linger=no` 表示用户退出后 systemd 用户服务不保证长期运行。比赛演示阶段可以使用现有 SSH ControlMaster 和 tmux 保持开发服务；tmux 只是开发运维工具，不属于 Dashboard 产品功能。
+
+## Docker
+
+```text
+Docker CLI：29.1.5
+Docker Compose：5.0.1
+系统 Docker socket：存在
+当前用户访问系统 Docker daemon：Permission denied
+RootlessKit：已安装
+slirp4netns：已安装
+Podman/Buildah/nerdctl：未安装
+当前账号 subuid/subgid：未配置
+user namespace：Operation not permitted
+Rootless Docker 用户服务：未配置
+```
+
+因此比赛原型不采用 Docker 作为前置条件。容器化可以作为产品后续部署能力写入演进路线，但当前直接使用 Python 虚拟环境更快、更贴合平台。
+
+## 网络
+
+```text
+Gitee DNS：正常
+GitHub DNS：正常
+Gitee HTTPS：HTTP 200
+GitHub HTTPS：可访问
+```
+
+平台可以访问公开代码仓库，适合通过 Git 拉取原型代码。
+
+## 比赛原型结论
+
+当前环境足以支持比赛 MVP：
+
+```text
+开发电脑构建 React 静态前端
+        -> 上传或 Git 拉取到平台
+        -> Python venv 运行 FastAPI/Uvicorn
+        -> FastAPI 提供静态页面和 API
+        -> 原生调用 Slurm 命令
+        -> SQLite 保存演示所需元数据
+```
+
+比赛阶段重点展示完整故事闭环：学生填写作业参数并提交 Slurm，Dashboard 展示作业状态、日志、克隆入口和资源统计，降低命令行使用门槛。
+
+多用户真实身份委托、统一认证、生产级 HTTPS、长期服务托管、PostgreSQL 和容器化部署属于赛后演进，不阻塞当前原型。
