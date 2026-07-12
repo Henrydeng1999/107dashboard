@@ -26,6 +26,8 @@
 
 - [ ] 将现有 `gpu-*` 命令作为开发和运维参考，不直接作为 Dashboard 产品依赖
 - [ ] 确定 API 服务调用 Slurm 的方式：容器内客户端或受控宿主机代理
+- [ ] 向平台管理员确认 Rootless Docker 或等价用户级容器运行时
+- [ ] 确认用户级服务的端口、systemd、日志和重启策略
 - [ ] 设计用户、作业、Slurm Job ID、资源申请和日志路径的映射
 - [ ] 明确 SSH 私钥、ControlMaster socket 和 tmux 不进入产品运行时容器
 - [ ] 增加重复请求、Slurm 不可用和作业状态延迟的处理

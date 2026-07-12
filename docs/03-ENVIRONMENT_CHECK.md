@@ -102,6 +102,33 @@ docker compose exec api squeue --version
 
 如果 Slurm 客户端配置、认证文件或命令路径不能直接挂载到容器，需要由平台管理员确定受控的提交方式，例如宿主机代理服务或专用提交用户。
 
+## 当前容器部署结论
+
+本次在 `tradmin-02` 登录节点检查到：
+
+- Docker CLI、Buildx 和 Compose 已安装；
+- 当前用户不能访问系统 Docker socket；
+- `rootlesskit`、`slirp4netns` 已安装；
+- 当前用户没有 `/etc/subuid` 和 `/etc/subgid` 映射；
+- user namespace 当前不可用；
+- 没有发现可用的 Podman 或 Buildah。
+
+因此，当前环境还不能直接运行用户级 Docker daemon。Dashboard 仍然可以采用用户级容器部署，但需要平台管理员完成 Rootless Docker 的最小准备：
+
+1. 为部署账号配置 subordinate UID/GID 映射；
+2. 允许该账号使用 user namespace；
+3. 配置 Rootless Docker daemon 和用户级 systemd 服务；
+4. 确定 Dashboard 的监听端口、日志目录和重启策略。
+
+不建议为了 Dashboard 把普通学生账号加入系统 `docker` 组，因为 Docker socket 权限通常等同于主机 root 权限。若平台不允许 Rootless Docker，可以考虑以下替代方案：
+
+- 由管理员在专用服务节点运行 Dashboard 容器；
+- 使用管理员提供的受控部署服务；
+- 直接以用户级 Python/Node 服务运行 Dashboard，并由反向代理转发；
+- 在其他机器构建镜像，再由管理员负责运行生产容器。
+
+Dashboard 只需要运行自身的 API、前端和数据库服务，不需要管理平台上其他用户的容器；但“只运行自己的服务”并不能绕过 Docker daemon、user namespace 和端口监听权限要求。
+
 ## 不要收集或提交的内容
 
 以下内容不应写入项目文档、Issue 或 Git：
