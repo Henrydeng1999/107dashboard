@@ -4,6 +4,7 @@ const documents = [
   { path: '03-ENVIRONMENT_CHECK.md', id: '03-算力平台环境检查结果' },
   { path: '04-COLLABORATION.md', id: '04-四人团队协作方案' },
   { path: '05-DIRECTORY-STRUCTURE.md', id: '05-项目目录规范' },
+  { path: '06-PLATFORM-DEPLOYMENT.md', id: '06-算力平台部署与更新' },
 ];
 
 const content = document.querySelector('#doc-content');

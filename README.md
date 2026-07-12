@@ -41,7 +41,8 @@
 │   ├── 02-ARCHITECTURE.md # 架构与安全边界
 │   ├── 03-ENVIRONMENT_CHECK.md # 算力平台环境检查
 │   ├── 04-COLLABORATION.md # 四人团队协作方案
-│   └── 05-DIRECTORY-STRUCTURE.md # 项目目录规范
+│   ├── 05-DIRECTORY-STRUCTURE.md # 项目目录规范
+│   └── 06-PLATFORM-DEPLOYMENT.md # 算力平台部署与更新
 ├── examples/             # 可公开的示例作业
 ├── fixtures/             # 脱敏 mock 数据
 ├── scripts/              # 平台检查和维护脚本
@@ -62,6 +63,7 @@
 | `docs/03-ENVIRONMENT_CHECK.md` | 已验证的服务器、QoS、GPU 和用户权限 |
 | `docs/04-COLLABORATION.md` | 四人分工、Gitee 工作流和演示保障 |
 | `docs/05-DIRECTORY-STRUCTURE.md` | 文件归属和目录扩展规则 |
+| `docs/06-PLATFORM-DEPLOYMENT.md` | 算力平台只读部署、更新和安全操作 |
 | `backend/README.md` | FastAPI 后端目录说明 |
 | `frontend/README.md` | React 前端目录说明 |
 | `deploy/README.md` | 用户级服务和部署配置说明 |
@@ -69,7 +71,7 @@
 | `examples/README.md` | 示例 Slurm 作业说明 |
 | `tests/README.md` | 测试分层和端到端测试说明 |
 
-在线文档站入口是 `docs/index.html`。GitHub Pages 可以直接选择 `master` 分支的 `/docs` 目录发布；页面会动态读取同目录的五章 Markdown，文档更新后不需要重新生成 HTML。
+在线文档站入口是 `docs/index.html`。GitHub Pages 可以直接选择 `master` 分支的 `/docs` 目录发布；页面会动态读取同目录的六章 Markdown，文档更新后不需要重新生成 HTML。
 
 GitHub Pages 发布设置：
 
@@ -116,7 +118,7 @@ python3 -m http.server 8765 --directory docs
 
 ## 当前状态
 
-当前仓库处于初始化阶段，暂不包含具体业务代码。按章节顺序阅读：[01 开发计划](docs/01-PLAN.md)、[02 系统架构](docs/02-ARCHITECTURE.md)、[03 环境检查](docs/03-ENVIRONMENT_CHECK.md)、[04 团队协作](docs/04-COLLABORATION.md)、[05 目录规范](docs/05-DIRECTORY-STRUCTURE.md)。
+当前仓库处于初始化阶段，暂不包含具体业务代码。按章节顺序阅读：[01 开发计划](docs/01-PLAN.md)、[02 系统架构](docs/02-ARCHITECTURE.md)、[03 环境检查](docs/03-ENVIRONMENT_CHECK.md)、[04 团队协作](docs/04-COLLABORATION.md)、[05 目录规范](docs/05-DIRECTORY-STRUCTURE.md)、[06 平台部署](docs/06-PLATFORM-DEPLOYMENT.md)。
 
 算力平台的实际环境检查结果见 [03 环境检查](docs/03-ENVIRONMENT_CHECK.md)。
 

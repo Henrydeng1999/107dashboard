@@ -27,6 +27,7 @@ Before changing code or documentation, read:
 4. `docs/03-ENVIRONMENT_CHECK.md`
 5. `docs/04-COLLABORATION.md`
 6. `docs/05-DIRECTORY-STRUCTURE.md`
+7. `docs/06-PLATFORM-DEPLOYMENT.md`
 
 ## Current Scope
 
