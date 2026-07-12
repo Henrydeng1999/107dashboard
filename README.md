@@ -31,14 +31,19 @@
 
 ```text
 107dashboard/
-├── backend/              # FastAPI 服务，后续创建
-├── frontend/             # React 前端，后续创建
+├── backend/              # FastAPI、数据模型和 Slurm 适配
+├── frontend/             # React 前端
+├── deploy/               # 用户级服务和可选反向代理配置
 ├── docs/
 │   ├── 01-PLAN.md        # 分阶段开发计划
 │   ├── 02-ARCHITECTURE.md # 架构与安全边界
 │   ├── 03-ENVIRONMENT_CHECK.md # 算力平台环境检查
-│   └── 04-COLLABORATION.md # 四人团队协作方案
-├── deploy/               # 用户级服务和可选容器配置，后续创建
+│   ├── 04-COLLABORATION.md # 四人团队协作方案
+│   └── 05-DIRECTORY-STRUCTURE.md # 项目目录规范
+├── examples/             # 可公开的示例作业
+├── fixtures/             # 脱敏 mock 数据
+├── scripts/              # 平台检查和维护脚本
+├── tests/                # 端到端测试
 ├── .env.example          # 环境变量模板，后续创建
 └── README.md
 ```
@@ -70,7 +75,7 @@
 
 ## 当前状态
 
-当前仓库处于初始化阶段，暂不包含具体业务代码。按章节顺序阅读：[01 开发计划](docs/01-PLAN.md)、[02 系统架构](docs/02-ARCHITECTURE.md)、[03 环境检查](docs/03-ENVIRONMENT_CHECK.md)、[04 团队协作](docs/04-COLLABORATION.md)。
+当前仓库处于初始化阶段，暂不包含具体业务代码。按章节顺序阅读：[01 开发计划](docs/01-PLAN.md)、[02 系统架构](docs/02-ARCHITECTURE.md)、[03 环境检查](docs/03-ENVIRONMENT_CHECK.md)、[04 团队协作](docs/04-COLLABORATION.md)、[05 目录规范](docs/05-DIRECTORY-STRUCTURE.md)。
 
 算力平台的实际环境检查结果见 [03 环境检查](docs/03-ENVIRONMENT_CHECK.md)。
 
