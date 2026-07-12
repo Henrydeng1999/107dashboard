@@ -21,26 +21,27 @@ Slurm 接口
   +--> scancel：取消作业
 ```
 
-## SSH ControlMaster 与 tmux
+## 部署集成边界
 
-Dashboard 后端部署在算力平台服务器上时，可以复用现有的 SSH/命令包装模式：
+Dashboard 是独立的作业管理和可视化产品。现有 `gpu-*` 命令、SSH ControlMaster 和 tmux 只用于开发阶段验证算力平台行为，以及作为平台运维脚本的参考，不属于 Dashboard 的产品功能，也不应暴露给学生。
+
+Dashboard 后端部署在算力平台服务器上时，最终应通过受控的 Slurm 集成层访问作业系统：
 
 ```text
 API 请求
-  -> 连接管理器：检查或建立 SSH ControlMaster
-  -> 复用 ControlPath 执行远程命令
-  -> tmux：保持需要长期运行的交互会话
+  -> 作业服务：校验请求并生成受控作业描述
+  -> Slurm 适配器：调用 sbatch/squeue/sacct/scancel
   -> Slurm：提交、调度和记录真正的作业
 ```
 
-这四层职责不同：
+开发和平台运维阶段可以用以下工具验证链路：
 
-- `ControlMaster` 负责复用认证后的 SSH 连接，避免每次命令重新登录；
-- `tmux` 负责在 SSH 断开后保持交互式 shell 或辅助进程；
+- SSH ControlMaster 负责复用认证后的连接；
+- tmux 负责在开发调试中保持交互式 shell 或辅助进程；
 - `sbatch`/`srun` 负责把计算任务交给 Slurm，而不是在登录节点直接运行；
 - `squeue`、`sacct` 和作业日志是 Dashboard 展示作业状态的主要来源。
 
-现有 `gpu-*` 命令可以作为连接层和会话层的参考，核心模式包括：
+现有 `gpu-*` 命令可以作为开发和运维验证工具参考，核心模式包括：
 
 1. 检查 ControlMaster 是否存在，不存在时建立后台连接；
 2. 检查 tmux session 是否存在，不存在时创建；
@@ -48,15 +49,9 @@ API 请求
 4. 使用 `tmux capture-pane` 或日志文件读取输出；
 5. 使用 Slurm 命令确认作业状态，而不是只依赖 tmux 是否存在。
 
-Dashboard 中不建议所有用户共用一个 tmux session。推荐使用可追踪的会话名，例如：
+Dashboard 的核心数据模型应围绕用户、作业、Slurm Job ID、资源申请、状态和日志建立，不依赖 tmux session。对于普通批处理作业，直接生成受控 `sbatch` 脚本并提交；只有平台管理员明确要求交互式调试时，才在产品外部使用 tmux。
 
-```text
-dashboard-u<user_id>-j<job_id>
-```
-
-作业提交后，应保存 `job_id`、tmux session 名称、工作目录和日志路径之间的映射。对于普通批处理作业，优先直接生成受控 `sbatch` 脚本并提交；只有需要交互式调试、保持 `srun` 分配或运行长期辅助进程时才使用 tmux。
-
-后端需要对 tmux 和 SSH 命令增加超时、退出码检查、并发锁和清理逻辑，避免两个 API 请求同时创建同一个 session 或向同一个窗口发送相互覆盖的命令。
+如果部署环境不能让容器直接调用 Slurm，优先设计受控的宿主机代理或作业提交服务，而不是把 SSH 私钥、ControlMaster socket 或 tmux 作为产品运行时依赖挂载进容器。
 
 ## 容器部署
 

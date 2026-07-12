@@ -22,14 +22,15 @@
 
 验收标准：Docker Compose 启动后，浏览器可以打开前端，前端可以调用后端健康检查接口。
 
-## 连接与会话层设计
+## Slurm 集成边界
 
-- [ ] 将现有 `gpu-*` 的 ControlMaster 检查和命令复用模式整理成后端连接适配器
-- [ ] 确定 Dashboard 服务与 Slurm 命令、tmux 和日志目录的挂载边界
-- [ ] 设计用户、作业、Slurm Job ID、tmux session 和日志路径的映射
-- [ ] 增加重复请求、连接断开和 stale socket 的处理
+- [ ] 将现有 `gpu-*` 命令作为开发和运维参考，不直接作为 Dashboard 产品依赖
+- [ ] 确定 API 服务调用 Slurm 的方式：容器内客户端或受控宿主机代理
+- [ ] 设计用户、作业、Slurm Job ID、资源申请和日志路径的映射
+- [ ] 明确 SSH 私钥、ControlMaster socket 和 tmux 不进入产品运行时容器
+- [ ] 增加重复请求、Slurm 不可用和作业状态延迟的处理
 
-验收标准：后端可以复用已有 SSH 控制连接；连接失效时能报告可诊断错误，不会重复创建冲突的控制 socket 或 tmux session。
+验收标准：Dashboard 可以通过受控 Slurm 集成提交和查询作业；产品核心流程不依赖开发机上的 SSH 控制连接或 tmux 会话。
 
 ## 阶段 2：作业只读视图
 
