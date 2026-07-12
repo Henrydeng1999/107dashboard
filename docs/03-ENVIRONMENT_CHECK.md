@@ -84,11 +84,107 @@ Students         A100/RTX5090 x8 128        512000-1024000 MB
 
 检查时账号没有正在运行的作业。Dashboard 可以直接围绕 `sbatch`、`squeue`、`sacct` 和 `scancel` 实现提交、状态、历史、取消和资源统计。
 
+### 当前账号与 QoS 权限
+
+```text
+Linux user: pb24030760
+uid/gid: 68311
+Slurm cluster: training
+Default account: stu
+Slurm admin level: None
+```
+
+当前账号在 `Students` 分区的 association：
+
+```text
+Account: stu
+Allowed QoS: qos_stu_default, qos_stu_medium_2gpu
+Default QoS: qos_stu_medium_2gpu
+```
+
+与比赛原型最相关的 QoS 限制：
+
+```text
+qos_stu_default:
+  MaxWall: 04:00:00
+  MaxJobsPerUser: 4
+  MaxSubmitPerUser: 10
+  MaxTRESPerUser: cpu=4, gpu=1, mem=16G
+  Flags: DenyOnLimit
+
+qos_stu_medium_2gpu:
+  MaxWall: 1-00:00:00
+  MaxTRESPerUser: cpu=24, gpu=2, mem=128G
+  Flags: DenyOnLimit
+```
+
+账号在多个其他分区存在 association 记录，但分区本身还配置了 `AllowAccounts` 和 `AllowQos`。Dashboard 不能只根据 association 判断可提交范围；比赛原型优先使用已经通过真实作业验证的 `Students + stu + qos_stu_default` 组合。
+
+### 节点状态快照
+
+检查时 `Students` 分区覆盖 `anode05` 至 `anode17`：
+
+```text
+anode05: mix, RTX 5090 x8
+anode06-anode15: idle, RTX 5090 x8
+anode16: mix-, A100 x8
+anode17: down*, A100 x8
+```
+
+节点状态会实时变化，Dashboard 应通过 `sinfo` 和 `squeue` 动态查询，不能把这份快照写死为产品配置。
+
+### 实际 GPU 作业验证
+
+项目中的 `scripts/check-platform-gpu.sh` 已通过 `sbatch` 提交验证：
+
+```text
+Job ID: 21482
+Job name: dashboard-env-check
+Partition: Students
+Account: stu
+QoS: qos_stu_default
+State: COMPLETED
+Exit code: 0:0
+Queue wait: 30 seconds
+Elapsed: less than 1 second
+Allocated node: anode05
+Allocated resources: cpu=2, mem=4G, gpu=1, node=1
+```
+
+计算节点实际环境：
+
+```text
+Node: anode05
+Kernel: Linux 6.8.0-53-generic
+CPU: Intel Xeon Gold 6530
+Logical CPUs: 128
+Memory: 503 GiB total, 407 GiB available
+
+GPU: NVIDIA GeForce RTX 5090
+GPU memory: 32607 MiB total, 32109 MiB free
+Compute capability: 12.0
+Driver: 580.159.03
+Driver-supported CUDA: 13.0
+nvcc toolkit: CUDA 12.0, V12.0.140
+CUDA_VISIBLE_DEVICES: 0
+Physical Slurm GPU allocation: GPU index 3 mapped to visible device 0
+```
+
+计算节点系统 Python 为 `3.12.3`，没有预装 PyTorch：
+
+```text
+torch_import=failed: No module named 'torch'
+```
+
+这不影响 Dashboard 本身，因为 Dashboard 不在计算节点运行模型。若学生作业需要 PyTorch，应由作业自己的虚拟环境、模块环境或项目依赖提供。
+
+这次验证说明 Dashboard 可以从 Slurm 获取并可视化：排队原因、Job ID、账户、QoS、分区、节点、申请资源、实际分配、运行状态、退出码和耗时。GPU 型号、驱动和显存信息可以通过受控检查作业或用户作业日志补充。
+
 ## GPU
 
-登录节点存在 `/usr/bin/nvidia-smi`，但不能连接 NVIDIA 驱动。这个结果符合登录节点不直接提供 GPU 的平台模式，不代表计算节点没有 GPU。
+登录节点存在 `/usr/bin/nvidia-smi`，但不能连接 NVIDIA 驱动。这个结果符合登录节点不直接提供 GPU 的平台模式；实际 Slurm 作业已经确认计算节点 GPU 正常可用。
 
-Dashboard 不在登录节点执行 GPU 任务。GPU 类型来自 Slurm 分区信息，实际 GPU 使用数据后续从 Slurm 记录或计算节点作业日志获取。
+Dashboard 不在登录节点执行 GPU 任务。GPU 类型来自 Slurm 分区信息，实际 GPU 使用数据从 Slurm 记录或计算节点作业日志获取。
 
 ## 用户级服务
 
