@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+coverage/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# Local data and logs
+*.sqlite3
+*.db
+logs/
+tmp/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
