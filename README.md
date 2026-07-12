@@ -67,6 +67,24 @@
 | `examples/README.md` | 示例 Slurm 作业说明 |
 | `tests/README.md` | 测试分层和端到端测试说明 |
 
+在线文档站入口是 `docs/index.html`。GitHub Pages 可以直接选择 `master` 分支的 `/docs` 目录发布；页面会动态读取同目录的五章 Markdown，文档更新后不需要重新生成 HTML。
+
+GitHub Pages 发布设置：
+
+```text
+Source: Deploy from a branch
+Branch: master
+Folder: /docs
+```
+
+本地预览不能直接双击 `index.html`，需要从仓库根目录启动静态服务器：
+
+```bash
+python3 -m http.server 8765 --directory docs
+```
+
+然后访问 `http://127.0.0.1:8765/`。
+
 开发时先确认任务属于哪个目录，再创建文件。新增一级目录前必须同步更新 [05 目录规范](docs/05-DIRECTORY-STRUCTURE.md)。
 
 ## 本地开发依赖

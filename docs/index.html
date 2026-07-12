@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="107 Dashboard 项目文档、架构、环境验证与团队协作手册">
+  <title>107 Dashboard 文档</title>
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="site-nav" aria-label="主导航">
+      <a class="site-brand" href="index.html">107 Dashboard</a>
+      <div class="site-links">
+        <a href="#01-开发计划">开发计划</a>
+        <a href="#02-系统架构与安全边界">系统架构</a>
+        <a href="#03-算力平台环境检查结果">环境检查</a>
+        <a href="#04-四人团队协作方案">团队协作</a>
+        <a href="https://gitee.com/tuilichaoshi/107dashboard">Gitee</a>
+      </div>
+    </nav>
+  </header>
+
+  <section class="hero dashboard-hero">
+    <div>
+      <p class="dashboard-eyebrow">PROJECT DOCUMENTATION · COMPETITION MVP</p>
+      <h1>107 Dashboard</h1>
+      <p>算力平台作业管理与可视化项目的在线手册，集中展示开发计划、系统架构、平台实测、四人协作和目录规范。</p>
+      <div class="hero-actions">
+        <a class="primary-action" href="https://gitee.com/tuilichaoshi/107dashboard">查看 Gitee 仓库</a>
+        <span>页面会直接读取 docs 目录中的最新 Markdown</span>
+      </div>
+    </div>
+  </section>
+
+  <main class="dashboard-shell">
+    <aside class="dashboard-sidebar" aria-label="文档章节">
+      <div class="search-box">
+        <label for="doc-search">搜索文档</label>
+        <input id="doc-search" type="search" placeholder="例如：QoS、Slurm、分工" autocomplete="off" disabled>
+        <span id="search-status" aria-live="polite">正在加载文档...</span>
+      </div>
+      <nav class="chapter-nav">
+        <a href="#01-开发计划"><span>01</span>开发计划</a>
+        <a href="#02-系统架构与安全边界"><span>02</span>系统架构</a>
+        <a href="#03-算力平台环境检查结果"><span>03</span>环境检查</a>
+        <a href="#04-四人团队协作方案"><span>04</span>团队协作</a>
+        <a href="#05-项目目录规范"><span>05</span>目录规范</a>
+      </nav>
+      <div class="sidebar-note">环境章节包含真实 Slurm Job、RTX 5090、QoS 和用户权限验证结果。</div>
+    </aside>
+
+    <article class="dashboard-document" id="doc-content" aria-busy="true">
+      <div class="loading-state" id="loading-state">
+        <strong>正在读取项目文档</strong>
+        <span>加载同目录下的五个 Markdown 章节。</span>
+      </div>
+      <div class="empty-result" id="empty-result" hidden>
+        <strong>没有找到匹配内容</strong>
+        <span>尝试搜索作业、日志、GPU、QoS 或协作。</span>
+      </div>
+    </article>
+  </main>
+
+  <footer>“一〇七杯”算力与智能体开发大赛 · 107 Dashboard 项目文档</footer>
+  <script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js"></script>
+  <script src="site.js"></script>
+</body>
+</html>
