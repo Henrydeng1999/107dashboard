@@ -1,0 +1,12 @@
+name: dashboard-dev
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - -r backend/requirements.txt
+
+# Conda is optional. The supported platform workflow uses backend/.venv and
+# backend/requirements.txt because the target cluster does not provide Conda.

@@ -1,0 +1,16 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  color: #e9eef7;
+  background: #0b1020;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+.shell { min-height: 100vh; display: grid; place-items: center; padding: 32px; }
+.hero { width: min(720px, 100%); padding: 56px; border: 1px solid #263452; border-radius: 24px; background: linear-gradient(145deg, #151e35, #0f1629); box-shadow: 0 24px 80px #05081299; }
+.eyebrow { margin: 0 0 24px; color: #73a7ff; font-size: 13px; font-weight: 700; letter-spacing: .18em; }
+h1 { margin: 0; font-size: clamp(36px, 7vw, 64px); line-height: 1.05; letter-spacing: -.04em; }
+.summary { max-width: 520px; margin: 24px 0 40px; color: #aebbd0; font-size: 18px; line-height: 1.6; }
+.status-card { display: inline-flex; align-items: center; gap: 10px; padding: 12px 16px; border: 1px solid #334363; border-radius: 999px; color: #cbd7eb; }
+.status-dot { width: 9px; height: 9px; border-radius: 50%; background: #55d68a; box-shadow: 0 0 14px #55d68a; }

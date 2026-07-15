@@ -111,6 +111,18 @@ See `docs/03-ENVIRONMENT_CHECK.md` for the complete verified environment record.
 - Use Pull Requests for feature code and request at least one teammate review.
 - Do not rewrite or discard another member's uncommitted work.
 
+### Parallel development rules
+
+- Keep `master` runnable and demonstrable. During the current bootstrap phase, the project administrator may develop directly on `master`; once parallel contributors join, switch to feature branches and PRs.
+- Create each feature branch from the latest `master`, and keep one branch focused on one feature.
+- Prefer directory ownership: frontend work in `frontend/src/`, backend workflow work in `backend/app/api/`, `services/`, `schemas/`, and `repositories/`, Slurm work in `backend/app/slurm/`, and tests/deployment work in `backend/tests/`, `tests/e2e/`, and `deploy/`.
+- Before parallel implementation, agree on API paths, request/response fields, status codes, and error formats. Frontend may use fixtures or Mock data, but its types must match the agreed API.
+- Avoid concurrent edits to shared files such as `README.md`, `package.json`, `backend/app/main.py`, global styles, and the same documentation section. Announce shared-file changes before editing.
+- Keep commits small and sync long-lived branches with `master` regularly. Do not rebase a branch already being used by others without agreement.
+- A PR must state the related task, changed behavior, dependencies, test commands/results, and known risks. Merge only after at least one teammate review and relevant checks pass.
+- Prefer squash merge for completed feature branches so `master` keeps a clear history.
+- When conflicts occur, inspect and resolve them manually, preserve both sides where required, and rerun tests. Never use `git reset --hard`, `git checkout -- .`, or bulk deletion to discard another member's work.
+
 ## Verification
 
 Before handing off a change:

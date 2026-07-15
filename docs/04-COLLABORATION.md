@@ -191,6 +191,105 @@ docs/demo-script
 
 功能代码通过 Pull Request 合并，至少一名队友评审。提交信息使用 `feat:`、`fix:`、`docs:`、`test:` 或 `chore:` 前缀。
 
+### 功能分支分配
+
+最小骨架完成后按以下方式拆分任务。当前只有项目管理员参与开发时，可以暂时直接在 `master` 上完成初始化和第一版业务闭环；开始多人并行开发后，必须切换到功能分支和 PR 流程。分支只承担一个功能边界；如果一个功能需要多人协作，仍由一人负责分支和 PR，其他人通过评审或联调参与。
+
+| 负责人 | 必须分支 | 主要职责 |
+| --- | --- | --- |
+| A（前端） | `feature/frontend-shell`、`feature/job-list`、`feature/job-submit`、`feature/job-logs` | 页面、表单、列表、详情、日志和操作反馈 |
+| B（后端） | `feature/backend-health`、`feature/job-cancel`、`feature/job-clone` | API、业务服务、数据模型、权限和操作流程 |
+| C（Slurm） | `feature/slurm-adapter`、`feature/job-usage` | 命令执行、输出解析、资源统计和平台验证 |
+| D（测试部署） | `feature/mvp-integration` | fixtures、测试、部署演练、Mock 演示和回归验收 |
+
+创新功能在核心功能合并后再排期，优先顺序建议为：`feature/demo-mode`、
+`feature/live-job-refresh`、`feature/resource-charts`、`feature/job-templates`，
+其他创新项视比赛剩余时间决定。创新功能不得回头破坏核心分支的验收标准。
+
+每个 PR 至少写明：对应计划项、依赖分支、用户可见结果、测试命令和未解决风险。
+
+### 并行开发与冲突控制流程
+
+多人同时开发时，采用“目录隔离、接口先行、小步合并、及时同步”的方式协作。
+
+#### 1. 开工前确认任务和边界
+
+开发者先从最新 `master` 创建分支，并在 Issue 或群内声明分支、负责人、修改目录和依赖关系：
+
+```bash
+git switch master
+git pull --ff-only
+git switch -c feature/job-list
+```
+
+推荐的目录责任边界如下：
+
+| 负责人 | 优先负责目录 | 协作说明 |
+| --- | --- | --- |
+| A | `frontend/src/features/jobs/`、页面和样式 | 通过约定好的 API 与 B 联调 |
+| B | `backend/app/api/`、`services/`、`schemas/`、`repositories/` | 先发布接口字段和错误格式 |
+| C | `backend/app/slurm/`、`fixtures/slurm/` | 只负责受控命令、解析和平台证据 |
+| D | `backend/tests/`、`tests/e2e/`、`deploy/` | 负责回归、部署和演示验收 |
+
+尽量不要多人同时修改 `README.md`、`package.json`、`backend/app/main.py`、全局样式和同一份文档。确需修改共享文件时，应提前通知相关负责人。
+
+#### 2. 接口先行，前后端并行
+
+后端和前端开发前先确定请求路径、字段、状态码和错误响应。例如作业功能至少约定：
+
+```text
+GET  /api/jobs
+GET  /api/jobs/{job_id}
+POST /api/jobs
+POST /api/jobs/{job_id}/cancel
+POST /api/jobs/{job_id}/clone
+GET  /api/jobs/{job_id}/logs
+```
+
+后端负责实现真实接口，前端可以先使用与接口字段一致的 Mock 数据开发。接口变更必须同步更新 schema、前端类型、测试和 PR 描述。
+
+#### 3. 小步提交并及时同步
+
+一个分支只解决一个功能，完成一个可验证的小单元就提交。功能分支开发期间定期同步 `master`：
+
+```bash
+git fetch origin
+git rebase origin/master
+```
+
+如果分支已经被多人共同使用，不要擅自 rebase；改用合并 `origin/master`，或先和协作者确认。合并前必须解决冲突并重新运行相关测试。
+
+#### 4. PR 评审和合并
+
+PR 的目标分支固定为 `master`。PR 描述至少包含：对应计划项、实现内容、依赖分支、测试命令、测试结果和已知风险。至少一名队友评审通过后才能合并。
+
+评审重点包括功能验收、接口兼容性、权限校验、Slurm 安全边界、测试覆盖和运行时文件检查。基础功能建议使用 Squash Merge，保持 `master` 提交历史清晰。
+
+#### 5. 冲突处理
+
+发现冲突时先保存当前工作，再同步目标分支，不要直接覆盖双方修改：
+
+```bash
+git status
+git fetch origin
+git rebase origin/master
+git status
+```
+
+逐个检查冲突文件，确认保留内容后执行：
+
+```bash
+git add <resolved-file>
+git rebase --continue
+git push --force-with-lease
+```
+
+如果无法判断某段代码的归属，应暂停合并并邀请原作者共同确认。禁止使用 `git reset --hard` 或批量丢弃修改解决冲突。
+
+#### 6. 合并后的回归
+
+PR 合并后，所有开发者更新本地 `master`，再从最新版本创建后续分支。合并人需要在 PR 中记录最终测试结果；如果影响公共接口，应同步更新计划、README 或架构文档。
+
 Slurm 相关工作必须遵守以下边界：
 
 - 使用参数数组和结构化解析，禁止拼接未经校验的 shell 命令；

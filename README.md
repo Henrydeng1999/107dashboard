@@ -42,12 +42,13 @@
 │   ├── 03-ENVIRONMENT_CHECK.md # 算力平台环境检查
 │   ├── 04-COLLABORATION.md # 四人团队协作方案
 │   ├── 05-DIRECTORY-STRUCTURE.md # 项目目录规范
-│   └── 06-PLATFORM-DEPLOYMENT.md # 算力平台部署与更新
+│   ├── 06-PLATFORM-DEPLOYMENT.md # 算力平台部署与更新
+│   └── 07-MVP-API-DESIGN.md # MVP 作业模型与 API 设计
 ├── examples/             # 可公开的示例作业
 ├── fixtures/             # 脱敏 mock 数据
 ├── scripts/              # 平台检查和维护脚本
 ├── tests/                # 端到端测试
-├── .env.example          # 环境变量模板，后续创建
+├── .env.example          # 环境变量模板
 └── README.md
 ```
 
@@ -64,6 +65,7 @@
 | `docs/04-COLLABORATION.md` | 四人分工、Gitee 工作流和演示保障 |
 | `docs/05-DIRECTORY-STRUCTURE.md` | 文件归属和目录扩展规则 |
 | `docs/06-PLATFORM-DEPLOYMENT.md` | 算力平台只读部署、更新和安全操作 |
+| `docs/07-MVP-API-DESIGN.md` | MVP 作业模型、状态与 API 契约 |
 | `backend/README.md` | FastAPI 后端目录说明 |
 | `frontend/README.md` | React 前端目录说明 |
 | `deploy/README.md` | 用户级服务和部署配置说明 |
@@ -71,7 +73,7 @@
 | `examples/README.md` | 示例 Slurm 作业说明 |
 | `tests/README.md` | 测试分层和端到端测试说明 |
 
-在线文档站入口是 `docs/index.html`。GitHub Pages 可以直接选择 `master` 分支的 `/docs` 目录发布；页面会动态读取同目录的六章 Markdown，文档更新后不需要重新生成 HTML。
+在线文档站入口是 `docs/index.html`。GitHub Pages 可以直接选择 `master` 分支的 `/docs` 目录发布；页面会动态读取同目录的七章 Markdown，文档更新后不需要重新生成 HTML。
 
 GitHub Pages 发布设置：
 
@@ -95,8 +97,40 @@ python3 -m http.server 8765 --directory docs
 
 - Git
 - Node.js LTS 与 npm/pnpm
-- Python 3.11 或更新版本
+- Python 3.12
 - 可选：本地 Slurm 环境，或者用于开发的 Slurm 命令 mock
+
+依赖定义位于 `backend/pyproject.toml`、`backend/requirements.txt` 和
+`frontend/package.json`；根目录 `environment.yml` 仅作为可选 Conda 导入入口。
+
+### 初始化后端虚拟环境
+
+```powershell
+python -m venv backend/.venv
+backend/.venv/Scripts/python -m pip install --upgrade pip
+backend/.venv/Scripts/python -m pip install -r backend/requirements.txt
+```
+
+Linux/算力平台对应命令为 `python3.12 -m venv backend/.venv`，激活后执行
+`python -m pip install -r backend/requirements.txt`。`.venv`、前端
+`node_modules` 和构建产物均已加入 `.gitignore`。
+
+前端依赖安装与构建：
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+启动最小骨架：
+
+```powershell
+backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --reload
+```
+
+然后访问 `http://127.0.0.1:8000/docs` 查看 API 文档，或在 `frontend` 目录执行
+`npm run dev` 打开前端页面。健康检查接口为 `GET /api/health`。
 
 正式开发时，前端和后端依赖分别维护在：
 
@@ -118,7 +152,7 @@ python3 -m http.server 8765 --directory docs
 
 ## 当前状态
 
-当前仓库处于初始化阶段，暂不包含具体业务代码。按章节顺序阅读：[01 开发计划](docs/01-PLAN.md)、[02 系统架构](docs/02-ARCHITECTURE.md)、[03 环境检查](docs/03-ENVIRONMENT_CHECK.md)、[04 团队协作](docs/04-COLLABORATION.md)、[05 目录规范](docs/05-DIRECTORY-STRUCTURE.md)、[06 平台部署](docs/06-PLATFORM-DEPLOYMENT.md)。
+当前仓库已经完成前后端最小骨架、健康检查和 Mock 作业只读 API。按章节顺序阅读：[01 开发计划](docs/01-PLAN.md)、[02 系统架构](docs/02-ARCHITECTURE.md)、[03 环境检查](docs/03-ENVIRONMENT_CHECK.md)、[04 团队协作](docs/04-COLLABORATION.md)、[05 目录规范](docs/05-DIRECTORY-STRUCTURE.md)、[06 平台部署](docs/06-PLATFORM-DEPLOYMENT.md)、[07 MVP API 设计](docs/07-MVP-API-DESIGN.md)。
 
 算力平台的实际环境检查结果见 [03 环境检查](docs/03-ENVIRONMENT_CHECK.md)。
 

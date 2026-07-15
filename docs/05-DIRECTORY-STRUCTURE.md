@@ -38,7 +38,7 @@
 │   ├── .nojekyll
 │   ├── site.css
 │   ├── site.js
-│   └── 01-06 Markdown 手册
+│   └── 01-07 Markdown 手册
 ├── examples/
 │   └── job-scripts/
 ├── fixtures/
@@ -92,7 +92,7 @@ tmp/
 
 数据库、日志、上传文件和临时作业脚本不能混入源码目录。后续实现时通过配置指定它们的实际路径。
 
-`docs/index.html` 是 GitHub Pages 文档入口，会在浏览器中动态读取同目录的六章 Markdown 并渲染。修改 Markdown 后不需要重新生成 HTML；GitHub Pages 从 `/docs` 发布时也不需要构建命令。
+`docs/index.html` 是 GitHub Pages 文档入口，会在浏览器中动态读取同目录的七章 Markdown 并渲染。修改 Markdown 后不需要重新生成 HTML；GitHub Pages 从 `/docs` 发布时也不需要构建命令。
 
 ## 新增目录规则
 

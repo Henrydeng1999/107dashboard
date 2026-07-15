@@ -5,6 +5,7 @@ const documents = [
   { path: '04-COLLABORATION.md', id: '04-四人团队协作方案' },
   { path: '05-DIRECTORY-STRUCTURE.md', id: '05-项目目录规范' },
   { path: '06-PLATFORM-DEPLOYMENT.md', id: '06-算力平台部署与更新' },
+  { path: '07-MVP-API-DESIGN.md', id: '07-MVP API 设计' },
 ];
 
 const content = document.querySelector('#doc-content');
