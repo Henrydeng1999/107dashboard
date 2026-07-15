@@ -123,6 +123,15 @@ See `docs/03-ENVIRONMENT_CHECK.md` for the complete verified environment record.
 - Prefer squash merge for completed feature branches so `master` keeps a clear history.
 - When conflicts occur, inspect and resolve them manually, preserve both sides where required, and rerun tests. Never use `git reset --hard`, `git checkout -- .`, or bulk deletion to discard another member's work.
 
+### Progress checklist maintenance
+
+- `docs/08-PROGRESS-CHECKLIST.md` is the project status source for reviewers and must stay synchronized with delivered behavior.
+- Whenever an Agent prepares, reviews, or merges a Pull Request into `master`, it must update the checklist in the same PR before merge if the PR changes feature status, verification evidence, milestones, blockers, or the next development item.
+- During the administrator-only bootstrap exception, apply the same rule before a direct milestone commit to `master`.
+- Mark an item complete only after the relevant test, build, parser fixture, or platform evidence has passed. Do not infer completion from files existing or code being partially implemented.
+- Update the visible date, phase counts, completed-function table, current limitations, and next task where applicable. Keep `docs/index.html`, `docs/site.js`, and documentation chapter counts consistent when the progress document structure changes.
+- If a PR does not affect progress, state that explicitly in the PR review summary; do not make cosmetic checklist edits solely to touch the file.
+
 ## Verification
 
 Before handing off a change:

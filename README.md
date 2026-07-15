@@ -43,7 +43,8 @@
 │   ├── 04-COLLABORATION.md # 四人团队协作方案
 │   ├── 05-DIRECTORY-STRUCTURE.md # 项目目录规范
 │   ├── 06-PLATFORM-DEPLOYMENT.md # 算力平台部署与更新
-│   └── 07-MVP-API-DESIGN.md # MVP 作业模型与 API 设计
+│   ├── 07-MVP-API-DESIGN.md # MVP 作业模型与 API 设计
+│   └── 08-PROGRESS-CHECKLIST.md # 项目进度与功能检查表
 ├── examples/             # 可公开的示例作业
 ├── fixtures/             # 脱敏 mock 数据
 ├── scripts/              # 平台检查和维护脚本
@@ -66,6 +67,7 @@
 | `docs/05-DIRECTORY-STRUCTURE.md` | 文件归属和目录扩展规则 |
 | `docs/06-PLATFORM-DEPLOYMENT.md` | 算力平台只读部署、更新和安全操作 |
 | `docs/07-MVP-API-DESIGN.md` | MVP 作业模型、状态与 API 契约 |
+| `docs/08-PROGRESS-CHECKLIST.md` | 彩色项目进度与已完成功能检查表 |
 | `backend/README.md` | FastAPI 后端目录说明 |
 | `frontend/README.md` | React 前端目录说明 |
 | `deploy/README.md` | 用户级服务和部署配置说明 |
@@ -73,7 +75,7 @@
 | `examples/README.md` | 示例 Slurm 作业说明 |
 | `tests/README.md` | 测试分层和端到端测试说明 |
 
-在线文档站入口是 `docs/index.html`。GitHub Pages 可以直接选择 `master` 分支的 `/docs` 目录发布；页面会动态读取同目录的七章 Markdown，文档更新后不需要重新生成 HTML。
+在线文档站入口是 `docs/index.html`。GitHub Pages 可以直接选择 `master` 分支的 `/docs` 目录发布；页面会按导航选择动态读取同目录的 Markdown，每次仅展示一个章节，文档更新后不需要重新生成 HTML。
 
 GitHub Pages 发布设置：
 
