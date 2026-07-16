@@ -3,14 +3,14 @@
 <div class="progress-meta">
   <span class="status-badge status-done">● 最近本地验证通过</span>
   <span>更新时间：2026-07-16</span>
-  <span>基线提交：<code>562836f</code></span>
+  <span>基线提交：<code>f198397</code></span>
 </div>
 
 <div class="progress-summary" aria-label="当前项目摘要">
   <div class="progress-stat progress-stat-done"><strong>可用</strong><span>前后端最小骨架</span></div>
   <div class="progress-stat progress-stat-done"><strong>80 / 80</strong><span>后端测试通过</span></div>
   <div class="progress-stat progress-stat-done"><strong>通过</strong><span>前端类型检查与构建</span></div>
-  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>前端作业列表与详情</span></div>
+  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>作业提交参数与资源校验</span></div>
 </div>
 
 > **状态说明：** <span class="status-badge status-done">✓ 已完成</span> 已实现并通过对应测试、构建、fixture 或平台证据验证；<span class="status-badge status-active">→ 进行中</span> 已有部分成果；<span class="status-badge status-pending">○ 待开始</span> 尚未实现；<span class="status-badge status-later">◇ 赛后</span> 不阻塞比赛 MVP。
@@ -29,9 +29,9 @@
     <p>FastAPI、React、环境配置和基础测试可用；统一错误响应与日志仍需补齐，云 CI 暂不启用。</p>
   </div>
   <div class="phase-row">
-    <div class="phase-heading"><strong>阶段 2 · 作业只读视图</strong><span class="status-badge status-active">3 / 5</span></div>
-    <div class="progress-track" role="progressbar" aria-label="作业只读视图完成度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="60"><span class="progress-fill progress-60"></span></div>
-    <p>作业模型、fixture 支撑的 Slurm 解析与 Fixture adapter jobs API 已完成；前端列表/详情和可信身份所有权机制待实现。Native API 在认证完成前无条件关闭，真实平台未验证。</p>
+    <div class="phase-heading"><strong>阶段 2 · 作业只读视图</strong><span class="status-badge status-active">4 / 5</span></div>
+    <div class="progress-track" role="progressbar" aria-label="作业只读视图完成度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="80"><span class="progress-fill progress-80"></span></div>
+    <p>作业模型、Fixture jobs API 和基础前端列表/详情已完成；可信身份所有权机制待实现。Native API 在认证完成前无条件关闭，真实平台未验证，视觉美化留到核心功能闭环后统一进行。</p>
   </div>
   <div class="phase-row">
     <div class="phase-heading"><strong>阶段 3 · 作业提交与控制</strong><span class="status-badge status-pending">0 / 5</span></div>
@@ -63,7 +63,8 @@
 | <span class="status-badge status-done">✓</span> | Slurm adapter | SlurmAdapter Protocol、参数数组 runner、Fixture/Native adapter、超时与命令错误映射 | adapter 单元测试通过；未执行真实平台命令 |
 | <span class="status-badge status-done">✓</span> | Slurm 解析 | squeue、sacct、sinfo 的作业状态、节点、退出码和资源字段解析 | fixture、异常输入和状态映射测试通过 |
 | <span class="status-badge status-done">✓</span> | API 安全边界 | Native jobs API 无条件 fail-closed；404/422/503 使用脱敏错误 envelope 与服务端 request ID | 外部 native 环境下完整 pytest 通过；未调用 subprocess |
-| <span class="status-badge status-done">✓</span> | 前端骨架 | 基础页面、API 状态与 Mock 作业数量 | TypeScript 检查、Vite 构建通过 |
+| <span class="status-badge status-done">✓</span> | 前端骨架 | React 页面入口、基础布局与 API 状态 | TypeScript 检查、Vite 构建通过 |
+| <span class="status-badge status-done">✓</span> | 前端作业视图 | Fixture 作业列表、状态筛选、分页、详情、加载、空数据和错误重试 | TypeScript 检查、Vite 生产构建通过 |
 | <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 后端 80 个 pytest 通过，目标 Ruff 通过；0 个生产依赖漏洞 |
 | <span class="status-badge status-done">✓</span> | 文档 | 架构、环境、协作、部署、API 契约 | 文档站可直接访问 |
 | <span class="status-badge status-done">✓</span> | 文档体验 | 单章节按需加载、模糊过渡、URL 定位、前进后退和章节筛选 | 浏览器交互检查通过 |
@@ -71,8 +72,8 @@
 ## 当前待办与提示
 
 <div class="notice-grid">
-  <div class="notice notice-next"><strong>下一开发项</strong><span>基于已稳定的 Fixture jobs API 实现前端作业列表与详情；Native 接入前先单独确定可信认证和逐请求身份映射方案。</span></div>
-  <div class="notice notice-warning"><strong>暂时限制</strong><span>Fixture adapter 已接入 jobs API，但 Native API 因可信认证和逐请求身份映射未完成而不可启用；真实平台尚未验证，前端完整作业列表和详情仍待实现。</span></div>
+  <div class="notice notice-next"><strong>下一开发项</strong><span>设计结构化作业提交参数、资源上限校验和 Fixture 提交流程；Native 接入前先单独确定可信认证和逐请求身份映射方案。</span></div>
+  <div class="notice notice-warning"><strong>暂时限制</strong><span>当前前端是基础功能版，尚未进行最终视觉美化；Native API 因可信认证和逐请求身份映射未完成而不可启用，真实平台尚未验证。</span></div>
   <div class="notice notice-safe"><strong>安全边界</strong><span>真实测试只能通过 Slurm 提交，禁止在登录节点直接运行学生计算任务。</span></div>
   <div class="notice notice-info"><strong>验证方式</strong><span>基于脱敏 fixtures 完成本地验证：后端 pytest 80 passed，目标 Ruff 通过；未执行真实 Slurm 命令，未启用付费 Gitee Go 门禁。</span></div>
 </div>
@@ -85,7 +86,7 @@
 - [x] Fixture adapter 接入 jobs service/API
 - [ ] 真实 Slurm 查询与 jobs service/API 接入（等待可信身份方案）
 - [ ] 作业所有权校验
-- [ ] 作业列表与详情页面
+- [x] 基础作业列表与详情页面
 - [ ] 作业提交与资源校验
 - [ ] stdout/stderr 日志查看
 - [ ] 作业取消与克隆

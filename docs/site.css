@@ -162,6 +162,7 @@ footer { padding: 28px 18px; border-top: 1px solid var(--docs-line); color: var(
 .progress-0 { width: 0; }
 .progress-20 { width: 20%; }
 .progress-60 { width: 60%; }
+.progress-80 { width: 80%; }
 .phase-later .progress-track { background: #efebe7; }
 .notice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 18px 0 28px; }
 .notice { padding: 16px 18px; border-left: 4px solid var(--docs-line); border-radius: 5px; background: #f8f5f0; }
