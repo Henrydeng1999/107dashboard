@@ -1,23 +1,77 @@
-from fastapi import APIRouter, HTTPException, Query
+from typing import Annotated
 
-from app.schemas.jobs import Job, JobListResponse, JobState
-from app.services.job_catalog import get_job, list_jobs
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import JSONResponse
+
+from app.schemas.jobs import ErrorResponse, Job, JobListResponse, JobState
+from app.services.job_catalog import JobCatalog, JobCatalogUnavailable
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
-@router.get("", response_model=JobListResponse)
+def get_job_catalog(request: Request) -> JobCatalog:
+    return request.app.state.job_catalog
+
+
+CatalogDependency = Annotated[JobCatalog, Depends(get_job_catalog)]
+
+
+ERROR_RESPONSES = {
+    422: {"model": ErrorResponse, "description": "Invalid request parameters"},
+    503: {"model": ErrorResponse, "description": "Job data source unavailable"},
+}
+
+
+def _error_response(request: Request, status_code: int, code: str, message: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "error": {
+                "code": code,
+                "message": message,
+                "request_id": request.state.request_id,
+            }
+        },
+    )
+
+
+@router.get("", response_model=JobListResponse, responses=ERROR_RESPONSES)
 def jobs(
+    request: Request,
+    catalog: CatalogDependency,
     state: JobState | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-) -> JobListResponse:
-    return list_jobs(owner="demo-user", state=state, page=page, page_size=page_size)
+) -> JobListResponse | JSONResponse:
+    try:
+        return catalog.list_jobs(state=state, page=page, page_size=page_size)
+    except JobCatalogUnavailable:
+        return _error_response(
+            request,
+            503,
+            "JOB_DATA_UNAVAILABLE",
+            "Job data is temporarily unavailable",
+        )
 
 
-@router.get("/{job_id}", response_model=Job)
-def job_detail(job_id: str) -> Job:
-    job = get_job(owner="demo-user", job_id=job_id)
+@router.get(
+    "/{job_id}",
+    response_model=Job,
+    responses={
+        **ERROR_RESPONSES,
+        404: {"model": ErrorResponse, "description": "Job not found"},
+    },
+)
+def job_detail(job_id: str, request: Request, catalog: CatalogDependency) -> Job | JSONResponse:
+    try:
+        job = catalog.get_job(job_id)
+    except JobCatalogUnavailable:
+        return _error_response(
+            request,
+            503,
+            "JOB_DATA_UNAVAILABLE",
+            "Job data is temporarily unavailable",
+        )
     if job is None:
-        raise HTTPException(status_code=404, detail="Job was not found")
+        return _error_response(request, 404, "JOB_NOT_FOUND", "Job was not found")
     return job

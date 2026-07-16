@@ -15,10 +15,12 @@ class JobState(StrEnum):
 
 
 class JobResources(BaseModel):
-    cpus: int = Field(ge=1, le=4)
-    memory_mb: int = Field(ge=512, le=16384)
-    gpus: int = Field(ge=0, le=1)
-    time_limit_minutes: int = Field(ge=1, le=240)
+    """Observed Slurm resources, not a job submission request."""
+
+    cpus: int | None = Field(default=None, ge=0)
+    memory_mb: int | None = Field(default=None, ge=0)
+    gpus: int | None = Field(default=None, ge=0)
+    time_limit_minutes: int | None = Field(default=None, ge=0)
 
 
 class Job(BaseModel):
@@ -27,17 +29,17 @@ class Job(BaseModel):
     id: str
     slurm_job_id: str
     owner: str
-    name: str
+    name: str | None = None
     state: JobState
-    partition: str
-    account: str
-    qos: str
-    command: str
+    partition: str | None = None
+    account: str | None = None
+    qos: str | None = None
+    command: str | None = None
     resources: JobResources
     node: str | None = None
     exit_code: str | None = None
     reason: str | None = None
-    submitted_at: datetime
+    submitted_at: datetime | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None
     updated_at: datetime
@@ -49,3 +51,13 @@ class JobListResponse(BaseModel):
     page_size: int
     total: int
     updated_at: datetime
+
+
+class ErrorDetail(BaseModel):
+    code: str
+    message: str
+    request_id: str
+
+
+class ErrorResponse(BaseModel):
+    error: ErrorDetail

@@ -6,12 +6,12 @@ from app.main import app
 client = TestClient(app)
 
 
-def test_list_jobs_returns_demo_jobs() -> None:
+def test_list_jobs_uses_default_fixture_data_source() -> None:
     response = client.get("/api/jobs")
 
     assert response.status_code == 200
-    assert response.json()["total"] == 2
-    assert response.json()["items"][0]["slurm_job_id"] == "21482"
+    assert response.json()["total"] == 5
+    assert response.json()["items"][0]["slurm_job_id"] == "900002"
 
 
 def test_list_jobs_filters_by_state() -> None:
