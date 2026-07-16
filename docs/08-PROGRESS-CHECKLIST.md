@@ -1,19 +1,19 @@
 # 项目完成情况检查表
 
 <div class="progress-meta">
-  <span class="status-badge status-done">● 最近审核通过</span>
-  <span>更新时间：2026-07-15</span>
-  <span>基线提交：<code>21db785</code></span>
+  <span class="status-badge status-done">● 最近本地验证通过</span>
+  <span>更新时间：2026-07-16</span>
+  <span>基线提交：<code>8b74c09</code></span>
 </div>
 
 <div class="progress-summary" aria-label="当前项目摘要">
   <div class="progress-stat progress-stat-done"><strong>可用</strong><span>前后端最小骨架</span></div>
-  <div class="progress-stat progress-stat-done"><strong>4 / 4</strong><span>后端测试通过</span></div>
+  <div class="progress-stat progress-stat-done"><strong>55 / 55</strong><span>后端测试通过</span></div>
   <div class="progress-stat progress-stat-done"><strong>通过</strong><span>前端类型检查与构建</span></div>
-  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>Slurm fixture 与适配器</span></div>
+  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>Slurm adapter 接入 jobs API</span></div>
 </div>
 
-> **状态说明：** <span class="status-badge status-done">✓ 已完成</span> 已合入并验证；<span class="status-badge status-active">→ 进行中</span> 已有部分成果；<span class="status-badge status-pending">○ 待开始</span> 尚未实现；<span class="status-badge status-later">◇ 赛后</span> 不阻塞比赛 MVP。
+> **状态说明：** <span class="status-badge status-done">✓ 已完成</span> 已实现并通过对应测试、构建、fixture 或平台证据验证；<span class="status-badge status-active">→ 进行中</span> 已有部分成果；<span class="status-badge status-pending">○ 待开始</span> 尚未实现；<span class="status-badge status-later">◇ 赛后</span> 不阻塞比赛 MVP。
 
 ## 分阶段完成情况
 
@@ -29,9 +29,9 @@
     <p>FastAPI、React、环境配置和基础测试可用；统一错误响应与日志仍需补齐，云 CI 暂不启用。</p>
   </div>
   <div class="phase-row">
-    <div class="phase-heading"><strong>阶段 2 · 作业只读视图</strong><span class="status-badge status-active">1 / 5</span></div>
-    <div class="progress-track" role="progressbar" aria-label="作业只读视图完成度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="20"><span class="progress-fill progress-20"></span></div>
-    <p>Mock 作业模型、列表和详情 API 已完成；真实 Slurm 查询、前端列表和所有权机制待实现。</p>
+    <div class="phase-heading"><strong>阶段 2 · 作业只读视图</strong><span class="status-badge status-active">2 / 5</span></div>
+    <div class="progress-track" role="progressbar" aria-label="作业只读视图完成度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="40"><span class="progress-fill" style="width: 40%;"></span></div>
+    <p>Mock 作业模型与只读 API、fixture 支撑的 squeue/sacct/sinfo 受控查询和解析已完成；真实 Slurm 查询、jobs service/API 接入、前端列表和所有权机制待实现。</p>
   </div>
   <div class="phase-row">
     <div class="phase-heading"><strong>阶段 3 · 作业提交与控制</strong><span class="status-badge status-pending">0 / 5</span></div>
@@ -59,25 +59,30 @@
 | <span class="status-badge status-done">✓</span> | 后端骨架 | FastAPI 应用、配置加载、CORS、健康检查 | `GET /api/health` 测试通过 |
 | <span class="status-badge status-done">✓</span> | 作业模型 | 状态枚举、资源边界、列表与详情响应模型 | Pydantic 校验生效 |
 | <span class="status-badge status-done">✓</span> | Mock API | 作业列表、状态筛选、分页、详情和 404 | 4 个 pytest 测试通过 |
+| <span class="status-badge status-done">✓</span> | Slurm fixtures | 脱敏 squeue、sacct、sinfo 和空队列输出样例 | 解析器与 Fixture adapter 测试通过 |
+| <span class="status-badge status-done">✓</span> | Slurm adapter | SlurmAdapter Protocol、参数数组 runner、Fixture/Native adapter、超时与命令错误映射 | adapter 单元测试通过；未执行真实平台命令 |
+| <span class="status-badge status-done">✓</span> | Slurm 解析 | squeue、sacct、sinfo 的作业状态、节点、退出码和资源字段解析 | fixture、异常输入和状态映射测试通过 |
 | <span class="status-badge status-done">✓</span> | 前端骨架 | 基础页面、API 状态与 Mock 作业数量 | TypeScript 检查、Vite 构建通过 |
-| <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 0 个生产依赖漏洞 |
+| <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 后端 55 个 pytest 通过，目标 Ruff 通过；0 个生产依赖漏洞 |
 | <span class="status-badge status-done">✓</span> | 文档 | 架构、环境、协作、部署、API 契约 | 文档站可直接访问 |
 | <span class="status-badge status-done">✓</span> | 文档体验 | 单章节按需加载、模糊过渡、URL 定位、前进后退和章节筛选 | 浏览器交互检查通过 |
 
 ## 当前待办与提示
 
 <div class="notice-grid">
-  <div class="notice notice-next"><strong>下一开发项</strong><span>建立脱敏的 squeue、sacct、sinfo fixtures，并定义 Slurm adapter 接口。</span></div>
-  <div class="notice notice-warning"><strong>暂时限制</strong><span>当前作业数据来自 Mock，不能代表实时集群状态；前端尚未形成完整作业列表页。</span></div>
+  <div class="notice notice-next"><strong>下一开发项</strong><span>将 Fixture/Slurm adapter 接入 jobs service/API，并保持 Mock/真实 Slurm 可切换。</span></div>
+  <div class="notice notice-warning"><strong>暂时限制</strong><span>Slurm 命令尚未在真实平台执行，adapter 尚未接入 jobs service/API；当前 API 仍使用 Mock 数据，所有权校验和前端完整作业列表仍待实现。</span></div>
   <div class="notice notice-safe"><strong>安全边界</strong><span>真实测试只能通过 Slurm 提交，禁止在登录节点直接运行学生计算任务。</span></div>
-  <div class="notice notice-info"><strong>验证方式</strong><span>目前采用本地测试和人工审核，未启用付费 Gitee Go 门禁。</span></div>
+  <div class="notice notice-info"><strong>验证方式</strong><span>基于脱敏 fixtures 完成本地验证：后端 pytest 55 passed，目标 Ruff 通过；未启用付费 Gitee Go 门禁。</span></div>
 </div>
 
 ## MVP 必须功能
 
 - [x] 前后端最小骨架与健康检查
 - [x] 作业数据模型与 Mock 只读 API
-- [ ] Slurm 受控调用和输出解析
+- [x] squeue、sacct、sinfo 受控查询参数与 fixture 输出解析
+- [ ] 真实 Slurm 查询与 jobs service/API 接入
+- [ ] 作业所有权校验
 - [ ] 作业列表与详情页面
 - [ ] 作业提交与资源校验
 - [ ] stdout/stderr 日志查看

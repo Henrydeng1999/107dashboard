@@ -1,0 +1,2 @@
+900001|image-training|RUNNING|demo-user|demo-students|demo-account|demo-qos|demo-node-01|None|2|4G|gpu:demo-accelerator:1|01:00:00
+900002|course-preprocess|PENDING|demo-user|demo-students|demo-account|demo-qos|(null)|Resources|1|2048M|N/A|00:30:00

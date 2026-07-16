@@ -1,0 +1,2 @@
+demo-students*|up|mix|12|128/1024/512/1536|512000|gpu:demo-accelerator:8(S:0-7)
+demo-accelerators|up|idle|2|0/256/0/256|1024000

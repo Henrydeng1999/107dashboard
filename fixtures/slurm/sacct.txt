@@ -1,0 +1,3 @@
+899998|image-training|COMPLETED|demo-user|demo-students|demo-account|demo-qos|demo-node-01|0:0|cpu=2,mem=4G,gres/gpu=1,gres/gpu:demo-accelerator=1|cpu=2,mem=4G,gres/gpu=1,gres/gpu:demo-accelerator=1|01:00:00|00:12:31|None
+899999|broken-training|FAILED|demo-user|demo-students|demo-account|demo-qos|demo-node-02|1:0|cpu=1,mem=2G|cpu=1,mem=2G|00:30:00|00:00:07|NonZeroExitCode
+899997|older-job|CANCELLED by 4242|demo-user|demo-students|demo-account|demo-qos
