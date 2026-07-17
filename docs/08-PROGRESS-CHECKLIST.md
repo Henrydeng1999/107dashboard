@@ -3,14 +3,14 @@
 <div class="progress-meta">
   <span class="status-badge status-done">● 最近本地验证通过</span>
   <span>更新时间：2026-07-17</span>
-  <span>基线提交：<code>ceac811</code></span>
+  <span>基线提交：<code>4b8734e</code></span>
 </div>
 
 <div class="progress-summary" aria-label="当前项目摘要">
   <div class="progress-stat progress-stat-done"><strong>可用</strong><span>前后端最小骨架</span></div>
-  <div class="progress-stat progress-stat-done"><strong>109 / 109</strong><span>后端测试通过</span></div>
+  <div class="progress-stat progress-stat-done"><strong>110 / 110</strong><span>后端测试通过</span></div>
   <div class="progress-stat progress-stat-done"><strong>通过</strong><span>前端类型检查与构建</span></div>
-  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>完整演示回归与身份方案</span></div>
+  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>OS 身份校验与元数据持久化</span></div>
 </div>
 
 > **状态说明：** <span class="status-badge status-done">✓ 已完成</span> 已实现并通过对应测试、构建、fixture 或平台证据验证；<span class="status-badge status-active">→ 进行中</span> 已有部分成果；<span class="status-badge status-pending">○ 待开始</span> 尚未实现；<span class="status-badge status-later">◇ 赛后</span> 不阻塞比赛 MVP。
@@ -19,9 +19,9 @@
 
 <div class="phase-list">
   <div class="phase-row">
-    <div class="phase-heading"><strong>阶段 0 · 项目初始化</strong><span class="status-badge status-active">3 / 5</span></div>
-    <div class="progress-track" role="progressbar" aria-label="项目初始化完成度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="60"><span class="progress-fill progress-60"></span></div>
-    <p>项目文档、技术版本和平台部署方向已确定；配置边界与认证方式待确认。</p>
+    <div class="phase-heading"><strong>阶段 0 · 项目初始化</strong><span class="status-badge status-active">4 / 5</span></div>
+    <div class="progress-track" role="progressbar" aria-label="项目初始化完成度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="80"><span class="progress-fill progress-80"></span></div>
+    <p>项目文档、技术版本、部署方向和比赛原型单 Unix 账号身份边界已确定；开发/测试/生产配置边界仍待固化。</p>
   </div>
   <div class="phase-row">
     <div class="phase-heading"><strong>阶段 1 · 最小可用骨架</strong><span class="status-badge status-active">3 / 5</span></div>
@@ -70,17 +70,19 @@
 | <span class="status-badge status-done">✓</span> | Fixture 作业日志 | stdout/stderr 流切换、字节偏移增量读取、缺失日志提示、刷新和继续加载 | 正常、缺失、404、416、非法参数集成测试及前端构建通过；未读取真实用户日志 |
 | <span class="status-badge status-done">✓</span> | Fixture 资源统计 | 区分申请、分配和实际指标，聚合顶层与 `.batch` 数据，展示CPU、GPU、内存和时长 | 真实字段格式驱动的 parser、adapter、API 测试及前端构建通过；GPU实际使用保持未知 |
 | <span class="status-badge status-done">✓</span> | 当前用户摘要 | 作业总数、活跃/成功/异常数量、完整状态分布和带字段覆盖率的资源快照合计 | 摘要初始值、提交后更新和前端构建通过；不声称为实际利用率 |
-| <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 后端 109 个 pytest 通过，目标 Ruff 通过；0 个生产依赖漏洞 |
+| <span class="status-badge status-done">✓</span> | Fixture MVP 回归 | 健康检查、列表/详情、日志、资源、提交、取消、克隆和摘要组成单一可重复故事 | `test_mvp_fixture_flow.py` 通过，不调用真实 Slurm |
+| <span class="status-badge status-done">✓</span> | 身份设计 | 比赛原型采用后端进程有效 UID 对应的单 Unix 账号，HTTP 输入不能选择 Slurm 用户 | 架构、API 与 Agent 安全边界已同步；Native 继续 fail closed |
+| <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 后端 110 个 pytest 通过，目标 Ruff 通过；0 个生产依赖漏洞 |
 | <span class="status-badge status-done">✓</span> | 文档 | 架构、环境、协作、部署、API 契约 | 文档站可直接访问 |
 | <span class="status-badge status-done">✓</span> | 文档体验 | 单章节按需加载、模糊过渡、URL 定位、前进后退和章节筛选 | 浏览器交互检查通过 |
 
 ## 当前待办与提示
 
 <div class="notice-grid">
-  <div class="notice notice-next"><strong>下一开发项</strong><span>执行 Fixture 完整演示回归，随后确定可信身份与所有权映射方案，为真实提交、日志和取消做准备。</span></div>
+  <div class="notice notice-next"><strong>下一开发项</strong><span>实现有效 UID 与部署 owner 的启动一致性校验，并引入 SQLite 作业元数据，为逐操作所有权复核做准备。</span></div>
   <div class="notice notice-warning"><strong>暂时限制</strong><span>当前提交、取消和克隆均为内存模拟，日志来自脱敏 Fixture；Native 只读链路虽已在 107 验证，但正式 API 仍等待可信身份映射，写操作和真实日志尚未进行平台验收。</span></div>
   <div class="notice notice-safe"><strong>安全边界</strong><span>真实测试只能通过 Slurm 提交，禁止在登录节点直接运行学生计算任务。</span></div>
-  <div class="notice notice-info"><strong>验证方式</strong><span>Fixture 用于稳定回归和边界覆盖，Native 用于阶段性真实验收：后端 pytest 109 passed、目标 Ruff、前端类型检查和生产构建通过；资源字段按107真实 sacct 输出格式建模。</span></div>
+  <div class="notice notice-info"><strong>验证方式</strong><span>Fixture 完整故事和边界测试用于稳定回归，Native 用于阶段性真实验收：后端 pytest 110 passed、目标 Ruff、前端类型检查和生产构建通过。</span></div>
 </div>
 
 ## MVP 必须功能
@@ -101,7 +103,8 @@
 - [x] Fixture 作业级 CPU、GPU、内存和运行时长统计
 - [x] 当前用户作业与资源字段摘要
 - [ ] 真实统计平台验收
-- [ ] Mock、预提交作业、真实平台三路演示
+- [x] Mock/Fixture 完整故事自动回归
+- [ ] 预提交作业与真实平台演示回归
 
 ## 可选创新功能
 

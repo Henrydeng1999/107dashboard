@@ -85,6 +85,8 @@ See `docs/03-ENVIRONMENT_CHECK.md` for the complete verified environment record.
 - Validate ownership before reading logs, cancelling, cloning, or exposing job details.
 - Use mock fixtures for local development and tests whenever real Slurm access is unnecessary.
 - Keep real resource requests minimal when performing platform checks.
+- The competition Native prototype uses one trusted Unix-account identity: derive it from the backend process effective UID and assert it matches deployment configuration. Never accept a Slurm username from HTTP input.
+- Keep Native jobs API fail closed until OS-identity startup validation, persisted owner metadata, and per-operation ownership checks are implemented and tested.
 
 ## Security
 
