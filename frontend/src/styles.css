@@ -94,6 +94,15 @@ button:disabled { opacity: .42; cursor: not-allowed; }
 .detail-grid dt { margin-bottom: 7px; color: var(--muted); font-size: 11px; }
 .detail-grid dd { margin: 0; overflow-wrap: anywhere; font-size: 13px; }
 .detail-note { margin: 14px 0 0; color: var(--muted); font-size: 12px; }
+.usage-panel { margin-top: 20px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #101a2d; }
+.usage-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; }
+.usage-heading h3 { margin-bottom: 0; font-size: 16px; }
+.usage-heading > span { color: var(--muted); font-size: 11px; }
+.usage-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin-top: 14px; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: var(--line); }
+.usage-grid div { display: grid; gap: 7px; min-width: 0; padding: 12px; background: #131f34; }
+.usage-grid span, .usage-loading { color: var(--muted); font-size: 11px; }
+.usage-grid strong { overflow-wrap: anywhere; font-size: 14px; }
+.usage-loading { padding: 28px 0 12px; text-align: center; }
 .log-panel { margin-top: 20px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #0c1424; }
 .log-heading, .log-toolbar, .log-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .log-heading h3 { margin-bottom: 0; font-size: 16px; }
@@ -125,6 +134,8 @@ button:disabled { opacity: .42; cursor: not-allowed; }
   .job-card { grid-template-columns: 1fr; gap: 16px; }
   .detail-button { justify-self: start; }
   .detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .usage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .usage-heading { align-items: stretch; flex-direction: column; }
   .log-heading { align-items: stretch; flex-direction: column; }
   .log-toolbar { justify-content: space-between; }
 }

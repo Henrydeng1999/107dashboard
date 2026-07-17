@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 
-import { ApiError, cancelJob, cloneJob, fetchJob, fetchJobLog, fetchJobs, submitJob } from "../../api/jobs";
-import type { Job, JobListResponse, JobLogStream, JobState, JobSubmitRequest } from "./types";
+import { ApiError, cancelJob, cloneJob, fetchJob, fetchJobLog, fetchJobUsage, fetchJobs, submitJob } from "../../api/jobs";
+import type { Job, JobListResponse, JobLogStream, JobState, JobSubmitRequest, JobUsageResponse } from "./types";
 
 const PAGE_SIZE = 5;
 
@@ -36,6 +36,79 @@ function valueOrDash(value: string | number | null | undefined): string {
 function formatMemory(memoryMb: number | null): string {
   if (memoryMb === null) return "—";
   return memoryMb >= 1024 ? `${memoryMb / 1024} GiB` : `${memoryMb} MiB`;
+}
+
+function formatMemoryKb(memoryKb: number | null): string {
+  if (memoryKb === null) return "平台未提供";
+  if (memoryKb < 1024) return `${memoryKb} KiB`;
+  return formatMemory(memoryKb / 1024);
+}
+
+function formatSeconds(seconds: number | null): string {
+  if (seconds === null) return "平台未提供";
+  if (seconds === 0) return "少于 1 秒";
+  if (seconds < 60) return `${seconds.toFixed(seconds % 1 === 0 ? 0 : 3)} 秒`;
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = Math.floor(seconds % 60);
+  return [hours ? `${hours} 小时` : "", minutes ? `${minutes} 分钟` : "", remainder ? `${remainder} 秒` : ""]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function JobUsagePanel({ jobId }: { jobId: string }) {
+  const [usage, setUsage] = useState<JobUsageResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setUsage(null);
+    setError(null);
+    fetchJobUsage(jobId, controller.signal)
+      .then(setUsage)
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") return;
+        setError(reason instanceof ApiError ? reason.message : "无法读取资源统计");
+      });
+    return () => controller.abort();
+  }, [jobId]);
+
+  const metrics = usage
+    ? [
+        ["申请 CPU", valueOrDash(usage.requested.cpus), "核"],
+        ["分配 CPU", valueOrDash(usage.allocated.cpus), "核"],
+        ["申请内存", formatMemory(usage.requested.memory_mb), ""],
+        ["峰值内存", formatMemoryKb(usage.max_rss_kb), ""],
+        ["分配 GPU", valueOrDash(usage.allocated.gpus), "张"],
+        ["GPU 实际使用", "平台未提供", ""],
+        ["运行时长", formatSeconds(usage.elapsed_seconds), ""],
+        ["累计 CPU 时间", formatSeconds(usage.total_cpu_seconds), ""],
+      ]
+    : [];
+
+  return (
+    <section className="usage-panel" aria-labelledby="usage-title">
+      <div className="usage-heading">
+        <div>
+          <p className="section-kicker">资源统计</p>
+          <h3 id="usage-title">申请、分配与实际使用</h3>
+        </div>
+        <span>GPU利用率未由平台提供</span>
+      </div>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {!error && !usage && <div className="usage-loading">正在读取资源统计…</div>}
+      {usage && (
+        <div className="usage-grid">
+          {metrics.map(([label, value, unit]) => (
+            <div key={label}>
+              <span>{label}</span>
+              <strong>{value}{value !== "平台未提供" && value !== "—" ? unit : ""}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function JobLogPanel({ jobId }: { jobId: string }) {
@@ -177,6 +250,7 @@ function JobDetail({
           </div>
         ))}
       </dl>
+      <JobUsagePanel jobId={job.id} />
       <JobLogPanel jobId={job.id} />
       {job.command === null && (
         <p className="detail-note">Fixture 查询暂不提供提交命令和事件时间，真实平台接入后再补充。</p>

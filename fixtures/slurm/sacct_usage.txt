@@ -1,0 +1,4 @@
+899998|image-training|COMPLETED|00:12:31|01:00:00|2|cpu=2,mem=4G,gres/gpu=1|cpu=2,gres/gpu=1,node=1|||00:18:42.500|0:0||
+899998.batch|batch|COMPLETED|00:12:31||2||cpu=2,gres/gpu=1,mem=0,node=1|768M|00:09:21|00:18:42.500|0:0|cpu=00:09:21,mem=512M|cpu=00:10:03,mem=768M
+899999|broken-training|FAILED|00:00:07|00:30:00|1|cpu=1,mem=2G|cpu=1,node=1|||00:00.148|1:0||
+899999.batch|batch|FAILED|00:00:07||1||cpu=1,mem=0,node=1|260K|00:00:00|00:00.148|1:0|cpu=00:00:00,mem=260K|cpu=00:00:00,mem=260K

@@ -35,3 +35,14 @@ class SlurmPartition:
     cpu_summary: str | None = None
     memory_mb: int | None = None
     gres: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SlurmUsageRecord:
+    job_id: str
+    requested: SlurmResources | None = None
+    allocated: SlurmResources | None = None
+    elapsed_seconds: float | None = None
+    time_limit_seconds: float | None = None
+    max_rss_kb: int | None = None
+    total_cpu_seconds: float | None = None

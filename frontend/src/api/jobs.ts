@@ -6,6 +6,7 @@ import type {
   JobListResponse,
   JobState,
   JobSubmitRequest,
+  JobUsageResponse,
 } from "../features/jobs/types";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api";
@@ -80,4 +81,8 @@ export function fetchJobLog(
 ): Promise<JobLogResponse> {
   const params = new URLSearchParams({ stream, offset: String(offset) });
   return request<JobLogResponse>(`/jobs/${encodeURIComponent(jobId)}/logs?${params}`, { signal });
+}
+
+export function fetchJobUsage(jobId: string, signal?: AbortSignal): Promise<JobUsageResponse> {
+  return request<JobUsageResponse>(`/jobs/${encodeURIComponent(jobId)}/usage`, { signal });
 }

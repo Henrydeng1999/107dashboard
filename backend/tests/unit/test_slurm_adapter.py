@@ -34,6 +34,7 @@ def test_fixture_adapter_uses_shared_parsers() -> None:
     assert adapter.list_accounting("demo-user")[0].exit_code == "0:0"
     assert adapter.list_partitions()[0].name == "demo-students"
     assert adapter.list_queue("another-user") == []
+    assert adapter.get_usage("899998")[1].max_rss_kb == 768 * 1024
 
 
 def test_native_adapter_accepts_project_platform_username_styles() -> None:
@@ -110,6 +111,24 @@ def test_native_adapter_uses_structured_accounting_and_partition_formats() -> No
         "--noheader",
         "--format=%P|%a|%t|%D|%C|%m|%G",
     ]
+
+
+def test_native_adapter_uses_structured_usage_query_and_validates_job_id() -> None:
+    runner = RecordingRunner()
+    adapter = NativeSlurmAdapter(runner)
+
+    adapter.get_usage("21482")
+
+    assert runner.calls == [[
+        "sacct",
+        "--noheader",
+        "--parsable2",
+        "--jobs=21482",
+        "--format=JobIDRaw,JobName,State,Elapsed,Timelimit,AllocCPUS,ReqTRES,AllocTRES,MaxRSS,AveCPU,TotalCPU,ExitCode,TRESUsageInAve,TRESUsageInMax",
+    ]]
+    with pytest.raises(ValueError, match="Slurm job identifier"):
+        adapter.get_usage("21482;whoami")
+    assert len(runner.calls) == 1
 
 
 def test_runner_uses_safe_subprocess_options(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -1,5 +1,5 @@
 from app.slurm.adapter import FixtureSlurmAdapter, NativeSlurmAdapter, SlurmAdapter
-from app.slurm.models import SlurmJob, SlurmPartition, SlurmResources
+from app.slurm.models import SlurmJob, SlurmPartition, SlurmResources, SlurmUsageRecord
 from app.slurm.parsers import SlurmParseError
 from app.slurm.runner import (
     SlurmCommandError,
@@ -22,4 +22,5 @@ __all__ = [
     "SlurmPartition",
     "SlurmParseError",
     "SlurmResources",
+    "SlurmUsageRecord",
 ]

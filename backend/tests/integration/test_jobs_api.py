@@ -331,3 +331,63 @@ def test_fixture_log_errors_use_stable_envelopes(
     assert response.status_code == expected_status
     assert response.json()["error"]["code"] == expected_code
     assert response.json()["error"]["request_id"] == response.headers["X-Request-ID"]
+
+
+def test_fixture_usage_distinguishes_requested_allocated_and_actual_metrics() -> None:
+    client = _fixture_client()
+
+    response = client.get("/api/jobs/slurm-899998/usage")
+
+    assert response.status_code == 200
+    usage = response.json()
+    assert usage["requested"] == {
+        "cpus": 2,
+        "memory_mb": 4096,
+        "gpus": 1,
+        "time_limit_minutes": 60,
+    }
+    assert usage["allocated"]["cpus"] == 2
+    assert usage["allocated"]["gpus"] == 1
+    assert usage["elapsed_seconds"] == 751
+    assert usage["time_limit_seconds"] == 3600
+    assert usage["max_rss_kb"] == 768 * 1024
+    assert usage["total_cpu_seconds"] == 1122.5
+    assert usage["gpu_utilization_percent"] is None
+    assert usage["gpu_memory_mb"] is None
+
+
+def test_fixture_usage_preserves_missing_metrics_instead_of_inventing_zeroes() -> None:
+    client = _fixture_client()
+
+    response = client.get("/api/jobs/slurm-900002/usage")
+
+    assert response.status_code == 200
+    usage = response.json()
+    assert usage["requested"] == {
+        "cpus": None,
+        "memory_mb": None,
+        "gpus": None,
+        "time_limit_minutes": None,
+    }
+    assert usage["allocated"] == usage["requested"]
+    assert usage["elapsed_seconds"] is None
+    assert usage["max_rss_kb"] is None
+
+
+def test_fixture_usage_preserves_sub_megabyte_peak_memory_precision() -> None:
+    client = _fixture_client()
+
+    response = client.get("/api/jobs/slurm-899999/usage")
+
+    assert response.status_code == 200
+    assert response.json()["max_rss_kb"] == 260
+    assert response.json()["total_cpu_seconds"] == 0.148
+
+
+def test_fixture_usage_hides_unknown_jobs() -> None:
+    client = _fixture_client()
+
+    response = client.get("/api/jobs/slurm-123456/usage")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "JOB_NOT_FOUND"

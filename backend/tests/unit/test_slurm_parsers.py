@@ -2,7 +2,13 @@ from pathlib import Path
 
 import pytest
 
-from app.slurm.parsers import SlurmParseError, parse_sacct, parse_sinfo, parse_squeue
+from app.slurm.parsers import (
+    SlurmParseError,
+    parse_sacct,
+    parse_sacct_usage,
+    parse_sinfo,
+    parse_squeue,
+)
 
 FIXTURE_DIRECTORY = Path(__file__).parents[3] / "fixtures" / "slurm"
 
@@ -84,6 +90,29 @@ def test_parse_sacct_accepts_missing_trailing_fields() -> None:
     assert jobs[2].exit_code is None
     assert jobs[2].requested is not None
     assert jobs[2].requested.cpus is None
+
+
+def test_parse_sacct_usage_preserves_allocation_and_step_metrics() -> None:
+    records = parse_sacct_usage(_fixture("sacct_usage.txt"))
+
+    allocation = records[0]
+    batch = records[1]
+    assert allocation.job_id == "899998"
+    assert allocation.requested is not None
+    assert allocation.requested.memory_mb == 4096
+    assert allocation.allocated is not None
+    assert allocation.allocated.cpus == 2
+    assert allocation.allocated.gpus == 1
+    assert allocation.elapsed_seconds == 751
+    assert allocation.time_limit_seconds == 3600
+    assert batch.job_id == "899998.batch"
+    assert batch.max_rss_kb == 768 * 1024
+    assert batch.total_cpu_seconds == 1122.5
+
+
+def test_parse_sacct_usage_rejects_malformed_duration() -> None:
+    with pytest.raises(SlurmParseError, match="invalid Elapsed duration"):
+        parse_sacct_usage("1|job|COMPLETED|soon||||||||||")
 
 
 def test_parse_sinfo_strips_default_marker_and_accepts_missing_gres() -> None:

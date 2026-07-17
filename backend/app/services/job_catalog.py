@@ -16,6 +16,7 @@ from app.schemas.jobs import (
     JobResources,
     JobState,
     JobSubmitRequest,
+    JobUsageResponse,
 )
 from app.slurm import (
     FixtureSlurmAdapter,
@@ -420,4 +421,55 @@ class JobCatalog:
             next_offset=next_offset,
             eof=next_offset >= size,
             available=True,
+        )
+
+    def get_job_usage(self, dashboard_job_id: str) -> JobUsageResponse:
+        job = self.get_job(dashboard_job_id)
+        if job is None:
+            raise JobNotFound("Job was not found")
+        try:
+            records = self.adapter.get_usage(job.slurm_job_id)
+        except (SlurmCommandError, SlurmParseError, OSError, UnicodeError, ValueError) as exc:
+            raise JobCatalogUnavailable("Job usage data is unavailable") from exc
+
+        allocation = next((record for record in records if record.job_id == job.slurm_job_id), None)
+        steps = [record for record in records if record.job_id.startswith(f"{job.slurm_job_id}.")]
+        max_rss_values = [record.max_rss_kb for record in steps if record.max_rss_kb is not None]
+        total_cpu_values = [
+            record.total_cpu_seconds for record in records if record.total_cpu_seconds is not None
+        ]
+        with self._cache_condition:
+            is_fixture_submission = job.id in self._submitted_jobs
+        requested = allocation.requested if allocation is not None else None
+        if requested is None and is_fixture_submission:
+            requested = SlurmResources(
+                cpus=job.resources.cpus,
+                memory_mb=job.resources.memory_mb,
+                gpus=job.resources.gpus,
+            )
+        allocated = allocation.allocated if allocation is not None else None
+        return JobUsageResponse(
+            job_id=job.id,
+            requested=JobResources(
+                cpus=requested.cpus if requested else None,
+                memory_mb=requested.memory_mb if requested else None,
+                gpus=requested.gpus if requested else None,
+                time_limit_minutes=(
+                    round(allocation.time_limit_seconds / 60)
+                    if allocation is not None and allocation.time_limit_seconds is not None
+                    else None
+                ),
+            ),
+            allocated=JobResources(
+                cpus=allocated.cpus if allocated else None,
+                memory_mb=allocated.memory_mb if allocated else None,
+                gpus=allocated.gpus if allocated else None,
+                time_limit_minutes=None,
+            ),
+            elapsed_seconds=allocation.elapsed_seconds if allocation else None,
+            time_limit_seconds=allocation.time_limit_seconds if allocation else None,
+            max_rss_kb=max(max_rss_values) if max_rss_values else None,
+            total_cpu_seconds=max(total_cpu_values) if total_cpu_values else None,
+            gpu_utilization_percent=None,
+            gpu_memory_mb=None,
         )

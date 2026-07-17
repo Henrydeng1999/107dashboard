@@ -68,6 +68,18 @@ export interface JobLogResponse {
   available: boolean;
 }
 
+export interface JobUsageResponse {
+  job_id: string;
+  requested: JobResources;
+  allocated: JobResources;
+  elapsed_seconds: number | null;
+  time_limit_seconds: number | null;
+  max_rss_kb: number | null;
+  total_cpu_seconds: number | null;
+  gpu_utilization_percent: number | null;
+  gpu_memory_mb: number | null;
+}
+
 export interface ApiErrorResponse {
   error?: {
     code?: string;

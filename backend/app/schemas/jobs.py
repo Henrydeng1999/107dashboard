@@ -87,6 +87,18 @@ class JobLogResponse(BaseModel):
     available: bool
 
 
+class JobUsageResponse(BaseModel):
+    job_id: str
+    requested: JobResources
+    allocated: JobResources
+    elapsed_seconds: float | None = Field(default=None, ge=0)
+    time_limit_seconds: float | None = Field(default=None, ge=0)
+    max_rss_kb: int | None = Field(default=None, ge=0)
+    total_cpu_seconds: float | None = Field(default=None, ge=0)
+    gpu_utilization_percent: float | None = Field(default=None, ge=0, le=100)
+    gpu_memory_mb: int | None = Field(default=None, ge=0)
+
+
 class ErrorDetail(BaseModel):
     code: str
     message: str

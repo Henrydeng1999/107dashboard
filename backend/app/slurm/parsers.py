@@ -1,11 +1,12 @@
 import re
 from collections.abc import Iterator
 
-from app.slurm.models import SlurmJob, SlurmPartition, SlurmResources
+from app.slurm.models import SlurmJob, SlurmPartition, SlurmResources, SlurmUsageRecord
 
 _SQUEUE_FIELDS = 13
 _SACCT_FIELDS = 14
 _SINFO_FIELDS = 7
+_SACCT_USAGE_FIELDS = 14
 _NULL_VALUES = {"", "(null)", "n/a", "none", "unknown"}
 
 _STATE_MAP = {
@@ -82,6 +83,19 @@ def _memory_mb(value: str, source: str, line_number: int, field: str) -> int | N
     return round(amount * multiplier[unit])
 
 
+def _memory_kb(value: str, source: str, line_number: int, field: str) -> int | None:
+    normalized = _optional(value)
+    if normalized is None:
+        return None
+    match = re.fullmatch(r"(\d+(?:\.\d+)?)\s*([kmgt]?)", normalized, re.I)
+    if match is None:
+        raise SlurmParseError(source, line_number, f"invalid {field} memory {value!r}")
+    amount = float(match.group(1))
+    unit = match.group(2).upper()
+    multiplier = {"": 1, "K": 1, "M": 1024, "G": 1024**2, "T": 1024**3}
+    return round(amount * multiplier[unit])
+
+
 def _gpu_count(value: str, source: str, line_number: int, field: str) -> int | None:
     normalized = _optional(value)
     if normalized is None:
@@ -134,6 +148,39 @@ def _state(value: str) -> str | None:
         return None
     base_state = normalized.upper().split(maxsplit=1)[0].rstrip("+")
     return _STATE_MAP.get(base_state, "UNKNOWN")
+
+
+def _duration_seconds(value: str, source: str, line_number: int, field: str) -> float | None:
+    normalized = _optional(value)
+    if normalized is None:
+        return None
+    day_parts = normalized.split("-", maxsplit=1)
+    if len(day_parts) == 2:
+        if not day_parts[0].isdigit():
+            raise SlurmParseError(source, line_number, f"invalid {field} duration {value!r}")
+        days = int(day_parts[0])
+        clock = day_parts[1]
+    else:
+        days = 0
+        clock = day_parts[0]
+    parts = clock.split(":")
+    if len(parts) == 3:
+        hours_text, minutes_text, seconds_text = parts
+    elif len(parts) == 2 and days == 0:
+        hours_text, minutes_text, seconds_text = "0", parts[0], parts[1]
+    else:
+        raise SlurmParseError(source, line_number, f"invalid {field} duration {value!r}")
+    if (
+        not hours_text.isdigit()
+        or not minutes_text.isdigit()
+        or re.fullmatch(r"\d+(?:\.\d+)?", seconds_text) is None
+    ):
+        raise SlurmParseError(source, line_number, f"invalid {field} duration {value!r}")
+    minutes = int(minutes_text)
+    seconds = float(seconds_text)
+    if minutes >= 60 or seconds >= 60:
+        raise SlurmParseError(source, line_number, f"invalid {field} duration {value!r}")
+    return days * 86400 + int(hours_text) * 3600 + minutes * 60 + seconds
 
 
 def parse_squeue(output: str) -> list[SlurmJob]:
@@ -192,6 +239,32 @@ def parse_sacct(output: str) -> list[SlurmJob]:
             )
         )
     return jobs
+
+
+def parse_sacct_usage(output: str) -> list[SlurmUsageRecord]:
+    records: list[SlurmUsageRecord] = []
+    for line_number, fields in _records(output, _SACCT_USAGE_FIELDS, "sacct usage"):
+        job_id = _optional(fields[0])
+        if job_id is None:
+            continue
+        records.append(
+            SlurmUsageRecord(
+                job_id=job_id,
+                elapsed_seconds=_duration_seconds(
+                    fields[3], "sacct usage", line_number, "Elapsed"
+                ),
+                time_limit_seconds=_duration_seconds(
+                    fields[4], "sacct usage", line_number, "Timelimit"
+                ),
+                requested=_tres_resources(fields[6], "sacct usage", line_number, "ReqTRES"),
+                allocated=_tres_resources(fields[7], "sacct usage", line_number, "AllocTRES"),
+                max_rss_kb=_memory_kb(fields[8], "sacct usage", line_number, "MaxRSS"),
+                total_cpu_seconds=_duration_seconds(
+                    fields[10], "sacct usage", line_number, "TotalCPU"
+                ),
+            )
+        )
+    return records
 
 
 def parse_sinfo(output: str) -> list[SlurmPartition]:

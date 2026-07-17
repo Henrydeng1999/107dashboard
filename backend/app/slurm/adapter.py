@@ -3,8 +3,8 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Protocol
 
-from app.slurm.models import SlurmJob, SlurmPartition
-from app.slurm.parsers import parse_sacct, parse_sinfo, parse_squeue
+from app.slurm.models import SlurmJob, SlurmPartition, SlurmUsageRecord
+from app.slurm.parsers import parse_sacct, parse_sacct_usage, parse_sinfo, parse_squeue
 from app.slurm.runner import CommandResult, SubprocessCommandRunner
 
 SQUEUE_FORMAT = "%i|%j|%T|%u|%P|%a|%q|%N|%r|%C|%m|%b|%l"
@@ -15,6 +15,10 @@ SACCT_FORMAT = (
 SINFO_FORMAT = "%P|%a|%t|%D|%C|%m|%G"
 SACCT_HISTORY_START = "now-7days"
 SACCT_HISTORY_END = "now"
+SACCT_USAGE_FORMAT = (
+    "JobIDRaw,JobName,State,Elapsed,Timelimit,AllocCPUS,ReqTRES,AllocTRES,"
+    "MaxRSS,AveCPU,TotalCPU,ExitCode,TRESUsageInAve,TRESUsageInMax"
+)
 
 _USER_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_-]{0,31}", re.ASCII)
 
@@ -38,6 +42,8 @@ class SlurmAdapter(Protocol):
     def list_accounting(self, user: str) -> list[SlurmJob]: ...
 
     def list_partitions(self) -> list[SlurmPartition]: ...
+
+    def get_usage(self, job_id: str) -> list[SlurmUsageRecord]: ...
 
 
 class NativeSlurmAdapter:
@@ -71,6 +77,20 @@ class NativeSlurmAdapter:
         result = self.runner.run(["sinfo", "--noheader", f"--format={SINFO_FORMAT}"])
         return parse_sinfo(result.stdout)
 
+    def get_usage(self, job_id: str) -> list[SlurmUsageRecord]:
+        if re.fullmatch(r"\d+(?:[._+][A-Za-z0-9_-]+)*", job_id) is None:
+            raise ValueError("job_id must be one Slurm job identifier")
+        result = self.runner.run(
+            [
+                "sacct",
+                "--noheader",
+                "--parsable2",
+                f"--jobs={job_id}",
+                f"--format={SACCT_USAGE_FORMAT}",
+            ]
+        )
+        return parse_sacct_usage(result.stdout)
+
 
 class FixtureSlurmAdapter:
     def __init__(self, fixture_directory: Path | str) -> None:
@@ -89,3 +109,12 @@ class FixtureSlurmAdapter:
 
     def list_partitions(self) -> list[SlurmPartition]:
         return parse_sinfo(self._read("sinfo.txt"))
+
+    def get_usage(self, job_id: str) -> list[SlurmUsageRecord]:
+        if re.fullmatch(r"\d+(?:[._+][A-Za-z0-9_-]+)*", job_id) is None:
+            raise ValueError("job_id must be one Slurm job identifier")
+        return [
+            record
+            for record in parse_sacct_usage(self._read("sacct_usage.txt"))
+            if record.job_id == job_id or record.job_id.startswith(f"{job_id}.")
+        ]

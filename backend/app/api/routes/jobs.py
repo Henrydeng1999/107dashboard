@@ -11,6 +11,7 @@ from app.schemas.jobs import (
     JobLogStream,
     JobState,
     JobSubmitRequest,
+    JobUsageResponse,
 )
 from app.services.job_catalog import (
     JobCatalog,
@@ -127,6 +128,30 @@ def job_logs(
             503,
             "JOB_LOGS_UNAVAILABLE",
             "Job logs are temporarily unavailable",
+        )
+
+
+@router.get(
+    "/{job_id}/usage",
+    response_model=JobUsageResponse,
+    responses={
+        404: {"model": ErrorResponse, "description": "Job not found"},
+        503: {"model": ErrorResponse, "description": "Job usage unavailable"},
+    },
+)
+def job_usage(
+    job_id: str, request: Request, catalog: CatalogDependency
+) -> JobUsageResponse | JSONResponse:
+    try:
+        return catalog.get_job_usage(job_id)
+    except JobNotFound:
+        return _error_response(request, 404, "JOB_NOT_FOUND", "Job was not found")
+    except JobCatalogUnavailable:
+        return _error_response(
+            request,
+            503,
+            "JOB_USAGE_UNAVAILABLE",
+            "Job usage is temporarily unavailable",
         )
 
 
