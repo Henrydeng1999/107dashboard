@@ -31,7 +31,7 @@
   <div class="phase-row">
     <div class="phase-heading"><strong>阶段 2 · 作业只读视图</strong><span class="status-badge status-active">4 / 5</span></div>
     <div class="progress-track" role="progressbar" aria-label="作业只读视图完成度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="80"><span class="progress-fill progress-80"></span></div>
-    <p>作业模型、Fixture jobs API 和基础前端列表/详情已完成；可信身份所有权机制待实现。Native API 在认证完成前无条件关闭，真实平台未验证，视觉美化留到核心功能闭环后统一进行。</p>
+    <p>作业模型、Fixture jobs API 和基础前端列表/详情已完成；Native 只读查询链路已在 107 临时测试实例验证。可信身份所有权机制待实现，正式 Native API 在认证完成前仍无条件关闭，视觉美化留到核心功能闭环后统一进行。</p>
   </div>
   <div class="phase-row">
     <div class="phase-heading"><strong>阶段 3 · 作业提交与控制</strong><span class="status-badge status-active">4 / 5</span></div>
@@ -60,7 +60,7 @@
 | <span class="status-badge status-done">✓</span> | 作业模型 | 状态枚举、资源边界、列表与详情响应模型 | Pydantic 校验生效 |
 | <span class="status-badge status-done">✓</span> | Fixture jobs API | Fixture adapter 已接入作业列表与详情 API，支持状态筛选、稳定分页、详情和 404 | 集成与单元测试通过 |
 | <span class="status-badge status-done">✓</span> | Slurm fixtures | 脱敏 squeue、sacct、sinfo 和空队列输出样例 | 解析器与 Fixture adapter 测试通过 |
-| <span class="status-badge status-done">✓</span> | Slurm adapter | SlurmAdapter Protocol、参数数组 runner、Fixture/Native adapter、超时与命令错误映射 | adapter 单元测试通过；未执行真实平台命令 |
+| <span class="status-badge status-done">✓</span> | Slurm adapter | SlurmAdapter Protocol、参数数组 runner、Fixture/Native adapter、超时与命令错误映射 | adapter 单元测试通过；107 临时只读实例已执行真实 `squeue`/`sacct` |
 | <span class="status-badge status-done">✓</span> | Slurm 解析 | squeue、sacct、sinfo 的作业状态、节点、退出码和资源字段解析 | fixture、异常输入和状态映射测试通过 |
 | <span class="status-badge status-done">✓</span> | API 安全边界 | Native jobs API 无条件 fail-closed；404/422/503 使用脱敏错误 envelope 与服务端 request ID | 外部 native 环境下完整 pytest 通过；未调用 subprocess |
 | <span class="status-badge status-done">✓</span> | 前端骨架 | React 页面入口、基础布局与 API 状态 | TypeScript 检查、Vite 构建通过 |
@@ -75,9 +75,9 @@
 
 <div class="notice-grid">
   <div class="notice notice-next"><strong>下一开发项</strong><span>实现 Fixture stdout/stderr 日志读取与增量刷新，继续补齐核心操作闭环。</span></div>
-  <div class="notice notice-warning"><strong>暂时限制</strong><span>当前提交、取消和克隆均为内存模拟，服务重启后不会保留，也不会执行 sbatch/scancel；只读样例缺少命令时不能克隆，Native API 与真实平台仍待验证。</span></div>
+  <div class="notice notice-warning"><strong>暂时限制</strong><span>当前提交、取消和克隆均为内存模拟，服务重启后不会保留，也不会执行 sbatch/scancel；Native 只读链路虽已在 107 验证，但正式 API 仍等待可信身份映射，写操作和日志尚未进行真实平台验收。</span></div>
   <div class="notice notice-safe"><strong>安全边界</strong><span>真实测试只能通过 Slurm 提交，禁止在登录节点直接运行学生计算任务。</span></div>
-  <div class="notice notice-info"><strong>验证方式</strong><span>基于脱敏 fixtures 完成本地验证：后端 pytest 94 passed，目标 Ruff、前端类型检查和生产构建通过；未执行真实 Slurm 命令。</span></div>
+  <div class="notice notice-info"><strong>验证方式</strong><span>Fixture 用于稳定回归和边界覆盖，Native 用于阶段性真实验收：后端 pytest 94 passed、目标 Ruff、前端类型检查和生产构建通过；107 临时只读实例的 jobs API 与 `squeue`/`sacct` 对照一致。</span></div>
 </div>
 
 ## MVP 必须功能
@@ -86,7 +86,7 @@
 - [x] 作业数据模型与 Fixture 只读 API
 - [x] squeue、sacct、sinfo 受控查询参数与 fixture 输出解析
 - [x] Fixture adapter 接入 jobs service/API
-- [ ] 真实 Slurm 查询与 jobs service/API 接入（等待可信身份方案）
+- [ ] 真实 Slurm 查询与 jobs service/API 正式接入（读取链路已验证，等待可信身份方案）
 - [ ] 作业所有权校验
 - [x] 基础作业列表与详情页面
 - [x] Fixture 作业提交与资源校验
