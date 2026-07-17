@@ -1,4 +1,10 @@
-import type { ApiErrorResponse, Job, JobListResponse, JobState } from "../features/jobs/types";
+import type {
+  ApiErrorResponse,
+  Job,
+  JobListResponse,
+  JobState,
+  JobSubmitRequest,
+} from "../features/jobs/types";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api";
 
@@ -12,8 +18,8 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, { signal });
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(`${apiBaseUrl}${path}`, options);
   if (response.ok) {
     return (await response.json()) as T;
   }
@@ -41,9 +47,17 @@ export function fetchJobs(
   if (state !== "ALL") {
     params.set("state", state);
   }
-  return request<JobListResponse>(`/jobs?${params.toString()}`, signal);
+  return request<JobListResponse>(`/jobs?${params.toString()}`, { signal });
 }
 
 export function fetchJob(jobId: string, signal?: AbortSignal): Promise<Job> {
-  return request<Job>(`/jobs/${encodeURIComponent(jobId)}`, signal);
+  return request<Job>(`/jobs/${encodeURIComponent(jobId)}`, { signal });
+}
+
+export function submitJob(submission: JobSubmitRequest): Promise<Job> {
+  return request<Job>("/jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(submission),
+  });
 }

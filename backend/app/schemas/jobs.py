@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -21,6 +22,24 @@ class JobResources(BaseModel):
     memory_mb: int | None = Field(default=None, ge=0)
     gpus: int | None = Field(default=None, ge=0)
     time_limit_minutes: int | None = Field(default=None, ge=0)
+
+
+class JobSubmitResources(BaseModel):
+    """Validated resource request for the verified student QoS."""
+
+    cpus: int = Field(ge=1, le=4)
+    memory_mb: int = Field(ge=512, le=16384)
+    gpus: int = Field(ge=0, le=1)
+    time_limit_minutes: int = Field(ge=1, le=240)
+
+
+class JobSubmitRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+    command: str = Field(min_length=1, max_length=500, pattern=r"^[^\r\n\x00]+$")
+    partition: Literal["Students"]
+    account: Literal["stu"]
+    qos: Literal["qos_stu_default"]
+    resources: JobSubmitResources
 
 
 class Job(BaseModel):

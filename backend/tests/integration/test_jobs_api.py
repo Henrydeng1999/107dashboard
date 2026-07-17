@@ -146,3 +146,63 @@ def test_error_envelope_and_openapi_responses() -> None:
         "422",
         "503",
     }
+    assert set(schema["paths"]["/api/jobs"]["post"]["responses"]) >= {"201", "422", "503"}
+
+
+def _valid_submission() -> dict[str, object]:
+    return {
+        "name": "course-training",
+        "command": "python train.py --epochs 2",
+        "partition": "Students",
+        "account": "stu",
+        "qos": "qos_stu_default",
+        "resources": {
+            "cpus": 2,
+            "memory_mb": 4096,
+            "gpus": 1,
+            "time_limit_minutes": 60,
+        },
+    }
+
+
+def test_fixture_submission_is_immediately_visible_in_list_and_detail() -> None:
+    client = _fixture_client()
+
+    response = client.post("/api/jobs", json=_valid_submission())
+
+    assert response.status_code == 201
+    job = response.json()
+    assert job["id"] == "slurm-910000"
+    assert job["state"] == "PENDING"
+    assert job["command"] == "python train.py --epochs 2"
+    assert job["resources"]["memory_mb"] == 4096
+    assert client.get("/api/jobs/slurm-910000").json()["name"] == "course-training"
+    assert client.get("/api/jobs").json()["items"][0]["id"] == "slurm-910000"
+
+
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        (("resources", "cpus"), 5),
+        (("resources", "memory_mb"), 256),
+        (("resources", "gpus"), 2),
+        (("resources", "time_limit_minutes"), 241),
+        (("partition",), "GPU-A100"),
+        (("qos",), "qos_stu_medium_2gpu"),
+        (("command",), "python train.py\nwhoami"),
+    ],
+)
+def test_fixture_submission_rejects_unsafe_or_out_of_range_values(
+    path: tuple[str, ...], value: object
+) -> None:
+    client = _fixture_client()
+    payload = _valid_submission()
+    target = payload
+    for key in path[:-1]:
+        target = target[key]  # type: ignore[assignment,index]
+    target[path[-1]] = value  # type: ignore[index]
+
+    response = client.post("/api/jobs", json=payload)
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "INVALID_REQUEST"

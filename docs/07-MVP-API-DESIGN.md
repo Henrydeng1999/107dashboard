@@ -52,6 +52,8 @@ POST /api/jobs/{job_id}/cancel
 POST /api/jobs/{job_id}/clone
 ```
 
+Fixture 模式下，`POST /api/jobs` 仅模拟生成排队作业，不执行 `sbatch`。第一版提交请求固定使用已验证组合 `Students + stu + qos_stu_default`，资源范围为 CPU 1-4、GPU 0-1、内存 512-16384 MiB、时长 1-240 分钟；作业名称和命令均拒绝换行及超长输入。
+
 列表、详情、日志和控制操作只允许访问当前用户自己的作业。不存在或不属于当前用户时统一返回 `404`，避免暴露其他用户的作业是否存在。
 
 列表先合并同一 Slurm Job ID：`squeue` 的实时状态、节点、原因和当前资源优先，

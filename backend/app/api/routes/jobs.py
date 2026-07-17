@@ -3,8 +3,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
-from app.schemas.jobs import ErrorResponse, Job, JobListResponse, JobState
-from app.services.job_catalog import JobCatalog, JobCatalogUnavailable
+from app.schemas.jobs import ErrorResponse, Job, JobListResponse, JobState, JobSubmitRequest
+from app.services.job_catalog import (
+    JobCatalog,
+    JobCatalogUnavailable,
+    JobSubmissionUnavailable,
+)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -75,3 +79,28 @@ def job_detail(job_id: str, request: Request, catalog: CatalogDependency) -> Job
     if job is None:
         return _error_response(request, 404, "JOB_NOT_FOUND", "Job was not found")
     return job
+
+
+@router.post(
+    "",
+    response_model=Job,
+    status_code=201,
+    responses={
+        422: ERROR_RESPONSES[422],
+        503: {"model": ErrorResponse, "description": "Job submission unavailable"},
+    },
+)
+def submit_job(
+    submission: JobSubmitRequest,
+    request: Request,
+    catalog: CatalogDependency,
+) -> Job | JSONResponse:
+    try:
+        return catalog.submit_job(submission)
+    except JobSubmissionUnavailable:
+        return _error_response(
+            request,
+            503,
+            "JOB_SUBMISSION_UNAVAILABLE",
+            "Job submission is temporarily unavailable",
+        )

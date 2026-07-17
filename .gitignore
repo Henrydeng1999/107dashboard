@@ -24,6 +24,7 @@ id_ed25519*
 *.db
 logs/
 tmp/
+107-slurm-check/
 
 # Editors and OS
 .idea/

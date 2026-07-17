@@ -15,8 +15,8 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; }
-button, select { font: inherit; }
-button:focus-visible, select:focus-visible { outline: 3px solid #74a7ff66; outline-offset: 2px; }
+button, select, input { font: inherit; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid #74a7ff66; outline-offset: 2px; }
 
 .app-shell { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 28px 0 64px; }
 .topbar { display: flex; align-items: center; gap: 16px; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
@@ -34,6 +34,25 @@ h1 { margin-bottom: 0; font-size: 25px; letter-spacing: -.02em; }
 .section-heading p:last-child { margin-bottom: 0; color: var(--muted); }
 .filter-control { min-width: 180px; display: grid; gap: 7px; color: var(--muted); font-size: 12px; }
 .filter-control select { width: 100%; padding: 10px 34px 10px 12px; border: 1px solid var(--line); border-radius: 9px; color: #e8edf7; background: var(--surface); }
+.section-actions { display: flex; align-items: end; gap: 10px; }
+.primary-button { border: 1px solid #5b8ddd; border-radius: 9px; color: #07101f; background: var(--blue); font-weight: 700; cursor: pointer; }
+.new-job-button { padding: 10px 15px; white-space: nowrap; }
+.primary-button:hover:not(:disabled) { border-color: #8ab6ff; background: #8ab6ff; }
+
+.submit-panel { margin-bottom: 16px; padding: 22px; border: 1px solid #365486; border-radius: 16px; background: #101a2d; }
+.submit-heading { display: flex; justify-content: space-between; gap: 20px; }
+.submit-heading h2 { margin-bottom: 7px; }
+.submit-heading p:last-child { margin-bottom: 0; color: var(--muted); font-size: 13px; }
+.form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 22px; }
+.field { display: grid; gap: 7px; min-width: 0; color: var(--muted); font-size: 12px; }
+.field-wide { grid-column: span 2; }
+.field input { width: 100%; padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; color: #edf2fb; background: #0d1526; }
+.field input:invalid { border-color: #7a4650; }
+.fixed-config { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 16px; padding: 11px 13px; border-radius: 9px; color: var(--muted); background: #0c1424; font-size: 12px; }
+.fixed-config strong { color: #dce5f4; font-weight: 600; }
+.form-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; }
+.form-actions .primary-button { padding: 9px 14px; }
+.form-error { margin: 13px 0 0; color: #ff9da1; font-size: 13px; }
 
 .list-frame, .detail-panel { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: 0 22px 70px #02050c55; }
 .list-summary { display: flex; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
@@ -62,6 +81,8 @@ button:disabled { opacity: .42; cursor: not-allowed; }
 .notice { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-bottom: 14px; padding: 14px 16px; border: 1px solid #693942; border-radius: 12px; color: #ffd9dc; background: #2b171e; }
 .notice div { display: grid; gap: 4px; }
 .notice span { color: #d4a8ad; font-size: 13px; }
+.success-notice { border-color: #285f4c; color: #b8f1d0; background: #122b25; }
+.success-notice span { color: #8fc5aa; }
 .empty-state { display: grid; place-items: center; gap: 8px; min-height: 230px; color: var(--muted); text-align: center; }
 .empty-state strong { color: #dce4f0; }
 
@@ -83,10 +104,18 @@ button:disabled { opacity: .42; cursor: not-allowed; }
   .brand-mark { display: none; }
   .connection-pill { padding: 8px 10px; }
   .section-heading { align-items: stretch; flex-direction: column; }
+  .section-actions { align-items: stretch; flex-direction: column; }
   .filter-control { width: 100%; }
+  .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .field-wide { grid-column: span 2; }
   .job-card { grid-template-columns: 1fr; gap: 16px; }
   .detail-button { justify-self: start; }
   .detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 480px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .field-wide { grid-column: span 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {

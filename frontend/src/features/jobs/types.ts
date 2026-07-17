@@ -42,6 +42,20 @@ export interface JobListResponse {
   updated_at: string;
 }
 
+export interface JobSubmitRequest {
+  name: string;
+  command: string;
+  partition: "Students";
+  account: "stu";
+  qos: "qos_stu_default";
+  resources: {
+    cpus: number;
+    memory_mb: number;
+    gpus: number;
+    time_limit_minutes: number;
+  };
+}
+
 export interface ApiErrorResponse {
   error?: {
     code?: string;

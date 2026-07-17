@@ -44,7 +44,7 @@ def create_app(settings: Settings | None = None, job_catalog: JobCatalog | None 
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
         allow_credentials=False,
-        allow_methods=["GET"],
+        allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )
     application.include_router(health_router, prefix="/api")

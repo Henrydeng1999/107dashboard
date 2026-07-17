@@ -5,7 +5,7 @@ from time import monotonic
 from typing import Callable
 
 from app.core.config import Settings
-from app.schemas.jobs import Job, JobListResponse, JobResources, JobState
+from app.schemas.jobs import Job, JobListResponse, JobResources, JobState, JobSubmitRequest
 from app.slurm import (
     FixtureSlurmAdapter,
     SlurmAdapter,
@@ -29,6 +29,10 @@ class NativeSlurmApiDisabled(RuntimeError):
     """Native Slurm API access is unavailable without trusted request identity."""
 
 
+class JobSubmissionUnavailable(RuntimeError):
+    """Submission is unavailable for the configured data source."""
+
+
 def build_slurm_adapter(settings: Settings) -> SlurmAdapter:
     if settings.slurm_data_source == "fixture":
         return FixtureSlurmAdapter(settings.slurm_fixture_directory)
@@ -45,6 +49,7 @@ def build_job_catalog(settings: Settings) -> "JobCatalog":
         owner=settings.dashboard_owner,
         cache_ttl_seconds=settings.slurm_query_cache_ttl_seconds,
         max_jobs=settings.slurm_max_jobs,
+        allow_fixture_submissions=settings.slurm_data_source == "fixture",
     )
 
 
@@ -151,6 +156,7 @@ class JobCatalog:
         owner: str,
         cache_ttl_seconds: float = 2.0,
         max_jobs: int = 1000,
+        allow_fixture_submissions: bool = False,
         clock: Callable[[], float] = monotonic,
     ) -> None:
         if not 0.1 <= cache_ttl_seconds <= 60:
@@ -161,12 +167,24 @@ class JobCatalog:
         self.owner = owner
         self.cache_ttl_seconds = cache_ttl_seconds
         self.max_jobs = max_jobs
+        self.allow_fixture_submissions = allow_fixture_submissions
         self._clock = clock
         self._cache_condition = Condition()
         self._cached_jobs: tuple[Job, ...] | None = None
         self._cached_observed_at: datetime | None = None
         self._cache_expires_at = 0.0
         self._refreshing = False
+        self._submitted_jobs: dict[str, Job] = {}
+        self._next_fixture_job_id = 910000
+
+    def _jobs_with_submissions(self, jobs: tuple[Job, ...]) -> list[Job]:
+        with self._cache_condition:
+            submitted = tuple(self._submitted_jobs.values())
+        return sorted(
+            [*submitted, *jobs],
+            key=lambda job: _job_sort_key(SlurmJob(job_id=job.slurm_job_id)),
+            reverse=True,
+        )
 
     def _query_jobs(self, observed_at: datetime) -> tuple[Job, ...]:
         try:
@@ -221,7 +239,7 @@ class JobCatalog:
 
     def list_jobs(self, state: JobState | None, page: int, page_size: int) -> JobListResponse:
         cached_jobs, observed_at = self._observed_jobs()
-        jobs = list(cached_jobs)
+        jobs = self._jobs_with_submissions(cached_jobs)
         if state is not None:
             jobs = [job for job in jobs if job.state == state]
         start = (page - 1) * page_size
@@ -238,6 +256,32 @@ class JobCatalog:
             return None
         jobs, _ = self._observed_jobs()
         return next(
-            (job for job in jobs if job.id == dashboard_job_id),
+            (job for job in self._jobs_with_submissions(jobs) if job.id == dashboard_job_id),
             None,
         )
+
+    def submit_job(self, request: JobSubmitRequest) -> Job:
+        if not self.allow_fixture_submissions:
+            raise JobSubmissionUnavailable("Job submission is unavailable")
+
+        now = datetime.now(UTC)
+        with self._cache_condition:
+            slurm_job_id = str(self._next_fixture_job_id)
+            self._next_fixture_job_id += 1
+            job = Job(
+                id=f"{_DASHBOARD_ID_PREFIX}{slurm_job_id}",
+                slurm_job_id=slurm_job_id,
+                owner=self.owner,
+                name=request.name,
+                state=JobState.PENDING,
+                partition=request.partition,
+                account=request.account,
+                qos=request.qos,
+                command=request.command,
+                resources=JobResources(**request.resources.model_dump()),
+                reason="FixtureSubmission",
+                submitted_at=now,
+                updated_at=now,
+            )
+            self._submitted_jobs[job.id] = job
+        return job

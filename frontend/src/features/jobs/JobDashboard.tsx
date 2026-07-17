@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 
-import { ApiError, fetchJob, fetchJobs } from "../../api/jobs";
-import type { Job, JobListResponse, JobState } from "./types";
+import { ApiError, fetchJob, fetchJobs, submitJob } from "../../api/jobs";
+import type { Job, JobListResponse, JobState, JobSubmitRequest } from "./types";
 
 const PAGE_SIZE = 5;
 
@@ -19,6 +19,15 @@ const stateOptions: Array<{ value: JobState | "ALL"; label: string }> = [
   { value: "ALL", label: "全部状态" },
   ...Object.entries(stateLabels).map(([value, label]) => ({ value: value as JobState, label })),
 ];
+
+const defaultSubmission: JobSubmitRequest = {
+  name: "course-training",
+  command: "python train.py",
+  partition: "Students",
+  account: "stu",
+  qos: "qos_stu_default",
+  resources: { cpus: 2, memory_mb: 4096, gpus: 1, time_limit_minutes: 60 },
+};
 
 function valueOrDash(value: string | number | null | undefined): string {
   return value === null || value === undefined || value === "" ? "—" : String(value);
@@ -70,6 +79,102 @@ function JobDetail({ job, onClose }: { job: Job; onClose: () => void }) {
   );
 }
 
+function JobSubmitForm({
+  onCancel,
+  onSubmitted,
+}: {
+  onCancel: () => void;
+  onSubmitted: (job: Job) => void;
+}) {
+  const [submission, setSubmission] = useState<JobSubmitRequest>(defaultSubmission);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const updateResource = (field: keyof JobSubmitRequest["resources"], value: number) => {
+    setSubmission((current) => ({
+      ...current,
+      resources: { ...current.resources, [field]: value },
+    }));
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      onSubmitted(await submitJob(submission));
+    } catch (reason) {
+      setSubmitError(reason instanceof ApiError ? reason.message : "无法提交作业");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form className="submit-panel" onSubmit={(event) => void handleSubmit(event)}>
+      <div className="submit-heading">
+        <div>
+          <p className="section-kicker">Fixture 提交</p>
+          <h2>配置一个排队作业</h2>
+          <p>当前只模拟提交，不会执行命令或占用服务器资源。</p>
+        </div>
+        <button className="quiet-button" type="button" onClick={onCancel}>关闭</button>
+      </div>
+
+      <div className="form-grid">
+        <label className="field field-wide">
+          <span>作业名称</span>
+          <input
+            required
+            maxLength={64}
+            pattern="[A-Za-z0-9][A-Za-z0-9._-]*"
+            value={submission.name}
+            onChange={(event) => setSubmission({ ...submission, name: event.target.value })}
+          />
+        </label>
+        <label className="field field-wide">
+          <span>运行命令</span>
+          <input
+            required
+            maxLength={500}
+            value={submission.command}
+            onChange={(event) => setSubmission({ ...submission, command: event.target.value })}
+          />
+        </label>
+        <label className="field">
+          <span>CPU（1–4）</span>
+          <input type="number" min={1} max={4} value={submission.resources.cpus} onChange={(event) => updateResource("cpus", Number(event.target.value))} />
+        </label>
+        <label className="field">
+          <span>GPU（0–1）</span>
+          <input type="number" min={0} max={1} value={submission.resources.gpus} onChange={(event) => updateResource("gpus", Number(event.target.value))} />
+        </label>
+        <label className="field">
+          <span>内存 MiB</span>
+          <input type="number" min={512} max={16384} step={512} value={submission.resources.memory_mb} onChange={(event) => updateResource("memory_mb", Number(event.target.value))} />
+        </label>
+        <label className="field">
+          <span>时长（分钟）</span>
+          <input type="number" min={1} max={240} value={submission.resources.time_limit_minutes} onChange={(event) => updateResource("time_limit_minutes", Number(event.target.value))} />
+        </label>
+      </div>
+
+      <div className="fixed-config">
+        <span>分区 <strong>Students</strong></span>
+        <span>账户 <strong>stu</strong></span>
+        <span>QoS <strong>qos_stu_default</strong></span>
+      </div>
+      {submitError && <p className="form-error" role="alert">{submitError}</p>}
+      <div className="form-actions">
+        <button className="quiet-button" type="button" onClick={onCancel}>取消</button>
+        <button className="primary-button" type="submit" disabled={submitting}>
+          {submitting ? "正在提交…" : "提交到 Fixture 队列"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export function JobDashboard() {
   const [stateFilter, setStateFilter] = useState<JobState | "ALL">("ALL");
   const [page, setPage] = useState(1);
@@ -79,6 +184,8 @@ export function JobDashboard() {
   const [reloadKey, setReloadKey] = useState(0);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [showSubmitForm, setShowSubmitForm] = useState(false);
+  const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -131,22 +238,48 @@ export function JobDashboard() {
             <h2 id="jobs-title">当前账户的计算任务</h2>
             <p>先确认数据和操作路径，视觉细节将在后续统一完善。</p>
           </div>
-          <label className="filter-control">
-            <span>状态筛选</span>
-            <select
-              value={stateFilter}
-              onChange={(event) => {
-                setStateFilter(event.target.value as JobState | "ALL");
-                setPage(1);
-                setSelectedJob(null);
-              }}
-            >
-              {stateOptions.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </label>
+          <div className="section-actions">
+            <label className="filter-control">
+              <span>状态筛选</span>
+              <select
+                value={stateFilter}
+                onChange={(event) => {
+                  setStateFilter(event.target.value as JobState | "ALL");
+                  setPage(1);
+                  setSelectedJob(null);
+                }}
+              >
+                {stateOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <button className="primary-button new-job-button" type="button" onClick={() => setShowSubmitForm(true)}>
+              新建作业
+            </button>
+          </div>
         </div>
+
+        {showSubmitForm && (
+          <JobSubmitForm
+            onCancel={() => setShowSubmitForm(false)}
+            onSubmitted={(job) => {
+              setShowSubmitForm(false);
+              setSubmissionNotice(`作业 #${job.slurm_job_id} 已加入 Fixture 队列`);
+              setStateFilter("ALL");
+              setPage(1);
+              setSelectedJob(job);
+              setReloadKey((value) => value + 1);
+            }}
+          />
+        )}
+
+        {submissionNotice && (
+          <div className="notice success-notice" role="status">
+            <div><strong>提交成功</strong><span>{submissionNotice}</span></div>
+            <button type="button" onClick={() => setSubmissionNotice(null)}>知道了</button>
+          </div>
+        )}
 
         {error && (
           <div className="notice error-notice" role="alert">
