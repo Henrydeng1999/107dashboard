@@ -54,6 +54,8 @@ POST /api/jobs/{job_id}/clone
 
 Fixture 模式下，`POST /api/jobs` 仅模拟生成排队作业，不执行 `sbatch`。第一版提交请求固定使用已验证组合 `Students + stu + qos_stu_default`，资源范围为 CPU 1-4、GPU 0-1、内存 512-16384 MiB、时长 1-240 分钟；作业名称和命令均拒绝换行及超长输入。
 
+Fixture 模式支持取消可见的 `PENDING`、`RUNNING` 作业，并保留取消后的历史记录。克隆会读取原作业的提交参数，重新通过同一个 `JobSubmitRequest` 校验后生成新 Job ID；只读样例缺少命令或完整资源参数时返回 `409 JOB_OPERATION_CONFLICT`。不存在的作业统一返回 `404 JOB_NOT_FOUND`，Native 控制功能仍返回脱敏的 `503`。
+
 列表、详情、日志和控制操作只允许访问当前用户自己的作业。不存在或不属于当前用户时统一返回 `404`，避免暴露其他用户的作业是否存在。
 
 列表先合并同一 Slurm Job ID：`squeue` 的实时状态、节点、原因和当前资源优先，

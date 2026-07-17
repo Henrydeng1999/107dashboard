@@ -4,6 +4,8 @@ from threading import Condition
 from time import monotonic
 from typing import Callable
 
+from pydantic import ValidationError
+
 from app.core.config import Settings
 from app.schemas.jobs import Job, JobListResponse, JobResources, JobState, JobSubmitRequest
 from app.slurm import (
@@ -31,6 +33,14 @@ class NativeSlurmApiDisabled(RuntimeError):
 
 class JobSubmissionUnavailable(RuntimeError):
     """Submission is unavailable for the configured data source."""
+
+
+class JobNotFound(RuntimeError):
+    """The requested job is not visible to the configured owner."""
+
+
+class JobOperationConflict(RuntimeError):
+    """The requested operation is invalid for the current job state or metadata."""
 
 
 def build_slurm_adapter(settings: Settings) -> SlurmAdapter:
@@ -175,13 +185,16 @@ class JobCatalog:
         self._cache_expires_at = 0.0
         self._refreshing = False
         self._submitted_jobs: dict[str, Job] = {}
+        self._fixture_state_overrides: dict[str, Job] = {}
         self._next_fixture_job_id = 910000
 
     def _jobs_with_submissions(self, jobs: tuple[Job, ...]) -> list[Job]:
         with self._cache_condition:
             submitted = tuple(self._submitted_jobs.values())
+            overrides = dict(self._fixture_state_overrides)
+        observed = tuple(overrides.get(job.id, job) for job in jobs)
         return sorted(
-            [*submitted, *jobs],
+            [*submitted, *observed],
             key=lambda job: _job_sort_key(SlurmJob(job_id=job.slurm_job_id)),
             reverse=True,
         )
@@ -285,3 +298,49 @@ class JobCatalog:
             )
             self._submitted_jobs[job.id] = job
         return job
+
+    def cancel_job(self, dashboard_job_id: str) -> Job:
+        if not self.allow_fixture_submissions:
+            raise JobSubmissionUnavailable("Job control is unavailable")
+        job = self.get_job(dashboard_job_id)
+        if job is None:
+            raise JobNotFound("Job was not found")
+        if job.state not in {JobState.PENDING, JobState.RUNNING}:
+            raise JobOperationConflict("Only pending or running jobs can be cancelled")
+
+        cancelled = job.model_copy(
+            update={
+                "state": JobState.CANCELLED,
+                "reason": "FixtureCancellation",
+                "finished_at": datetime.now(UTC),
+                "updated_at": datetime.now(UTC),
+            }
+        )
+        with self._cache_condition:
+            if dashboard_job_id in self._submitted_jobs:
+                self._submitted_jobs[dashboard_job_id] = cancelled
+            else:
+                self._fixture_state_overrides[dashboard_job_id] = cancelled
+        return cancelled
+
+    def clone_job(self, dashboard_job_id: str) -> Job:
+        if not self.allow_fixture_submissions:
+            raise JobSubmissionUnavailable("Job cloning is unavailable")
+        job = self.get_job(dashboard_job_id)
+        if job is None:
+            raise JobNotFound("Job was not found")
+
+        try:
+            submission = JobSubmitRequest.model_validate(
+                {
+                    "name": job.name,
+                    "command": job.command,
+                    "partition": job.partition,
+                    "account": job.account,
+                    "qos": job.qos,
+                    "resources": job.resources.model_dump(),
+                }
+            )
+        except ValidationError as exc:
+            raise JobOperationConflict("Job does not have complete submission metadata") from exc
+        return self.submit_job(submission)

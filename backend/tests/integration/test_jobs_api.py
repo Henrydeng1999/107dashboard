@@ -206,3 +206,62 @@ def test_fixture_submission_rejects_unsafe_or_out_of_range_values(
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_fixture_pending_job_can_be_cancelled_and_remains_visible() -> None:
+    client = _fixture_client()
+    submitted = client.post("/api/jobs", json=_valid_submission()).json()
+
+    response = client.post(f"/api/jobs/{submitted['id']}/cancel")
+
+    assert response.status_code == 200
+    assert response.json()["state"] == "CANCELLED"
+    assert response.json()["reason"] == "FixtureCancellation"
+    assert response.json()["finished_at"] is not None
+    assert client.get(f"/api/jobs/{submitted['id']}").json()["state"] == "CANCELLED"
+
+
+def test_fixture_running_job_can_be_cancelled_but_terminal_job_cannot() -> None:
+    client = _fixture_client()
+
+    cancelled = client.post("/api/jobs/slurm-900001/cancel")
+    conflict = client.post("/api/jobs/slurm-899999/cancel")
+
+    assert cancelled.status_code == 200
+    assert cancelled.json()["state"] == "CANCELLED"
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "JOB_OPERATION_CONFLICT"
+
+
+def test_fixture_clone_revalidates_submission_and_creates_new_job() -> None:
+    client = _fixture_client()
+    original = client.post("/api/jobs", json=_valid_submission()).json()
+
+    response = client.post(f"/api/jobs/{original['id']}/clone")
+
+    assert response.status_code == 201
+    cloned = response.json()
+    assert cloned["id"] != original["id"]
+    assert cloned["slurm_job_id"] == "910001"
+    assert cloned["command"] == original["command"]
+    assert cloned["resources"] == original["resources"]
+    assert cloned["state"] == "PENDING"
+
+
+def test_fixture_clone_rejects_read_only_job_without_submission_metadata() -> None:
+    client = _fixture_client()
+
+    response = client.post("/api/jobs/slurm-899999/clone")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "JOB_OPERATION_CONFLICT"
+
+
+@pytest.mark.parametrize("operation", ["cancel", "clone"])
+def test_fixture_job_operations_hide_unknown_jobs(operation: str) -> None:
+    client = _fixture_client()
+
+    response = client.post(f"/api/jobs/slurm-123456/{operation}")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "JOB_NOT_FOUND"

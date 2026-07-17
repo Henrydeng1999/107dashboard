@@ -61,3 +61,11 @@ export function submitJob(submission: JobSubmitRequest): Promise<Job> {
     body: JSON.stringify(submission),
   });
 }
+
+export function cancelJob(jobId: string): Promise<Job> {
+  return request<Job>(`/jobs/${encodeURIComponent(jobId)}/cancel`, { method: "POST" });
+}
+
+export function cloneJob(jobId: string): Promise<Job> {
+  return request<Job>(`/jobs/${encodeURIComponent(jobId)}/clone`, { method: "POST" });
+}

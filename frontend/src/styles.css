@@ -71,7 +71,7 @@ h1 { margin-bottom: 0; font-size: 25px; letter-spacing: -.02em; }
 .state-pending .state-badge { color: #ffd28a; background: #41331e; }
 .state-failed .state-badge, .state-timeout .state-badge { color: #ff9da1; background: #44242d; }
 .job-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 16px; color: var(--muted); font-size: 12px; }
-.detail-button, .pagination button, .notice button, .quiet-button { border: 1px solid #3a4b6b; border-radius: 9px; color: #dce5f4; background: #18243a; cursor: pointer; }
+.detail-button, .pagination button, .notice button, .quiet-button, .danger-button { border: 1px solid #3a4b6b; border-radius: 9px; color: #dce5f4; background: #18243a; cursor: pointer; }
 .detail-button { padding: 10px 13px; }
 button:hover:not(:disabled) { border-color: #6287c3; background: #1d2d49; }
 button:disabled { opacity: .42; cursor: not-allowed; }
@@ -94,6 +94,10 @@ button:disabled { opacity: .42; cursor: not-allowed; }
 .detail-grid dt { margin-bottom: 7px; color: var(--muted); font-size: 11px; }
 .detail-grid dd { margin: 0; overflow-wrap: anywhere; font-size: 13px; }
 .detail-note { margin: 14px 0 0; color: var(--muted); font-size: 12px; }
+.detail-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.detail-actions button { padding: 9px 14px; }
+.danger-button { border-color: #84424e; color: #ffc2c6; background: #351c24; }
+.danger-button:hover:not(:disabled) { border-color: #b85b68; background: #49242e; }
 
 .skeleton { min-height: 118px; background: linear-gradient(90deg, #121a2b 25%, #18243a 50%, #121a2b 75%); background-size: 200% 100%; animation: pulse 1.2s linear infinite; }
 @keyframes pulse { to { background-position: -200% 0; } }

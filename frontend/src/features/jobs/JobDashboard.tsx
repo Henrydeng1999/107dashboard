@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react";
 
-import { ApiError, fetchJob, fetchJobs, submitJob } from "../../api/jobs";
+import { ApiError, cancelJob, cloneJob, fetchJob, fetchJobs, submitJob } from "../../api/jobs";
 import type { Job, JobListResponse, JobState, JobSubmitRequest } from "./types";
 
 const PAGE_SIZE = 5;
@@ -38,7 +38,21 @@ function formatMemory(memoryMb: number | null): string {
   return memoryMb >= 1024 ? `${memoryMb / 1024} GiB` : `${memoryMb} MiB`;
 }
 
-function JobDetail({ job, onClose }: { job: Job; onClose: () => void }) {
+function JobDetail({
+  job,
+  actionPending,
+  actionError,
+  onCancelJob,
+  onCloneJob,
+  onClose,
+}: {
+  job: Job;
+  actionPending: "cancel" | "clone" | null;
+  actionError: string | null;
+  onCancelJob: () => void;
+  onCloneJob: () => void;
+  onClose: () => void;
+}) {
   const details = [
     ["Slurm Job ID", job.slurm_job_id],
     ["状态", stateLabels[job.state]],
@@ -75,6 +89,25 @@ function JobDetail({ job, onClose }: { job: Job; onClose: () => void }) {
       {job.command === null && (
         <p className="detail-note">Fixture 查询暂不提供提交命令和事件时间，真实平台接入后再补充。</p>
       )}
+      {actionError && <p className="form-error" role="alert">{actionError}</p>}
+      <div className="detail-actions">
+        <button
+          className="danger-button"
+          type="button"
+          disabled={actionPending !== null || !["PENDING", "RUNNING"].includes(job.state)}
+          onClick={onCancelJob}
+        >
+          {actionPending === "cancel" ? "正在取消…" : "取消作业"}
+        </button>
+        <button
+          className="primary-button"
+          type="button"
+          disabled={actionPending !== null || job.command === null}
+          onClick={onCloneJob}
+        >
+          {actionPending === "clone" ? "正在克隆…" : "克隆为新作业"}
+        </button>
+      </div>
     </aside>
   );
 }
@@ -186,6 +219,8 @@ export function JobDashboard() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [showSubmitForm, setShowSubmitForm] = useState(false);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
+  const [actionPending, setActionPending] = useState<"cancel" | "clone" | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -214,6 +249,31 @@ export function JobDashboard() {
       setError(reason instanceof ApiError ? reason.message : "无法读取作业详情");
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  const operateOnJob = async (operation: "cancel" | "clone") => {
+    if (!selectedJob) return;
+    if (operation === "cancel" && !window.confirm(`确定取消作业 #${selectedJob.slurm_job_id} 吗？`)) return;
+    setActionPending(operation);
+    setActionError(null);
+    try {
+      const job = operation === "cancel"
+        ? await cancelJob(selectedJob.id)
+        : await cloneJob(selectedJob.id);
+      setSelectedJob(job);
+      setSubmissionNotice(
+        operation === "cancel"
+          ? `作业 #${job.slurm_job_id} 已取消`
+          : `已克隆为新作业 #${job.slurm_job_id}`,
+      );
+      setStateFilter("ALL");
+      setPage(1);
+      setReloadKey((value) => value + 1);
+    } catch (reason) {
+      setActionError(reason instanceof ApiError ? reason.message : "作业操作失败");
+    } finally {
+      setActionPending(null);
     }
   };
 
@@ -350,7 +410,19 @@ export function JobDashboard() {
         </div>
       </section>
 
-      {selectedJob && <JobDetail job={selectedJob} onClose={() => setSelectedJob(null)} />}
+      {selectedJob && (
+        <JobDetail
+          job={selectedJob}
+          actionPending={actionPending}
+          actionError={actionError}
+          onCancelJob={() => void operateOnJob("cancel")}
+          onCloneJob={() => void operateOnJob("clone")}
+          onClose={() => {
+            setSelectedJob(null);
+            setActionError(null);
+          }}
+        />
+      )}
     </main>
   );
 }
