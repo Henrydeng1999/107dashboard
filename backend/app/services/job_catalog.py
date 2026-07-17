@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from pathlib import Path
 import re
 from threading import Condition
 from time import monotonic
@@ -7,7 +8,15 @@ from typing import Callable
 from pydantic import ValidationError
 
 from app.core.config import Settings
-from app.schemas.jobs import Job, JobListResponse, JobResources, JobState, JobSubmitRequest
+from app.schemas.jobs import (
+    Job,
+    JobListResponse,
+    JobLogResponse,
+    JobLogStream,
+    JobResources,
+    JobState,
+    JobSubmitRequest,
+)
 from app.slurm import (
     FixtureSlurmAdapter,
     SlurmAdapter,
@@ -43,6 +52,14 @@ class JobOperationConflict(RuntimeError):
     """The requested operation is invalid for the current job state or metadata."""
 
 
+class JobLogsUnavailable(RuntimeError):
+    """Job logs are unavailable for the configured data source."""
+
+
+class JobLogOffsetOutOfRange(RuntimeError):
+    """The requested log offset is beyond the current file size."""
+
+
 def build_slurm_adapter(settings: Settings) -> SlurmAdapter:
     if settings.slurm_data_source == "fixture":
         return FixtureSlurmAdapter(settings.slurm_fixture_directory)
@@ -60,6 +77,11 @@ def build_job_catalog(settings: Settings) -> "JobCatalog":
         cache_ttl_seconds=settings.slurm_query_cache_ttl_seconds,
         max_jobs=settings.slurm_max_jobs,
         allow_fixture_submissions=settings.slurm_data_source == "fixture",
+        fixture_job_output_directory=(
+            settings.fixture_job_output_directory
+            if settings.slurm_data_source == "fixture"
+            else None
+        ),
     )
 
 
@@ -167,6 +189,7 @@ class JobCatalog:
         cache_ttl_seconds: float = 2.0,
         max_jobs: int = 1000,
         allow_fixture_submissions: bool = False,
+        fixture_job_output_directory: Path | None = None,
         clock: Callable[[], float] = monotonic,
     ) -> None:
         if not 0.1 <= cache_ttl_seconds <= 60:
@@ -178,6 +201,7 @@ class JobCatalog:
         self.cache_ttl_seconds = cache_ttl_seconds
         self.max_jobs = max_jobs
         self.allow_fixture_submissions = allow_fixture_submissions
+        self.fixture_job_output_directory = fixture_job_output_directory
         self._clock = clock
         self._cache_condition = Condition()
         self._cached_jobs: tuple[Job, ...] | None = None
@@ -344,3 +368,56 @@ class JobCatalog:
         except ValidationError as exc:
             raise JobOperationConflict("Job does not have complete submission metadata") from exc
         return self.submit_job(submission)
+
+    def read_job_log(
+        self,
+        dashboard_job_id: str,
+        stream: JobLogStream,
+        offset: int,
+        limit: int,
+    ) -> JobLogResponse:
+        job = self.get_job(dashboard_job_id)
+        if job is None:
+            raise JobNotFound("Job was not found")
+        if self.fixture_job_output_directory is None:
+            raise JobLogsUnavailable("Job logs are unavailable")
+        if re.fullmatch(r"[0-9]+(?:[._+][A-Za-z0-9_-]+)*", job.slurm_job_id) is None:
+            raise JobLogsUnavailable("Job log identifier is unsafe")
+
+        output_directory = self.fixture_job_output_directory.resolve()
+        log_path = (output_directory / f"{job.slurm_job_id}.{stream.value}.log").resolve()
+        if log_path.parent != output_directory:
+            raise JobLogsUnavailable("Job log path is unsafe")
+        try:
+            size = log_path.stat().st_size
+        except FileNotFoundError:
+            return JobLogResponse(
+                job_id=job.id,
+                stream=stream,
+                content="",
+                offset=offset,
+                next_offset=offset,
+                eof=True,
+                available=False,
+            )
+        except OSError as exc:
+            raise JobLogsUnavailable("Job log could not be inspected") from exc
+        if offset > size:
+            raise JobLogOffsetOutOfRange("Job log offset is beyond the current file size")
+
+        try:
+            with log_path.open("rb") as log_file:
+                log_file.seek(offset)
+                chunk = log_file.read(limit)
+        except OSError as exc:
+            raise JobLogsUnavailable("Job log could not be read") from exc
+        next_offset = offset + len(chunk)
+        return JobLogResponse(
+            job_id=job.id,
+            stream=stream,
+            content=chunk.decode("utf-8", errors="replace"),
+            offset=offset,
+            next_offset=next_offset,
+            eof=next_offset >= size,
+            available=True,
+        )

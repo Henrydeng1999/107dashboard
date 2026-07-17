@@ -1,0 +1,2 @@
+[dashboard fixture] RuntimeError: simulated accelerator memory exhaustion
+job stopped with exit code 1

@@ -15,6 +15,11 @@ class JobState(StrEnum):
     UNKNOWN = "UNKNOWN"
 
 
+class JobLogStream(StrEnum):
+    STDOUT = "stdout"
+    STDERR = "stderr"
+
+
 class JobResources(BaseModel):
     """Observed Slurm resources, not a job submission request."""
 
@@ -70,6 +75,16 @@ class JobListResponse(BaseModel):
     page_size: int
     total: int
     updated_at: datetime
+
+
+class JobLogResponse(BaseModel):
+    job_id: str
+    stream: JobLogStream
+    content: str
+    offset: int = Field(ge=0)
+    next_offset: int = Field(ge=0)
+    eof: bool
+    available: bool
 
 
 class ErrorDetail(BaseModel):

@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 
-import { ApiError, cancelJob, cloneJob, fetchJob, fetchJobs, submitJob } from "../../api/jobs";
-import type { Job, JobListResponse, JobState, JobSubmitRequest } from "./types";
+import { ApiError, cancelJob, cloneJob, fetchJob, fetchJobLog, fetchJobs, submitJob } from "../../api/jobs";
+import type { Job, JobListResponse, JobLogStream, JobState, JobSubmitRequest } from "./types";
 
 const PAGE_SIZE = 5;
 
@@ -36,6 +36,97 @@ function valueOrDash(value: string | number | null | undefined): string {
 function formatMemory(memoryMb: number | null): string {
   if (memoryMb === null) return "—";
   return memoryMb >= 1024 ? `${memoryMb / 1024} GiB` : `${memoryMb} MiB`;
+}
+
+function JobLogPanel({ jobId }: { jobId: string }) {
+  const [stream, setStream] = useState<JobLogStream>("stdout");
+  const [content, setContent] = useState("");
+  const [nextOffset, setNextOffset] = useState(0);
+  const [available, setAvailable] = useState(true);
+  const [eof, setEof] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
+    setContent("");
+    setNextOffset(0);
+    fetchJobLog(jobId, stream, 0, controller.signal)
+      .then((log) => {
+        setContent(log.content);
+        setNextOffset(log.next_offset);
+        setAvailable(log.available);
+        setEof(log.eof);
+      })
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") return;
+        setError(reason instanceof ApiError ? reason.message : "无法读取作业日志");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [jobId, refreshKey, stream]);
+
+  const loadMore = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const log = await fetchJobLog(jobId, stream, nextOffset);
+      setContent((current) => current + log.content);
+      setNextOffset(log.next_offset);
+      setAvailable(log.available);
+      setEof(log.eof);
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "无法继续读取作业日志");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <section className="log-panel" aria-labelledby="job-log-title">
+      <div className="log-heading">
+        <div>
+          <p className="section-kicker">增量日志</p>
+          <h3 id="job-log-title">标准输出与错误</h3>
+        </div>
+        <div className="log-toolbar">
+          <div className="stream-tabs" role="tablist" aria-label="日志流">
+            {(["stdout", "stderr"] as const).map((value) => (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={stream === value}
+                className={stream === value ? "is-active" : ""}
+                key={value}
+                onClick={() => setStream(value)}
+              >
+                {value}
+              </button>
+            ))}
+          </div>
+          <button className="quiet-button" type="button" disabled={loading} onClick={() => setRefreshKey((value) => value + 1)}>
+            刷新
+          </button>
+        </div>
+      </div>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {!error && !available && <div className="log-empty">该日志尚未产生。</div>}
+      {!error && available && (
+        <pre className="log-output" aria-live="polite">{content || (loading ? "正在读取…" : "日志为空")}</pre>
+      )}
+      <div className="log-footer">
+        <span>{available ? `已读取 ${nextOffset} 字节` : "等待日志文件"}</span>
+        <button className="quiet-button" type="button" disabled={loading || !available || eof} onClick={() => void loadMore()}>
+          {loading ? "读取中…" : eof ? "已到末尾" : "继续加载"}
+        </button>
+      </div>
+    </section>
+  );
 }
 
 function JobDetail({
@@ -86,6 +177,7 @@ function JobDetail({
           </div>
         ))}
       </dl>
+      <JobLogPanel jobId={job.id} />
       {job.command === null && (
         <p className="detail-note">Fixture 查询暂不提供提交命令和事件时间，真实平台接入后再补充。</p>
       )}

@@ -1,6 +1,8 @@
 import type {
   ApiErrorResponse,
   Job,
+  JobLogResponse,
+  JobLogStream,
   JobListResponse,
   JobState,
   JobSubmitRequest,
@@ -68,4 +70,14 @@ export function cancelJob(jobId: string): Promise<Job> {
 
 export function cloneJob(jobId: string): Promise<Job> {
   return request<Job>(`/jobs/${encodeURIComponent(jobId)}/clone`, { method: "POST" });
+}
+
+export function fetchJobLog(
+  jobId: string,
+  stream: JobLogStream,
+  offset = 0,
+  signal?: AbortSignal,
+): Promise<JobLogResponse> {
+  const params = new URLSearchParams({ stream, offset: String(offset) });
+  return request<JobLogResponse>(`/jobs/${encodeURIComponent(jobId)}/logs?${params}`, { signal });
 }

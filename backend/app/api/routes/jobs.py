@@ -3,10 +3,20 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
-from app.schemas.jobs import ErrorResponse, Job, JobListResponse, JobState, JobSubmitRequest
+from app.schemas.jobs import (
+    ErrorResponse,
+    Job,
+    JobListResponse,
+    JobLogResponse,
+    JobLogStream,
+    JobState,
+    JobSubmitRequest,
+)
 from app.services.job_catalog import (
     JobCatalog,
     JobCatalogUnavailable,
+    JobLogOffsetOutOfRange,
+    JobLogsUnavailable,
     JobNotFound,
     JobOperationConflict,
     JobSubmissionUnavailable,
@@ -81,6 +91,43 @@ def job_detail(job_id: str, request: Request, catalog: CatalogDependency) -> Job
     if job is None:
         return _error_response(request, 404, "JOB_NOT_FOUND", "Job was not found")
     return job
+
+
+@router.get(
+    "/{job_id}/logs",
+    response_model=JobLogResponse,
+    responses={
+        404: {"model": ErrorResponse, "description": "Job not found"},
+        416: {"model": ErrorResponse, "description": "Log offset out of range"},
+        503: {"model": ErrorResponse, "description": "Job logs unavailable"},
+    },
+)
+def job_logs(
+    job_id: str,
+    request: Request,
+    catalog: CatalogDependency,
+    stream: JobLogStream = JobLogStream.STDOUT,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=16384, ge=1, le=65536),
+) -> JobLogResponse | JSONResponse:
+    try:
+        return catalog.read_job_log(job_id, stream, offset, limit)
+    except JobNotFound:
+        return _error_response(request, 404, "JOB_NOT_FOUND", "Job was not found")
+    except JobLogOffsetOutOfRange:
+        return _error_response(
+            request,
+            416,
+            "JOB_LOG_OFFSET_OUT_OF_RANGE",
+            "Job log offset is beyond the available content",
+        )
+    except (JobCatalogUnavailable, JobLogsUnavailable):
+        return _error_response(
+            request,
+            503,
+            "JOB_LOGS_UNAVAILABLE",
+            "Job logs are temporarily unavailable",
+        )
 
 
 @router.post(

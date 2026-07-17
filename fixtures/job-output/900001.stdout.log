@@ -1,0 +1,5 @@
+[dashboard fixture] training started
+epoch=1 loss=0.842 accuracy=0.611
+epoch=2 loss=0.516 accuracy=0.784
+epoch=3 loss=0.331 accuracy=0.876
+checkpoint saved to demo-output/model.pt

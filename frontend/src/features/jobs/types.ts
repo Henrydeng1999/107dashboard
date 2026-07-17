@@ -56,6 +56,18 @@ export interface JobSubmitRequest {
   };
 }
 
+export type JobLogStream = "stdout" | "stderr";
+
+export interface JobLogResponse {
+  job_id: string;
+  stream: JobLogStream;
+  content: string;
+  offset: number;
+  next_offset: number;
+  eof: boolean;
+  available: boolean;
+}
+
 export interface ApiErrorResponse {
   error?: {
     code?: string;

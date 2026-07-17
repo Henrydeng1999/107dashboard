@@ -265,3 +265,69 @@ def test_fixture_job_operations_hide_unknown_jobs(operation: str) -> None:
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "JOB_NOT_FOUND"
+
+
+def test_fixture_stdout_log_supports_incremental_byte_offsets() -> None:
+    client = _fixture_client()
+
+    first = client.get(
+        "/api/jobs/slurm-900001/logs",
+        params={"stream": "stdout", "offset": 0, "limit": 32},
+    )
+
+    assert first.status_code == 200
+    first_log = first.json()
+    assert first_log["available"] is True
+    assert first_log["offset"] == 0
+    assert first_log["next_offset"] == 32
+    assert first_log["eof"] is False
+    assert first_log["content"].startswith("[dashboard fixture]")
+
+    second = client.get(
+        "/api/jobs/slurm-900001/logs",
+        params={"stream": "stdout", "offset": first_log["next_offset"], "limit": 65536},
+    ).json()
+    assert second["offset"] == 32
+    assert second["next_offset"] > 32
+    assert second["eof"] is True
+
+
+def test_fixture_stderr_and_missing_log_have_explicit_states() -> None:
+    client = _fixture_client()
+
+    stderr = client.get("/api/jobs/slurm-899999/logs", params={"stream": "stderr"})
+    missing = client.get("/api/jobs/slurm-900002/logs", params={"stream": "stdout"})
+
+    assert stderr.status_code == 200
+    assert "simulated accelerator memory exhaustion" in stderr.json()["content"]
+    assert missing.status_code == 200
+    assert missing.json() == {
+        "job_id": "slurm-900002",
+        "stream": "stdout",
+        "content": "",
+        "offset": 0,
+        "next_offset": 0,
+        "eof": True,
+        "available": False,
+    }
+
+
+@pytest.mark.parametrize(
+    ("path", "expected_status", "expected_code"),
+    [
+        ("/api/jobs/slurm-123456/logs", 404, "JOB_NOT_FOUND"),
+        ("/api/jobs/slurm-900001/logs?offset=999999", 416, "JOB_LOG_OFFSET_OUT_OF_RANGE"),
+        ("/api/jobs/slurm-900001/logs?stream=combined", 422, "INVALID_REQUEST"),
+        ("/api/jobs/slurm-900001/logs?limit=65537", 422, "INVALID_REQUEST"),
+    ],
+)
+def test_fixture_log_errors_use_stable_envelopes(
+    path: str, expected_status: int, expected_code: str
+) -> None:
+    client = _fixture_client()
+
+    response = client.get(path)
+
+    assert response.status_code == expected_status
+    assert response.json()["error"]["code"] == expected_code
+    assert response.json()["error"]["request_id"] == response.headers["X-Request-ID"]
