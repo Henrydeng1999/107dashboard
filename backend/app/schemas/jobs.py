@@ -99,6 +99,28 @@ class JobUsageResponse(BaseModel):
     gpu_memory_mb: int | None = Field(default=None, ge=0)
 
 
+class JobResourceSummary(BaseModel):
+    cpus: int = Field(ge=0)
+    memory_mb: int = Field(ge=0)
+    gpus: int = Field(ge=0)
+    time_limit_minutes: int = Field(ge=0)
+    cpus_jobs: int = Field(ge=0)
+    memory_jobs: int = Field(ge=0)
+    gpus_jobs: int = Field(ge=0)
+    time_limit_jobs: int = Field(ge=0)
+
+
+class UserJobSummary(BaseModel):
+    total_jobs: int = Field(ge=0)
+    active_jobs: int = Field(ge=0)
+    successful_jobs: int = Field(ge=0)
+    unsuccessful_jobs: int = Field(ge=0)
+    state_counts: dict[JobState, int]
+    resources: JobResourceSummary
+    resource_basis: Literal["requested_or_allocated_snapshot"]
+    updated_at: datetime
+
+
 class ErrorDetail(BaseModel):
     code: str
     message: str

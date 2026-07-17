@@ -12,6 +12,7 @@ from app.schemas.jobs import (
     JobState,
     JobSubmitRequest,
     JobUsageResponse,
+    UserJobSummary,
 )
 from app.services.job_catalog import (
     JobCatalog,
@@ -62,6 +63,19 @@ def jobs(
 ) -> JobListResponse | JSONResponse:
     try:
         return catalog.list_jobs(state=state, page=page, page_size=page_size)
+    except JobCatalogUnavailable:
+        return _error_response(
+            request,
+            503,
+            "JOB_DATA_UNAVAILABLE",
+            "Job data is temporarily unavailable",
+        )
+
+
+@router.get("/summary", response_model=UserJobSummary, responses=ERROR_RESPONSES)
+def job_summary(request: Request, catalog: CatalogDependency) -> UserJobSummary | JSONResponse:
+    try:
+        return catalog.summarize_jobs()
     except JobCatalogUnavailable:
         return _error_response(
             request,

@@ -63,6 +63,52 @@ def test_fixture_detail_uses_stable_dashboard_id() -> None:
     assert client.get("/api/jobs/899998").status_code == 404
 
 
+def test_fixture_user_summary_counts_states_and_resource_coverage() -> None:
+    client = _fixture_client()
+
+    response = client.get("/api/jobs/summary")
+
+    assert response.status_code == 200
+    summary = response.json()
+    assert summary["total_jobs"] == 5
+    assert summary["active_jobs"] == 2
+    assert summary["successful_jobs"] == 1
+    assert summary["unsuccessful_jobs"] == 2
+    assert summary["state_counts"] == {
+        "PENDING": 1,
+        "RUNNING": 1,
+        "COMPLETED": 1,
+        "FAILED": 1,
+        "CANCELLED": 1,
+        "TIMEOUT": 0,
+        "UNKNOWN": 0,
+    }
+    assert summary["resources"] == {
+        "cpus": 6,
+        "memory_mb": 12288,
+        "gpus": 2,
+        "time_limit_minutes": 180,
+        "cpus_jobs": 4,
+        "memory_jobs": 4,
+        "gpus_jobs": 2,
+        "time_limit_jobs": 4,
+    }
+    assert summary["resource_basis"] == "requested_or_allocated_snapshot"
+
+
+def test_fixture_user_summary_updates_after_submission() -> None:
+    client = _fixture_client()
+    client.post("/api/jobs", json=_valid_submission())
+
+    summary = client.get("/api/jobs/summary").json()
+
+    assert summary["total_jobs"] == 6
+    assert summary["state_counts"]["PENDING"] == 2
+    assert summary["resources"]["cpus"] == 8
+    assert summary["resources"]["memory_mb"] == 16384
+    assert summary["resources"]["gpus"] == 3
+
+
 def test_fixture_owner_is_server_configuration_not_request_input() -> None:
     client = _fixture_client(dashboard_owner="another-user")
 

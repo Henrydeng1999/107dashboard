@@ -14,9 +14,11 @@ from app.schemas.jobs import (
     JobLogResponse,
     JobLogStream,
     JobResources,
+    JobResourceSummary,
     JobState,
     JobSubmitRequest,
     JobUsageResponse,
+    UserJobSummary,
 )
 from app.slurm import (
     FixtureSlurmAdapter,
@@ -286,6 +288,47 @@ class JobCatalog:
             page=page,
             page_size=page_size,
             total=len(jobs),
+            updated_at=observed_at,
+        )
+
+    def summarize_jobs(self) -> UserJobSummary:
+        cached_jobs, observed_at = self._observed_jobs()
+        jobs = self._jobs_with_submissions(cached_jobs)
+        state_counts = {state: 0 for state in JobState}
+        for job in jobs:
+            state_counts[job.state] += 1
+
+        def total(field: str) -> int:
+            return sum(
+                value
+                for job in jobs
+                if (value := getattr(job.resources, field)) is not None
+            )
+
+        def coverage(field: str) -> int:
+            return sum(getattr(job.resources, field) is not None for job in jobs)
+
+        return UserJobSummary(
+            total_jobs=len(jobs),
+            active_jobs=state_counts[JobState.PENDING] + state_counts[JobState.RUNNING],
+            successful_jobs=state_counts[JobState.COMPLETED],
+            unsuccessful_jobs=(
+                state_counts[JobState.FAILED]
+                + state_counts[JobState.CANCELLED]
+                + state_counts[JobState.TIMEOUT]
+            ),
+            state_counts=state_counts,
+            resources=JobResourceSummary(
+                cpus=total("cpus"),
+                memory_mb=total("memory_mb"),
+                gpus=total("gpus"),
+                time_limit_minutes=total("time_limit_minutes"),
+                cpus_jobs=coverage("cpus"),
+                memory_jobs=coverage("memory_mb"),
+                gpus_jobs=coverage("gpus"),
+                time_limit_jobs=coverage("time_limit_minutes"),
+            ),
+            resource_basis="requested_or_allocated_snapshot",
             updated_at=observed_at,
         )
 

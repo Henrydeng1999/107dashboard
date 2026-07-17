@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 
-import { ApiError, cancelJob, cloneJob, fetchJob, fetchJobLog, fetchJobUsage, fetchJobs, submitJob } from "../../api/jobs";
-import type { Job, JobListResponse, JobLogStream, JobState, JobSubmitRequest, JobUsageResponse } from "./types";
+import { ApiError, cancelJob, cloneJob, fetchJob, fetchJobLog, fetchJobSummary, fetchJobUsage, fetchJobs, submitJob } from "../../api/jobs";
+import type { Job, JobListResponse, JobLogStream, JobState, JobSubmitRequest, JobUsageResponse, UserJobSummary } from "./types";
 
 const PAGE_SIZE = 5;
 
@@ -42,6 +42,64 @@ function formatMemoryKb(memoryKb: number | null): string {
   if (memoryKb === null) return "平台未提供";
   if (memoryKb < 1024) return `${memoryKb} KiB`;
   return formatMemory(memoryKb / 1024);
+}
+
+function JobSummaryPanel({ refreshKey }: { refreshKey: number }) {
+  const [summary, setSummary] = useState<UserJobSummary | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setError(null);
+    fetchJobSummary(controller.signal)
+      .then(setSummary)
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") return;
+        setError(reason instanceof ApiError ? reason.message : "无法读取账户摘要");
+      });
+    return () => controller.abort();
+  }, [refreshKey]);
+
+  if (error) return <div className="summary-error" role="alert">账户摘要暂时不可用：{error}</div>;
+  if (!summary) return <div className="summary-loading">正在汇总当前账户作业…</div>;
+
+  const headline = [
+    ["作业总数", summary.total_jobs],
+    ["活跃作业", summary.active_jobs],
+    ["成功完成", summary.successful_jobs],
+    ["失败/取消/超时", summary.unsuccessful_jobs],
+  ] as const;
+  const resources = [
+    ["CPU 字段合计", `${summary.resources.cpus} 核`, summary.resources.cpus_jobs],
+    ["GPU 字段合计", `${summary.resources.gpus} 张`, summary.resources.gpus_jobs],
+    ["内存字段合计", formatMemory(summary.resources.memory_mb), summary.resources.memory_jobs],
+    ["时限字段合计", `${summary.resources.time_limit_minutes} 分钟`, summary.resources.time_limit_jobs],
+  ] as const;
+
+  return (
+    <section className="account-summary" aria-labelledby="account-summary-title">
+      <div className="summary-heading">
+        <div>
+          <p className="section-kicker">当前用户摘要</p>
+          <h3 id="account-summary-title">作业状态与资源快照</h3>
+        </div>
+        <span>资源为当前记录中的申请或分配值，并非实际利用率</span>
+      </div>
+      <div className="summary-headline">
+        {headline.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}
+      </div>
+      <div className="state-distribution">
+        {stateOptions.slice(1).map(({ value, label }) => (
+          <span key={value}>{label} <strong>{summary.state_counts[value as JobState]}</strong></span>
+        ))}
+      </div>
+      <div className="summary-resources">
+        {resources.map(([label, value, coverage]) => (
+          <div key={label}><span>{label}</span><strong>{value}</strong><small>覆盖 {coverage}/{summary.total_jobs} 个作业</small></div>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function formatSeconds(seconds: number | null): string {
@@ -485,6 +543,8 @@ export function JobDashboard() {
             </button>
           </div>
         </div>
+
+        <JobSummaryPanel refreshKey={reloadKey} />
 
         {showSubmitForm && (
           <JobSubmitForm

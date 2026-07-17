@@ -80,6 +80,26 @@ export interface JobUsageResponse {
   gpu_memory_mb: number | null;
 }
 
+export interface UserJobSummary {
+  total_jobs: number;
+  active_jobs: number;
+  successful_jobs: number;
+  unsuccessful_jobs: number;
+  state_counts: Record<JobState, number>;
+  resources: {
+    cpus: number;
+    memory_mb: number;
+    gpus: number;
+    time_limit_minutes: number;
+    cpus_jobs: number;
+    memory_jobs: number;
+    gpus_jobs: number;
+    time_limit_jobs: number;
+  };
+  resource_basis: "requested_or_allocated_snapshot";
+  updated_at: string;
+}
+
 export interface ApiErrorResponse {
   error?: {
     code?: string;
