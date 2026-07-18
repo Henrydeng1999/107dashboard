@@ -194,6 +194,8 @@ backend/.venv/bin/python scripts/check-native-submit-api-gate.py
 
 脚本会初始化必要的 SQLite 表，读取 `/api/runtime`，并验证缺少幂等键返回 `400`、含 shell 语法的命令返回 `422`。两次请求都在活跃作业查询和 `sbatch` 之前失败，因此不会创建 Slurm 作业；输出中的 `would_invoke_sbatch` 必须为 `false`。平台检查完成前不要把开关写入长期服务配置。比赛原型启用后只运行单个 Uvicorn worker。
 
+2026-07-18 已在 107 对提交 `0f88ede` 完成本检查：有效用户 `pb24030760`（UID `68311`），`runtime_submit=true`，缺少幂等键返回 `400`，Shell 语法命令返回 `422`，取消、克隆和日志能力均为 `false`，`would_invoke_sbatch=false`。临时开关只存在于验收 shell，没有写入长期服务配置；运行时 `data/` 证据保持未跟踪且未被修改或删除。
+
 ## 安全边界
 
 - 部署公钥保持只读，不改用个人写入密钥；
