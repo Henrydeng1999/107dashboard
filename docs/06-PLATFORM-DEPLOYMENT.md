@@ -144,6 +144,8 @@ backend/.venv/bin/python scripts/check-native-readonly.py
 
 验收后启动 Web 服务时使用同一组环境变量。`GET /api/runtime` 应返回 `data_source=native`、`read_only=true`；Native 前端会隐藏新建、取消、克隆和日志入口。不要为了测试按钮而开启写操作。
 
+2026-07-18 已在 107 对提交 `05a64a3` 完成本流程：有效用户 `pb24030760`（UID `68311`），owner 检查通过，读取到真实作业 `21482`，状态 `COMPLETED`、退出码 `0:0`，`elapsed_seconds`、`max_rss_kb`、`total_cpu_seconds` 均存在，脚本退出码为 0。验收没有执行任何写操作或日志读取。
+
 ## 安全边界
 
 - 部署公钥保持只读，不改用个人写入密钥；

@@ -180,6 +180,27 @@ torch_import=failed: No module named 'torch'
 
 这次验证说明 Dashboard 可以从 Slurm 获取并可视化：排队原因、Job ID、账户、QoS、分区、节点、申请资源、实际分配、运行状态、退出码和耗时。GPU 型号、驱动和显存信息可以通过受控检查作业或用户作业日志补充。
 
+### Native 只读 API 正式验收
+
+2026-07-18，服务器仓库快进到提交 `05a64a3` 后执行 `scripts/check-native-readonly.py`，结果如下：
+
+```text
+Unix user: pb24030760
+Effective UID: 68311
+Mode: native-read-only
+Owner check: passed
+Visible jobs: 1
+Sample Slurm Job ID: 21482
+State: COMPLETED
+Exit code: 0:0
+elapsed_seconds: present
+max_rss_kb: present
+total_cpu_seconds: present
+Script exit code: 0
+```
+
+验收期间只执行列表、详情和资源统计查询，没有提交或取消作业，也没有读取作业日志。该证据确认当前提交的有效 UID、部署 owner、Slurm user 校验及 Native 只读 API 在 107 可用；不代表 Native 写操作或真实日志已经开放。
+
 ## GPU
 
 登录节点存在 `/usr/bin/nvidia-smi`，但不能连接 NVIDIA 驱动。这个结果符合登录节点不直接提供 GPU 的平台模式；实际 Slurm 作业已经确认计算节点 GPU 正常可用。

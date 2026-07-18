@@ -107,6 +107,8 @@ Fixture 和 Native 采用并行验证，不互相替代：
 退出码与同一时刻的 `squeue`/`sacct` 原始查询一致。测试结束后临时进程和回环端口均已关闭。
 该证据只证明 Native 只读链路可用，不代表生产 Native API、真实提交、日志、取消或克隆已经开放。
 
+2026-07-18，提交 `05a64a3` 的正式 Native 只读门禁在 107 验收通过。后端进程有效用户为 `pb24030760`、UID 为 `68311`，三层 owner 检查通过；API 查询到真实作业 `21482`，状态 `COMPLETED`、退出码 `0:0`，usage 响应中的 `elapsed_seconds`、`max_rss_kb`、`total_cpu_seconds` 均存在。`scripts/check-native-readonly.py` 退出码为 0，期间未调用提交、取消或日志接口。
+
 ## 实现顺序
 
 1. Pydantic schema 固化请求和响应；
