@@ -50,3 +50,22 @@ class SubmissionAudit(Base):
     result_code: Mapped[str] = mapped_column(String(64), nullable=False)
     slurm_job_id: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class SubmissionIdempotency(Base):
+    __tablename__ = "submission_idempotency"
+    __table_args__ = (
+        UniqueConstraint("owner", "key_digest", name="uq_submission_idempotency_owner_key"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    owner: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    key_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    submission_id: Mapped[str | None] = mapped_column(String(64))
+    slurm_job_id: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )

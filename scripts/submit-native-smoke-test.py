@@ -75,11 +75,20 @@ def execute_minimal_submission(
         build_minimal_request(),
         authorization=ExplicitSubmissionAuthorization(confirmed=True),
     )
-    audit_statuses = [
-        event.status
-        for event in repository.list_events(owner=owner)
-        if event.submission_id == metadata.id
-    ]
+    events = repository.list_events(owner=owner)
+    success_event = next(
+        (
+            event
+            for event in reversed(events)
+            if event.status == "SUCCEEDED" and event.slurm_job_id == metadata.slurm_job_id
+        ),
+        None,
+    )
+    audit_statuses = (
+        [event.status for event in events if event.submission_id == success_event.submission_id]
+        if success_event is not None
+        else []
+    )
     return {
         "mode": "native-submit-minimal-acceptance",
         "submitted": True,

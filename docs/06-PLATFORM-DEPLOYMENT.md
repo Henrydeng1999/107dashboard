@@ -148,7 +148,7 @@ backend/.venv/bin/python scripts/check-native-readonly.py
 
 ## Native 提交无写入预检
 
-仓库已提供提交安全底座，但尚未接入 Native HTTP API。更新代码后，先运行以下预检：
+底层提交安全底座可独立于 HTTP 路由执行无写入预检。更新代码后运行：
 
 ```bash
 cd ~/107dashboard
@@ -176,6 +176,23 @@ backend/.venv/bin/python scripts/submit-native-smoke-test.py \
 该脚本不接受命令或资源覆盖参数，并在作业目录中发现已有真实提交回执时拒绝重复运行。它只提交作业并保存 Job ID、元数据和审计，不读取 stdout/stderr、不取消作业，也不会开放 HTTP 提交。随后使用输出的 Job ID 执行只读 `sacct` 验证最终状态与退出码。
 
 2026-07-18 已在 107 对提交 `88a0147` 完成唯一一次真实最小作业验收：Dashboard ID `submission-e095de46b95e441cbeef29c96a0bc6b9`，Slurm Job ID `24011`，owner `pb24030760`，命令 `python3 --version`，请求 `1 CPU / 512 MiB / 0 GPU / 1 分钟`。作业状态为 `COMPLETED`、退出码为 `0:0`；元数据、Job ID 回执和 `PREPARED -> SUCCEEDED` 审计均已持久化。验收未读取日志、未取消作业、未进行第二次提交，HTTP 提交能力保持关闭。
+
+## Native HTTP 提交门禁检查
+
+受控路由默认关闭。拉取包含该功能的提交后，可在临时 shell 中显式启用并运行无 `sbatch` 检查：
+
+```bash
+export SLURM_DATA_SOURCE=native
+export DASHBOARD_OWNER="$(id -un)"
+export DATABASE_URL="sqlite:////home/scc/$(id -un)/107dashboard/data/dashboard.sqlite3"
+export JOB_WORKSPACE_DIRECTORY="/home/scc/$(id -un)/107dashboard/data/jobs"
+export NATIVE_SUBMISSION_ENABLED=true
+export NATIVE_MAX_ACTIVE_JOBS=1
+
+backend/.venv/bin/python scripts/check-native-submit-api-gate.py
+```
+
+脚本会初始化必要的 SQLite 表，读取 `/api/runtime`，并验证缺少幂等键返回 `400`、含 shell 语法的命令返回 `422`。两次请求都在活跃作业查询和 `sbatch` 之前失败，因此不会创建 Slurm 作业；输出中的 `would_invoke_sbatch` 必须为 `false`。平台检查完成前不要把开关写入长期服务配置。比赛原型启用后只运行单个 Uvicorn worker。
 
 ## 安全边界
 

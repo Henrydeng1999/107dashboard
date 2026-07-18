@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { ApiError, cancelJob, cloneJob, fetchJob, fetchJobLog, fetchJobSummary, fetchJobUsage, fetchJobs, fetchRuntimeInfo, submitJob } from "../../api/jobs";
 import type { Job, JobListResponse, JobLogStream, JobState, JobSubmitRequest, JobUsageResponse, RuntimeCapabilities, RuntimeInfo, UserJobSummary } from "./types";
@@ -349,13 +349,16 @@ function JobDetail({
 function JobSubmitForm({
   onCancel,
   onSubmitted,
+  nativeMode,
 }: {
   onCancel: () => void;
   onSubmitted: (job: Job) => void;
+  nativeMode: boolean;
 }) {
   const [submission, setSubmission] = useState<JobSubmitRequest>(defaultSubmission);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const idempotency = useRef<{ fingerprint: string; key: string } | null>(null);
 
   const updateResource = (field: keyof JobSubmitRequest["resources"], value: number) => {
     setSubmission((current) => ({
@@ -369,7 +372,11 @@ function JobSubmitForm({
     setSubmitting(true);
     setSubmitError(null);
     try {
-      onSubmitted(await submitJob(submission));
+      const fingerprint = JSON.stringify(submission);
+      if (idempotency.current?.fingerprint !== fingerprint) {
+        idempotency.current = { fingerprint, key: crypto.randomUUID() };
+      }
+      onSubmitted(await submitJob(submission, idempotency.current.key));
     } catch (reason) {
       setSubmitError(reason instanceof ApiError ? reason.message : "无法提交作业");
     } finally {
@@ -381,9 +388,13 @@ function JobSubmitForm({
     <form className="submit-panel" onSubmit={(event) => void handleSubmit(event)}>
       <div className="submit-heading">
         <div>
-          <p className="section-kicker">Fixture 提交</p>
+          <p className="section-kicker">{nativeMode ? "Native 受控提交" : "Fixture 提交"}</p>
           <h2>配置一个排队作业</h2>
-          <p>当前只模拟提交，不会执行命令或占用服务器资源。</p>
+          <p>
+            {nativeMode
+              ? "提交将进入 Slurm；重复点击会复用同一请求键，活跃作业达到上限时会被拒绝。"
+              : "当前只模拟提交，不会执行命令或占用服务器资源。"}
+          </p>
         </div>
         <button className="quiet-button" type="button" onClick={onCancel}>关闭</button>
       </div>
@@ -540,7 +551,9 @@ export function JobDashboard() {
               ? "正在同步"
               : runtime.read_only
                 ? "Native 只读"
-                : "Fixture 已连接"}
+                : runtime.data_source === "native"
+                  ? "Native 受控提交"
+                  : "Fixture 已连接"}
         </div>
       </header>
 
@@ -549,6 +562,12 @@ export function JobDashboard() {
           <div className="mode-notice" role="status">
             <strong>Native 只读模式</strong>
             <span>列表、详情和资源统计来自当前 Unix 账号的 Slurm 记录；提交、取消、克隆和日志尚未开放。</span>
+          </div>
+        )}
+        {runtime?.data_source === "native" && runtime.capabilities.submit && (
+          <div className="mode-notice" role="status">
+            <strong>Native 受控提交模式</strong>
+            <span>提交已开放并受幂等键与活跃作业上限保护；取消、克隆和日志仍未开放。</span>
           </div>
         )}
         <div className="section-heading">
@@ -585,10 +604,15 @@ export function JobDashboard() {
 
         {showSubmitForm && (
           <JobSubmitForm
+            nativeMode={runtime?.data_source === "native"}
             onCancel={() => setShowSubmitForm(false)}
             onSubmitted={(job) => {
               setShowSubmitForm(false);
-              setSubmissionNotice(`作业 #${job.slurm_job_id} 已加入 Fixture 队列`);
+              setSubmissionNotice(
+                runtime?.data_source === "native"
+                  ? `作业 #${job.slurm_job_id} 已提交到 Slurm`
+                  : `作业 #${job.slurm_job_id} 已加入 Fixture 队列`,
+              );
               setStateFilter("ALL");
               setPage(1);
               setSelectedJob(job);

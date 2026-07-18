@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     slurm_query_cache_ttl_seconds: float = 2.0
     slurm_max_jobs: int = 1000
     dashboard_owner: str = "demo-user"
+    native_submission_enabled: bool = False
+    native_max_active_jobs: int = 1
 
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env",
@@ -76,6 +78,13 @@ class Settings(BaseSettings):
     def validate_max_jobs(cls, value: int) -> int:
         if not 1 <= value <= 10000:
             raise ValueError("SLURM_MAX_JOBS must be between 1 and 10000")
+        return value
+
+    @field_validator("native_max_active_jobs")
+    @classmethod
+    def validate_native_max_active_jobs(cls, value: int) -> int:
+        if not 1 <= value <= 100:
+            raise ValueError("NATIVE_MAX_ACTIVE_JOBS must be between 1 and 100")
         return value
 
     @field_validator("dashboard_owner")

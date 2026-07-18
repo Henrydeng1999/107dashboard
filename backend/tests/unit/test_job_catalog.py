@@ -199,6 +199,8 @@ def test_dotenv_path_is_anchored_to_project_root() -> None:
         ("slurm_query_cache_ttl_seconds", 61),
         ("slurm_max_jobs", 0),
         ("slurm_max_jobs", 10001),
+        ("native_max_active_jobs", 0),
+        ("native_max_active_jobs", 101),
     ],
 )
 def test_slurm_query_settings_have_bounded_values(field: str, value: Any) -> None:

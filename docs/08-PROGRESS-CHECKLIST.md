@@ -8,9 +8,9 @@
 
 <div class="progress-summary" aria-label="当前项目摘要">
   <div class="progress-stat progress-stat-done"><strong>可用</strong><span>前后端最小骨架</span></div>
-  <div class="progress-stat progress-stat-done"><strong>172 / 172</strong><span>后端测试通过</span></div>
+  <div class="progress-stat progress-stat-done"><strong>184 / 184</strong><span>后端测试通过</span></div>
   <div class="progress-stat progress-stat-done"><strong>通过</strong><span>前端类型检查与构建</span></div>
-  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>107 最小真实作业验收</span></div>
+  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>107 HTTP 门禁无作业检查</span></div>
 </div>
 
 > **状态说明：** <span class="status-badge status-done">✓ 已完成</span> 已实现并通过对应测试、构建、fixture 或平台证据验证；<span class="status-badge status-active">→ 进行中</span> 已有部分成果；<span class="status-badge status-pending">○ 待开始</span> 尚未实现；<span class="status-badge status-later">◇ 赛后</span> 不阻塞比赛 MVP。
@@ -36,7 +36,7 @@
   <div class="phase-row">
     <div class="phase-heading"><strong>阶段 3 · 作业提交与控制</strong><span class="status-badge status-active">4 / 5</span></div>
     <div class="progress-track" role="progressbar" aria-label="作业提交与控制完成度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="80"><span class="progress-fill progress-80"></span></div>
-    <p>结构化参数、Fixture 控制和 Native 提交安全底座已完成，唯一一次真实最小作业验收通过；HTTP 接线、重复请求与并发门禁尚未完成，因此阶段仍为 4 / 5。</p>
+    <p>结构化参数、Fixture 控制、Native 安全提交、持久化幂等和活跃作业并发门禁已完成本地回归；等待 107 无作业 HTTP 门禁检查，因此阶段仍为 4 / 5。</p>
   </div>
   <div class="phase-row">
     <div class="phase-heading"><strong>阶段 4 · 日志和资源可视化</strong><span class="status-badge status-done">4 / 4</span></div>
@@ -62,7 +62,7 @@
 | <span class="status-badge status-done">✓</span> | Slurm fixtures | 脱敏 squeue、sacct、sinfo 和空队列输出样例 | 解析器与 Fixture adapter 测试通过 |
 | <span class="status-badge status-done">✓</span> | Slurm adapter | SlurmAdapter Protocol、参数数组 runner、Fixture/Native adapter、超时与命令错误映射 | adapter 单元测试通过；107 临时只读实例已执行真实 `squeue`/`sacct` |
 | <span class="status-badge status-done">✓</span> | Slurm 解析 | squeue、sacct、sinfo 的作业状态、节点、退出码和资源字段解析 | fixture、异常输入和状态映射测试通过 |
-| <span class="status-badge status-done">✓</span> | API 安全边界 | Native 仅开放受 UID/owner 门禁保护的 GET 列表、详情、摘要和 usage；写操作与日志 fail closed | 其他 owner 隐藏、身份失败、命令失败、空队列和只读能力测试通过 |
+| <span class="status-badge status-done">✓</span> | API 安全边界 | Native 默认仅开放受 UID/owner 门禁保护的 GET；显式部署开关只增加受控提交，取消、克隆和日志继续 fail closed | 其他 owner 隐藏、身份失败、命令失败、空队列、能力声明和错误脱敏测试通过 |
 | <span class="status-badge status-done">✓</span> | 前端骨架 | React 页面入口、基础布局与 API 状态 | TypeScript 检查、Vite 构建通过 |
 | <span class="status-badge status-done">✓</span> | 前端作业视图 | Fixture 作业列表、状态筛选、分页、详情、加载、空数据和错误重试 | TypeScript 检查、Vite 生产构建通过 |
 | <span class="status-badge status-done">✓</span> | Fixture 作业提交 | 结构化提交 API、固定分区/账户/QoS、资源上限校验、模拟排队 Job ID 和基础提交表单 | 合法提交、非法参数测试及前端构建通过；未执行 sbatch |
@@ -77,17 +77,18 @@
 | <span class="status-badge status-done">✓</span> | Native 平台验收 | 有效 UID、owner、真实列表、详情和 usage 在 107 运行通过 | 提交 `05a64a3`；用户 `pb24030760`；Job `21482`；`COMPLETED`；`0:0`；脚本退出 0 |
 | <span class="status-badge status-done">✓</span> | Native 提交安全底座 | 窄命令白名单、资源上限、受控目录/脚本、参数数组、Job ID 解析、回执、owner 元数据和脱敏审计；未接入 HTTP | 注入式伪 `sbatch`、攻击字符串、文件边界、审计与授权门测试通过；未调用真实 `sbatch` |
 | <span class="status-badge status-done">✓</span> | Native 最小提交验收 | 固定一次性入口提交 `python3 --version`，持久化 Job ID、owner 元数据、回执和审计；HTTP 保持关闭 | 提交 `88a0147`；用户 `pb24030760`；Job `24011`；`1 CPU / 512 MiB / 0 GPU / 1 分钟`；`COMPLETED`；`0:0` |
-| <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 后端 172 个 pytest 通过，目标 Ruff 通过；0 个生产依赖漏洞 |
+| <span class="status-badge status-done">✓</span> | Native 受控 HTTP 提交 | 默认关闭的部署门、持久化幂等摘要、同键安全重放、异请求冲突、活跃作业上限、稳定 Dashboard ID 和前端幂等重试 | 注入式 API 回归证明相同请求仅调用一次伪 `sbatch`；前端类型检查和生产构建通过；未调用真实 `sbatch` |
+| <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 后端 184 个 pytest 通过，目标 Ruff 通过；0 个生产依赖漏洞 |
 | <span class="status-badge status-done">✓</span> | 文档 | 架构、环境、协作、部署、API 契约 | 文档站可直接访问 |
 | <span class="status-badge status-done">✓</span> | 文档体验 | 单章节按需加载、模糊过渡、URL 定位、前进后退和章节筛选 | 浏览器交互检查通过 |
 
 ## 当前待办与提示
 
 <div class="notice-grid">
-  <div class="notice notice-next"><strong>下一开发项</strong><span>在接通 Native `POST /api/jobs` 前实现重复请求与活跃作业并发门禁，再补齐 API 层身份、错误映射和回归测试。</span></div>
-  <div class="notice notice-warning"><strong>暂时限制</strong><span>底层真实提交已验收，但 Native HTTP 提交、取消、克隆和日志继续关闭；不得重复运行一次性验收脚本。</span></div>
+  <div class="notice notice-next"><strong>下一开发项</strong><span>在 107 临时启用提交部署门并运行只触发 `400/422` 的 API 检查，确认能力声明和 fail-before-sbatch 路径。</span></div>
+  <div class="notice notice-warning"><strong>暂时限制</strong><span>Native HTTP 提交默认关闭，107 门禁检查前不要写入长期服务配置；取消、克隆和日志继续关闭，不得重复运行真实验收脚本。</span></div>
   <div class="notice notice-safe"><strong>安全边界</strong><span>真实测试只能通过 Slurm 提交，禁止在登录节点直接运行学生计算任务。</span></div>
-  <div class="notice notice-info"><strong>验证方式</strong><span>Fixture 与注入式 Native 回归用于本地稳定验证，107 脚本用于平台预检和真实验收：后端 pytest 172 passed、目标 Ruff、前端类型检查和生产构建通过。</span></div>
+  <div class="notice notice-info"><strong>验证方式</strong><span>Fixture 与注入式 Native 回归用于本地稳定验证，107 脚本用于平台门禁与真实验收：后端 pytest 184 passed、目标 Ruff、前端类型检查和生产构建通过。</span></div>
 </div>
 
 ## MVP 必须功能
@@ -102,6 +103,8 @@
 - [x] 基础作业列表与详情页面
 - [x] Fixture 作业提交与资源校验
 - [x] 真实 sbatch 提交与 Job ID 持久化
+- [x] Native HTTP 提交幂等、并发门禁和默认关闭的部署开关
+- [ ] Native HTTP 提交在 107 的无作业门禁检查
 - [x] Fixture stdout/stderr 日志查看与增量读取
 - [ ] 真实日志路径映射、所有权校验与平台验收
 - [x] Fixture 作业取消与克隆

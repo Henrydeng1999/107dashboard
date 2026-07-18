@@ -87,6 +87,9 @@ See `docs/03-ENVIRONMENT_CHECK.md` for the complete verified environment record.
 - Keep real resource requests minimal when performing platform checks.
 - The competition Native prototype uses one trusted Unix-account identity: derive it from the backend process effective UID and assert it matches deployment configuration. Never accept a Slurm username from HTTP input.
 - Keep Native jobs API fail closed until OS-identity startup validation, persisted owner metadata, and per-operation ownership checks are implemented and tested.
+- Keep `NATIVE_SUBMISSION_ENABLED=false` by default. Enabling Native `POST /api/jobs` requires the verified UID/owner gate, persistent idempotency records, a configured active-job limit, sanitized error mapping, and relevant local/platform gate checks.
+- Native HTTP submissions must require `Idempotency-Key`; never store the raw key, and never allow a key to represent two different request payloads.
+- The competition Native concurrency guard assumes one Uvicorn worker. Do not run multiple backend workers until the active-count check and idempotency reservation use shared cross-process atomic coordination.
 
 ## Security
 

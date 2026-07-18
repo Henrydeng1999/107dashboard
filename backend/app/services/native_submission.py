@@ -1,15 +1,24 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from hashlib import sha256
+import json
 from pathlib import Path
-from typing import Protocol
+import re
+from threading import Lock
+from typing import Callable, Protocol
 
 from app.repositories.job_metadata import JobMetadataRecord
-from app.repositories.submission import SubmissionAuditRecord, SubmissionRepository
+from app.repositories.submission import (
+    SubmissionAuditRecord,
+    SubmissionIdempotencyRecord,
+    SubmissionRepository,
+)
 from app.schemas.jobs import JobSubmitRequest
 from app.slurm.submission import (
     SubmissionPlan,
     build_submission_plan,
     materialize_submission,
+    parse_allowed_command,
     write_submission_receipt,
 )
 
@@ -21,6 +30,21 @@ class SlurmSubmitter(Protocol):
 @dataclass(frozen=True, slots=True)
 class ExplicitSubmissionAuthorization:
     confirmed: bool = False
+
+
+class NativeIdempotencyRequiredError(RuntimeError):
+    """The idempotency key is absent or invalid."""
+
+
+class NativeIdempotencyConflictError(RuntimeError):
+    """The idempotency key conflicts with an existing attempt."""
+
+
+class NativeActiveJobLimitError(RuntimeError):
+    """The trusted owner already has the configured number of active jobs."""
+
+
+_IDEMPOTENCY_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}", re.ASCII)
 
 
 class NativeSubmissionService:
@@ -38,6 +62,7 @@ class NativeSubmissionService:
         self._workspace_root = workspace_root
         self._submitter = submitter
         self._repository = repository
+        self._submission_lock = Lock()
 
     def submit(
         self,
@@ -48,6 +73,90 @@ class NativeSubmissionService:
         if not authorization.confirmed:
             raise PermissionError("explicit Native submission authorization is required")
 
+        return self._submit_new(request)
+
+    def submit_idempotent(
+        self,
+        request: JobSubmitRequest,
+        *,
+        authorization: ExplicitSubmissionAuthorization,
+        idempotency_key: str | None,
+        active_job_count: Callable[[], int],
+        max_active_jobs: int,
+    ) -> JobMetadataRecord:
+        if not authorization.confirmed:
+            raise PermissionError("explicit Native submission authorization is required")
+        if idempotency_key is None or _IDEMPOTENCY_KEY.fullmatch(idempotency_key) is None:
+            raise NativeIdempotencyRequiredError("a valid Idempotency-Key is required")
+        if not 1 <= max_active_jobs <= 100:
+            raise ValueError("max_active_jobs must be between 1 and 100")
+        parse_allowed_command(request.command)
+
+        key_digest = sha256(idempotency_key.encode("ascii")).hexdigest()
+        request_digest = sha256(
+            json.dumps(
+                request.model_dump(mode="json"),
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        with self._submission_lock:
+            existing = self._repository.get_idempotency(
+                owner=self._owner, key_digest=key_digest
+            )
+            if existing is not None:
+                return self._resolve_existing(existing, request_digest)
+            if active_job_count() >= max_active_jobs:
+                raise NativeActiveJobLimitError("active Native job limit reached")
+            self._repository.reserve_idempotency(
+                SubmissionIdempotencyRecord(
+                    owner=self._owner,
+                    key_digest=key_digest,
+                    request_digest=request_digest,
+                    status="PREPARED",
+                )
+            )
+            try:
+                return self._submit_new(
+                    request,
+                    key_digest=key_digest,
+                    request_digest=request_digest,
+                )
+            except Exception:
+                try:
+                    self._repository.mark_idempotency_failed(
+                        owner=self._owner, key_digest=key_digest
+                    )
+                except Exception:
+                    pass
+                raise
+
+    def _resolve_existing(
+        self,
+        existing: SubmissionIdempotencyRecord,
+        request_digest: str,
+    ) -> JobMetadataRecord:
+        if existing.request_digest != request_digest:
+            raise NativeIdempotencyConflictError("Idempotency-Key was used for another request")
+        if existing.status != "SUCCEEDED" or existing.submission_id is None:
+            raise NativeIdempotencyConflictError(
+                "Idempotency-Key has no replayable successful result"
+            )
+        metadata = self._repository.get_successful_metadata(
+            owner=self._owner,
+            submission_id=existing.submission_id,
+        )
+        if metadata is None:
+            raise NativeIdempotencyConflictError("idempotent submission metadata is unavailable")
+        return metadata
+
+    def _submit_new(
+        self,
+        request: JobSubmitRequest,
+        *,
+        key_digest: str | None = None,
+        request_digest: str | None = None,
+    ) -> JobMetadataRecord:
         plan = build_submission_plan(
             request,
             owner=self._owner,
@@ -60,7 +169,7 @@ class NativeSubmissionService:
             write_submission_receipt(plan, slurm_job_id)
             now = datetime.now(timezone.utc)
             metadata = JobMetadataRecord(
-                id=plan.submission_id,
+                id=f"slurm-{slurm_job_id}",
                 slurm_job_id=slurm_job_id,
                 owner=self._owner,
                 source="native",
@@ -78,9 +187,11 @@ class NativeSubmissionService:
                 state="PENDING",
                 submitted_at=now,
             )
-            self._repository.record_success(
+            metadata = self._repository.record_success(
                 metadata,
                 self._audit(plan, "SUCCEEDED", "SBATCH_ACCEPTED", slurm_job_id),
+                key_digest=key_digest,
+                request_digest=request_digest,
             )
             return metadata
         except Exception as exc:

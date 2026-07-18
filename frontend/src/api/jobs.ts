@@ -59,10 +59,13 @@ export function fetchJob(jobId: string, signal?: AbortSignal): Promise<Job> {
   return request<Job>(`/jobs/${encodeURIComponent(jobId)}`, { signal });
 }
 
-export function submitJob(submission: JobSubmitRequest): Promise<Job> {
+export function submitJob(submission: JobSubmitRequest, idempotencyKey: string): Promise<Job> {
   return request<Job>("/jobs", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey,
+    },
     body: JSON.stringify(submission),
   });
 }

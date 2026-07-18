@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.schemas.jobs import (
@@ -15,13 +15,17 @@ from app.schemas.jobs import (
     UserJobSummary,
 )
 from app.services.job_catalog import (
+    JobActiveLimitReached,
     JobCatalog,
     JobCatalogUnavailable,
     JobLogOffsetOutOfRange,
     JobLogsUnavailable,
     JobNotFound,
+    JobIdempotencyConflict,
+    JobIdempotencyRequired,
     JobOperationConflict,
     JobSubmissionUnavailable,
+    JobSubmissionInvalid,
 )
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -174,6 +178,8 @@ def job_usage(
     response_model=Job,
     status_code=201,
     responses={
+        400: {"model": ErrorResponse, "description": "Idempotency key required"},
+        409: {"model": ErrorResponse, "description": "Submission conflict"},
         422: ERROR_RESPONSES[422],
         503: {"model": ErrorResponse, "description": "Job submission unavailable"},
     },
@@ -182,9 +188,38 @@ def submit_job(
     submission: JobSubmitRequest,
     request: Request,
     catalog: CatalogDependency,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> Job | JSONResponse:
     try:
-        return catalog.submit_job(submission)
+        return catalog.submit_job(submission, idempotency_key=idempotency_key)
+    except JobSubmissionInvalid:
+        return _error_response(
+            request,
+            422,
+            "INVALID_REQUEST",
+            "Request parameters are invalid",
+        )
+    except JobIdempotencyRequired:
+        return _error_response(
+            request,
+            400,
+            "IDEMPOTENCY_KEY_REQUIRED",
+            "A valid Idempotency-Key header is required",
+        )
+    except JobIdempotencyConflict:
+        return _error_response(
+            request,
+            409,
+            "JOB_IDEMPOTENCY_CONFLICT",
+            "Idempotency-Key conflicts with an earlier submission",
+        )
+    except JobActiveLimitReached:
+        return _error_response(
+            request,
+            409,
+            "JOB_ACTIVE_LIMIT_REACHED",
+            "The active job limit has been reached",
+        )
     except JobSubmissionUnavailable:
         return _error_response(
             request,

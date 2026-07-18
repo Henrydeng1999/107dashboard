@@ -181,7 +181,9 @@ def test_repository_filters_fixture_and_native_metadata_sources(
 def test_native_catalog_merges_metadata_without_duplicating_slurm_job(
     repository: JobMetadataRepository,
 ) -> None:
-    repository.upsert(build_record(id="slurm-21482", source="native", memory_mb=4096))
+    repository.upsert(
+        build_record(id="submission-legacy-native", source="native", memory_mb=4096)
+    )
     adapter = EmptyAdapter(
         accounting=[
             SlurmJob(
@@ -206,6 +208,7 @@ def test_native_catalog_merges_metadata_without_duplicating_slurm_job(
 
     assert response.total == 1
     merged = response.items[0]
+    assert merged.id == "slurm-21482"
     assert merged.state == JobState.COMPLETED
     assert merged.name == "scheduler-name"
     assert merged.command == "python train.py"

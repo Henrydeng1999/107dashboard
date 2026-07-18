@@ -17,15 +17,18 @@ def create_app(settings: Settings | None = None, job_catalog: JobCatalog | None 
     settings = settings or get_settings()
     application = FastAPI(title=settings.app_name, version="0.1.0")
     application.state.job_catalog = job_catalog or build_job_catalog(settings)
-    native_read_only = settings.slurm_data_source == "native"
+    native_submission_enabled = (
+        settings.slurm_data_source == "native" and settings.native_submission_enabled
+    )
+    native_read_only = settings.slurm_data_source == "native" and not native_submission_enabled
     application.state.runtime_info = RuntimeInfo(
         data_source=settings.slurm_data_source,
         read_only=native_read_only,
         capabilities=RuntimeCapabilities(
-            submit=not native_read_only,
-            cancel=not native_read_only,
-            clone=not native_read_only,
-            logs=not native_read_only,
+            submit=(settings.slurm_data_source == "fixture" or native_submission_enabled),
+            cancel=settings.slurm_data_source == "fixture",
+            clone=settings.slurm_data_source == "fixture",
+            logs=settings.slurm_data_source == "fixture",
         ),
     )
 

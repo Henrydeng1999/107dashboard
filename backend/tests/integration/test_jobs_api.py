@@ -9,6 +9,7 @@ from app.core.identity import TrustedIdentityError
 from app.main import create_app
 from app.services.job_catalog import JobCatalog, build_job_catalog
 from app.slurm import SlurmCommandFailed, SlurmJob, SlurmResources, SlurmUsageRecord
+from app.slurm.runner import CommandResult
 
 
 class FailingAdapter:
@@ -362,6 +363,147 @@ def test_native_read_only_api_handles_empty_queue() -> None:
     assert response.status_code == 200
     assert response.json()["items"] == []
     assert response.json()["total"] == 0
+
+
+def _native_submit_client(
+    tmp_path: Path,
+    monkeypatch,
+    *,
+    adapter: NativeReadOnlyAdapter | None = None,
+) -> tuple[TestClient, list[tuple[str, ...]]]:
+    native_adapter = adapter or NativeReadOnlyAdapter(empty=True)
+    sbatch_calls: list[tuple[str, ...]] = []
+
+    def fake_run(self: object, arguments: list[str] | tuple[str, ...]) -> CommandResult:
+        del self
+        command = tuple(arguments)
+        assert command[0] == "sbatch"
+        sbatch_calls.append(command)
+        return CommandResult(stdout="24012;training\n", stderr="")
+
+    monkeypatch.setattr(
+        "app.services.job_catalog.resolve_effective_unix_username", lambda: "demo-user"
+    )
+    monkeypatch.setattr(
+        "app.services.job_catalog.build_slurm_adapter", lambda settings: native_adapter
+    )
+    monkeypatch.setattr("app.slurm.runner.SubprocessCommandRunner.run", fake_run)
+    settings = Settings(
+        _env_file=None,
+        slurm_data_source="native",
+        dashboard_owner="demo-user",
+        native_submission_enabled=True,
+        native_max_active_jobs=1,
+        database_url=f"sqlite:///{tmp_path / 'dashboard.sqlite3'}",
+        job_workspace_directory=tmp_path / "jobs",
+    )
+    return TestClient(create_app(settings=settings)), sbatch_calls
+
+
+def test_native_submit_api_requires_idempotency_and_replays_without_sbatch(
+    tmp_path: Path, monkeypatch
+) -> None:
+    client, sbatch_calls = _native_submit_client(tmp_path, monkeypatch)
+
+    runtime = client.get("/api/runtime").json()
+    missing_key = client.post("/api/jobs", json=_valid_submission())
+    first = client.post(
+        "/api/jobs",
+        json=_valid_submission(),
+        headers={"Idempotency-Key": "api-request-safe-0001"},
+    )
+    replay = client.post(
+        "/api/jobs",
+        json=_valid_submission(),
+        headers={"Idempotency-Key": "api-request-safe-0001"},
+    )
+    changed_payload = _valid_submission()
+    changed_payload["name"] = "different-job"
+    conflict = client.post(
+        "/api/jobs",
+        json=changed_payload,
+        headers={"Idempotency-Key": "api-request-safe-0001"},
+    )
+
+    assert runtime["read_only"] is False
+    assert runtime["capabilities"] == {
+        "list_jobs": True,
+        "job_details": True,
+        "usage": True,
+        "submit": True,
+        "cancel": False,
+        "clone": False,
+        "logs": False,
+    }
+    assert missing_key.status_code == 400
+    assert missing_key.json()["error"]["code"] == "IDEMPOTENCY_KEY_REQUIRED"
+    assert first.status_code == 201
+    assert first.json()["id"] == "slurm-24012"
+    assert replay.status_code == 201
+    assert replay.json() == first.json()
+    assert len(sbatch_calls) == 1
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "JOB_IDEMPOTENCY_CONFLICT"
+    assert client.post("/api/jobs/slurm-24012/cancel").status_code == 503
+
+
+def test_native_submit_api_enforces_active_limit_before_sbatch(
+    tmp_path: Path, monkeypatch
+) -> None:
+    client, sbatch_calls = _native_submit_client(
+        tmp_path, monkeypatch, adapter=NativeReadOnlyAdapter()
+    )
+
+    response = client.post(
+        "/api/jobs",
+        json=_valid_submission(),
+        headers={"Idempotency-Key": "api-active-limit-0001"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "JOB_ACTIVE_LIMIT_REACHED"
+    assert sbatch_calls == []
+
+
+def test_native_submit_api_rejects_shell_syntax_before_reservation(
+    tmp_path: Path, monkeypatch
+) -> None:
+    client, sbatch_calls = _native_submit_client(tmp_path, monkeypatch)
+    payload = _valid_submission()
+    payload["command"] = "python train.py;whoami"
+
+    response = client.post(
+        "/api/jobs",
+        json=payload,
+        headers={"Idempotency-Key": "api-invalid-command-0001"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "INVALID_REQUEST"
+    assert sbatch_calls == []
+    assert not (tmp_path / "jobs").exists()
+
+
+def test_native_submit_api_sanitizes_active_job_query_failure(
+    tmp_path: Path, monkeypatch
+) -> None:
+    client, sbatch_calls = _native_submit_client(
+        tmp_path,
+        monkeypatch,
+        adapter=FailingAdapter(),  # type: ignore[arg-type]
+    )
+
+    response = client.post(
+        "/api/jobs",
+        json=_valid_submission(),
+        headers={"Idempotency-Key": "api-query-failure-0001"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "JOB_SUBMISSION_UNAVAILABLE"
+    assert "sensitive scheduler stderr" not in response.text
+    assert "secret-owner" not in response.text
+    assert sbatch_calls == []
 
 
 def test_error_envelope_and_openapi_responses() -> None:

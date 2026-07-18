@@ -11,6 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.core.config import Settings
 from app.core.identity import assert_deployment_owner, resolve_effective_unix_username
 from app.repositories.job_metadata import JobMetadataRecord, JobMetadataRepository
+from app.repositories.submission import SubmissionRepository
 from app.schemas.jobs import (
     Job,
     JobListResponse,
@@ -33,6 +34,17 @@ from app.slurm import (
     SlurmResources,
 )
 from app.slurm.runner import SubprocessCommandRunner
+from app.slurm.submission import (
+    NativeSlurmSubmitter,
+    SubmissionValidationError,
+)
+from app.services.native_submission import (
+    ExplicitSubmissionAuthorization,
+    NativeActiveJobLimitError,
+    NativeIdempotencyConflictError,
+    NativeIdempotencyRequiredError,
+    NativeSubmissionService,
+)
 
 _DASHBOARD_ID_PREFIX = "slurm-"
 _TIME_LIMIT_PATTERN = re.compile(
@@ -46,6 +58,22 @@ class JobCatalogUnavailable(RuntimeError):
 
 class JobSubmissionUnavailable(RuntimeError):
     """Submission is unavailable for the configured data source."""
+
+
+class JobIdempotencyRequired(RuntimeError):
+    """Native submission requires one valid idempotency key."""
+
+
+class JobSubmissionInvalid(RuntimeError):
+    """Native submission parameters fail the controlled command policy."""
+
+
+class JobIdempotencyConflict(RuntimeError):
+    """The idempotency key cannot safely replay this request."""
+
+
+class JobActiveLimitReached(RuntimeError):
+    """The trusted owner has reached the Native active job limit."""
 
 
 class JobNotFound(RuntimeError):
@@ -82,6 +110,18 @@ def build_job_catalog(settings: Settings) -> "JobCatalog":
     adapter = build_slurm_adapter(settings)
     metadata_repository = JobMetadataRepository(settings.database_url)
     metadata_repository.initialize()
+    native_submission_service = None
+    if settings.slurm_data_source == "native" and settings.native_submission_enabled:
+        submission_repository = SubmissionRepository(settings.database_url)
+        submission_repository.initialize()
+        native_submission_service = NativeSubmissionService(
+            owner=owner,
+            workspace_root=settings.job_workspace_directory,
+            submitter=NativeSlurmSubmitter(
+                SubprocessCommandRunner(settings.slurm_command_timeout_seconds)
+            ),
+            repository=submission_repository,
+        )
     return JobCatalog(
         adapter=adapter,
         owner=owner,
@@ -95,6 +135,8 @@ def build_job_catalog(settings: Settings) -> "JobCatalog":
         ),
         metadata_repository=metadata_repository,
         metadata_source=settings.slurm_data_source,
+        native_submission_service=native_submission_service,
+        native_max_active_jobs=settings.native_max_active_jobs,
     )
 
 
@@ -246,12 +288,16 @@ class JobCatalog:
         fixture_job_output_directory: Path | None = None,
         metadata_repository: JobMetadataRepository | None = None,
         metadata_source: Literal["fixture", "native"] = "fixture",
+        native_submission_service: NativeSubmissionService | None = None,
+        native_max_active_jobs: int = 1,
         clock: Callable[[], float] = monotonic,
     ) -> None:
         if not 0.1 <= cache_ttl_seconds <= 60:
             raise ValueError("cache_ttl_seconds must be between 0.1 and 60")
         if not 1 <= max_jobs <= 10000:
             raise ValueError("max_jobs must be between 1 and 10000")
+        if not 1 <= native_max_active_jobs <= 100:
+            raise ValueError("native_max_active_jobs must be between 1 and 100")
         self.adapter = adapter
         self.owner = owner
         self.cache_ttl_seconds = cache_ttl_seconds
@@ -260,6 +306,8 @@ class JobCatalog:
         self.fixture_job_output_directory = fixture_job_output_directory
         self.metadata_repository = metadata_repository
         self.metadata_source = metadata_source
+        self.native_submission_service = native_submission_service
+        self.native_max_active_jobs = native_max_active_jobs
         self._clock = clock
         self._cache_condition = Condition()
         self._cached_jobs: tuple[Job, ...] | None = None
@@ -296,7 +344,11 @@ class JobCatalog:
             state = JobState.UNKNOWN
         updated_at = record.updated_at or record.created_at or datetime.now(UTC)
         return Job(
-            id=record.id,
+            id=(
+                f"{_DASHBOARD_ID_PREFIX}{record.slurm_job_id}"
+                if record.source == "native"
+                else record.id
+            ),
             slurm_job_id=record.slurm_job_id,
             owner=record.owner,
             name=record.name,
@@ -510,7 +562,11 @@ class JobCatalog:
         )
         return job if job is not None and job.owner == self.owner else None
 
-    def submit_job(self, request: JobSubmitRequest) -> Job:
+    def submit_job(
+        self, request: JobSubmitRequest, *, idempotency_key: str | None = None
+    ) -> Job:
+        if self.native_submission_service is not None:
+            return self._submit_native_job(request, idempotency_key)
         if not self.allow_fixture_submissions:
             raise JobSubmissionUnavailable("Job submission is unavailable")
 
@@ -537,6 +593,56 @@ class JobCatalog:
         with self._cache_condition:
             self._submitted_jobs[job.id] = job
         return job
+
+    def _submit_native_job(
+        self, request: JobSubmitRequest, idempotency_key: str | None
+    ) -> Job:
+        service = self.native_submission_service
+        if service is None:
+            raise JobSubmissionUnavailable("Native submission is unavailable")
+        try:
+            metadata = service.submit_idempotent(
+                request,
+                authorization=ExplicitSubmissionAuthorization(confirmed=True),
+                idempotency_key=idempotency_key,
+                active_job_count=self._native_active_job_count,
+                max_active_jobs=self.native_max_active_jobs,
+            )
+        except NativeIdempotencyRequiredError as exc:
+            raise JobIdempotencyRequired("A valid Idempotency-Key is required") from exc
+        except NativeIdempotencyConflictError as exc:
+            raise JobIdempotencyConflict("Idempotency-Key conflicts with prior request") from exc
+        except NativeActiveJobLimitError as exc:
+            raise JobActiveLimitReached("Native active job limit reached") from exc
+        except SubmissionValidationError as exc:
+            raise JobSubmissionInvalid("Native command policy rejected submission") from exc
+        except JobCatalogUnavailable as exc:
+            raise JobSubmissionUnavailable("Native active jobs are unavailable") from exc
+        except (
+            SlurmCommandError,
+            SlurmParseError,
+            SQLAlchemyError,
+            OSError,
+            UnicodeError,
+            ValueError,
+        ) as exc:
+            raise JobSubmissionUnavailable("Native submission failed safely") from exc
+
+        job = self._job_from_metadata(metadata)
+        with self._cache_condition:
+            self._submitted_jobs[job.id] = job
+            self._cached_jobs = None
+            self._cache_expires_at = 0.0
+        return job
+
+    def _native_active_job_count(self) -> int:
+        observed_jobs, _ = self._observed_jobs()
+        visible_jobs = self._jobs_with_submissions(observed_jobs)
+        return sum(
+            1
+            for job in visible_jobs
+            if job.owner == self.owner and job.state in {JobState.PENDING, JobState.RUNNING}
+        )
 
     def cancel_job(self, dashboard_job_id: str) -> Job:
         if not self.allow_fixture_submissions:
