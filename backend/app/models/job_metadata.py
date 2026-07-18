@@ -30,6 +30,9 @@ class JobMetadata(Base):
     time_limit_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     stdout_path: Mapped[str | None] = mapped_column(String(1024))
     stderr_path: Mapped[str | None] = mapped_column(String(1024))
+    state: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now

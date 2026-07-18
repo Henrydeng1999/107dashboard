@@ -177,6 +177,12 @@ def test_relative_fixture_path_is_resolved_from_project_root(
     assert settings.slurm_fixture_directory == PROJECT_ROOT / "fixtures" / "slurm"
 
 
+def test_relative_sqlite_path_is_resolved_from_project_root() -> None:
+    settings = Settings(_env_file=None, database_url="sqlite:///./data/dashboard.sqlite3")
+
+    assert settings.database_url == f"sqlite:///{(PROJECT_ROOT / 'data/dashboard.sqlite3').as_posix()}"
+
+
 def test_dotenv_path_is_anchored_to_project_root() -> None:
     assert Settings.model_config["env_file"] == PROJECT_ROOT / ".env"
 

@@ -121,6 +121,8 @@ https://henrydeng1999.github.io/107dashboard/
 - 比赛演示阶段可以用 tmux 保持 Web 服务，tmux 不属于产品功能；
 - SQLite、日志、临时作业脚本和虚拟环境不提交到 Git。
 
+默认 `DATABASE_URL=sqlite:///./data/dashboard.sqlite3` 会由后端解析为仓库根目录下的 `data/dashboard.sqlite3`，首次应用装配时自动创建父目录和表。测试固定使用线程安全的内存 SQLite，不会复用部署数据库；服务器上的 `data/` 必须保留为运行时目录，不能提交到 Git。
+
 ## 安全边界
 
 - 部署公钥保持只读，不改用个人写入密钥；

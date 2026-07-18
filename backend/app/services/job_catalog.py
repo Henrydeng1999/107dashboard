@@ -6,8 +6,11 @@ from time import monotonic
 from typing import Callable
 
 from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import Settings
+from app.core.identity import assert_deployment_owner, resolve_effective_unix_username
+from app.repositories.job_metadata import JobMetadataRecord, JobMetadataRepository
 from app.schemas.jobs import (
     Job,
     JobListResponse,
@@ -74,9 +77,16 @@ def build_slurm_adapter(settings: Settings) -> SlurmAdapter:
 
 
 def build_job_catalog(settings: Settings) -> "JobCatalog":
+    owner = settings.dashboard_owner
+    if settings.slurm_data_source == "native":
+        owner = assert_deployment_owner(owner, resolve_effective_unix_username())
+
+    adapter = build_slurm_adapter(settings)
+    metadata_repository = JobMetadataRepository(settings.database_url)
+    metadata_repository.initialize()
     return JobCatalog(
-        adapter=build_slurm_adapter(settings),
-        owner=settings.dashboard_owner,
+        adapter=adapter,
+        owner=owner,
         cache_ttl_seconds=settings.slurm_query_cache_ttl_seconds,
         max_jobs=settings.slurm_max_jobs,
         allow_fixture_submissions=settings.slurm_data_source == "fixture",
@@ -85,6 +95,7 @@ def build_job_catalog(settings: Settings) -> "JobCatalog":
             if settings.slurm_data_source == "fixture"
             else None
         ),
+        metadata_repository=metadata_repository,
     )
 
 
@@ -193,6 +204,7 @@ class JobCatalog:
         max_jobs: int = 1000,
         allow_fixture_submissions: bool = False,
         fixture_job_output_directory: Path | None = None,
+        metadata_repository: JobMetadataRepository | None = None,
         clock: Callable[[], float] = monotonic,
     ) -> None:
         if not 0.1 <= cache_ttl_seconds <= 60:
@@ -205,6 +217,7 @@ class JobCatalog:
         self.max_jobs = max_jobs
         self.allow_fixture_submissions = allow_fixture_submissions
         self.fixture_job_output_directory = fixture_job_output_directory
+        self.metadata_repository = metadata_repository
         self._clock = clock
         self._cache_condition = Condition()
         self._cached_jobs: tuple[Job, ...] | None = None
@@ -214,12 +227,114 @@ class JobCatalog:
         self._submitted_jobs: dict[str, Job] = {}
         self._fixture_state_overrides: dict[str, Job] = {}
         self._next_fixture_job_id = 910000
+        self._restore_metadata()
+
+    def _restore_metadata(self) -> None:
+        if self.metadata_repository is None:
+            return
+        try:
+            records = self.metadata_repository.list_by_owner(self.owner)
+        except SQLAlchemyError as exc:
+            raise JobCatalogUnavailable("Job metadata is unavailable") from exc
+        for record in records:
+            job = self._job_from_metadata(record)
+            self._submitted_jobs[job.id] = job
+            if record.slurm_job_id.isdigit():
+                self._next_fixture_job_id = max(
+                    self._next_fixture_job_id, int(record.slurm_job_id) + 1
+                )
+
+    @staticmethod
+    def _job_from_metadata(record: JobMetadataRecord) -> Job:
+        try:
+            state = JobState(record.state)
+        except ValueError:
+            state = JobState.UNKNOWN
+        updated_at = record.updated_at or record.created_at or datetime.now(UTC)
+        return Job(
+            id=record.id,
+            slurm_job_id=record.slurm_job_id,
+            owner=record.owner,
+            name=record.name,
+            state=state,
+            partition=record.partition,
+            account=record.account,
+            qos=record.qos,
+            command=record.command,
+            resources=JobResources(
+                cpus=record.cpus,
+                memory_mb=record.memory_mb,
+                gpus=record.gpus,
+                time_limit_minutes=record.time_limit_minutes,
+            ),
+            reason="PersistedMetadata",
+            submitted_at=record.submitted_at,
+            finished_at=record.finished_at,
+            updated_at=updated_at,
+        )
+
+    def _persist_job(self, job: Job) -> None:
+        if self.metadata_repository is None:
+            return
+        resources = job.resources
+        if (
+            job.name is None
+            or job.command is None
+            or job.partition is None
+            or job.account is None
+            or job.qos is None
+            or resources.cpus is None
+            or resources.memory_mb is None
+            or resources.gpus is None
+            or resources.time_limit_minutes is None
+        ):
+            raise JobSubmissionUnavailable("Job metadata is incomplete")
+        output_directory = self.fixture_job_output_directory
+        stdout_path = (
+            str((output_directory / f"{job.slurm_job_id}.stdout.log").resolve())
+            if output_directory is not None
+            else None
+        )
+        stderr_path = (
+            str((output_directory / f"{job.slurm_job_id}.stderr.log").resolve())
+            if output_directory is not None
+            else None
+        )
+        try:
+            self.metadata_repository.upsert(
+                JobMetadataRecord(
+                    id=job.id,
+                    slurm_job_id=job.slurm_job_id,
+                    owner=job.owner,
+                    name=job.name,
+                    command=job.command,
+                    partition=job.partition,
+                    account=job.account,
+                    qos=job.qos,
+                    cpus=resources.cpus,
+                    memory_mb=resources.memory_mb,
+                    gpus=resources.gpus,
+                    time_limit_minutes=resources.time_limit_minutes,
+                    stdout_path=stdout_path,
+                    stderr_path=stderr_path,
+                    state=job.state.value,
+                    submitted_at=job.submitted_at,
+                    finished_at=job.finished_at,
+                )
+            )
+        except (SQLAlchemyError, ValueError) as exc:
+            raise JobSubmissionUnavailable("Job metadata could not be saved") from exc
 
     def _jobs_with_submissions(self, jobs: tuple[Job, ...]) -> list[Job]:
         with self._cache_condition:
             submitted = tuple(self._submitted_jobs.values())
             overrides = dict(self._fixture_state_overrides)
-        observed = tuple(overrides.get(job.id, job) for job in jobs)
+        observed = tuple(
+            overrides.get(job.id, job)
+            for job in jobs
+            if job.owner == self.owner
+        )
+        submitted = tuple(job for job in submitted if job.owner == self.owner)
         return sorted(
             [*submitted, *observed],
             key=lambda job: _job_sort_key(SlurmJob(job_id=job.slurm_job_id)),
@@ -336,10 +451,11 @@ class JobCatalog:
         if not dashboard_job_id.startswith(_DASHBOARD_ID_PREFIX):
             return None
         jobs, _ = self._observed_jobs()
-        return next(
+        job = next(
             (job for job in self._jobs_with_submissions(jobs) if job.id == dashboard_job_id),
             None,
         )
+        return job if job is not None and job.owner == self.owner else None
 
     def submit_job(self, request: JobSubmitRequest) -> Job:
         if not self.allow_fixture_submissions:
@@ -364,6 +480,8 @@ class JobCatalog:
                 submitted_at=now,
                 updated_at=now,
             )
+        self._persist_job(job)
+        with self._cache_condition:
             self._submitted_jobs[job.id] = job
         return job
 
@@ -385,7 +503,11 @@ class JobCatalog:
             }
         )
         with self._cache_condition:
-            if dashboard_job_id in self._submitted_jobs:
+            is_dashboard_submission = dashboard_job_id in self._submitted_jobs
+        if is_dashboard_submission:
+            self._persist_job(cancelled)
+        with self._cache_condition:
+            if is_dashboard_submission:
                 self._submitted_jobs[dashboard_job_id] = cancelled
             else:
                 self._fixture_state_overrides[dashboard_job_id] = cancelled

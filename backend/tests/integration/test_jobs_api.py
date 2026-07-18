@@ -5,8 +5,9 @@ from fastapi.testclient import TestClient
 import pytest
 
 from app.core.config import Settings
+from app.core.identity import TrustedIdentityError
 from app.main import create_app
-from app.services.job_catalog import JobCatalog, NativeSlurmApiDisabled
+from app.services.job_catalog import JobCatalog, NativeSlurmApiDisabled, build_job_catalog
 from app.slurm import SlurmCommandFailed, SlurmJob
 
 
@@ -119,6 +120,25 @@ def test_fixture_owner_is_server_configuration_not_request_input() -> None:
     assert client.get("/api/jobs/slurm-900001").status_code == 404
 
 
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("GET", "/api/jobs/slurm-900001"),
+        ("GET", "/api/jobs/slurm-900001/logs"),
+        ("GET", "/api/jobs/slurm-900001/usage"),
+        ("POST", "/api/jobs/slurm-900001/cancel"),
+        ("POST", "/api/jobs/slurm-900001/clone"),
+    ],
+)
+def test_fixture_operations_hide_jobs_owned_by_another_user(method: str, path: str) -> None:
+    client = _fixture_client(dashboard_owner="another-user")
+
+    response = client.request(method, path)
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "JOB_NOT_FOUND"
+
+
 def test_native_command_error_maps_to_stable_sanitized_503() -> None:
     settings = Settings(
         _env_file=None,
@@ -168,11 +188,29 @@ def test_native_gate_blocks_app_before_subprocess(
         calls.append((args, kwargs))
 
     monkeypatch.setattr(subprocess, "run", unexpected_run)
+    monkeypatch.setattr(
+        "app.services.job_catalog.resolve_effective_unix_username", lambda: "demo-user"
+    )
 
     with pytest.raises(NativeSlurmApiDisabled):
         create_app(Settings(_env_file=None, slurm_data_source="native"))
 
     assert calls == []
+
+
+def test_native_owner_mismatch_fails_before_adapter_creation(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.job_catalog.resolve_effective_unix_username", lambda: "effective-user"
+    )
+
+    with pytest.raises(TrustedIdentityError, match="does not match"):
+        build_job_catalog(
+            Settings(
+                _env_file=None,
+                slurm_data_source="native",
+                dashboard_owner="configured-user",
+            )
+        )
 
 
 def test_error_envelope_and_openapi_responses() -> None:

@@ -10,14 +10,17 @@ _SETTINGS_ENVIRONMENT_VARIABLES = (
     "SLURM_QUERY_CACHE_TTL_SECONDS",
     "SLURM_MAX_JOBS",
     "DASHBOARD_OWNER",
+    "DATABASE_URL",
 )
 
 # Test modules import the application during collection, before fixtures run.
 for variable in _SETTINGS_ENVIRONMENT_VARIABLES:
     os.environ.pop(variable, None)
+os.environ["DATABASE_URL"] = "sqlite://"
 
 
 @pytest.fixture(autouse=True)
 def isolate_settings_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     for variable in _SETTINGS_ENVIRONMENT_VARIABLES:
         monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setenv("DATABASE_URL", "sqlite://")

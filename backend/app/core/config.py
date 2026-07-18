@@ -41,6 +41,16 @@ class Settings(BaseSettings):
         path = Path(value) if isinstance(value, (str, Path)) else Path(str(value))
         return path if path.is_absolute() else PROJECT_ROOT / path
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def resolve_database_url(cls, value: object) -> str:
+        database_url = str(value)
+        relative_prefix = "sqlite:///./"
+        if database_url.startswith(relative_prefix):
+            database_path = PROJECT_ROOT / database_url.removeprefix(relative_prefix)
+            return f"sqlite:///{database_path.as_posix()}"
+        return database_url
+
     @field_validator("slurm_command_timeout_seconds")
     @classmethod
     def validate_timeout(cls, value: float) -> float:

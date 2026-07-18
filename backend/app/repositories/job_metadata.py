@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 
 from sqlalchemy import Engine, create_engine, select
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.models.job_metadata import Base, JobMetadata
 
@@ -23,6 +25,9 @@ class JobMetadataRecord:
     time_limit_minutes: int
     stdout_path: str | None = None
     stderr_path: str | None = None
+    state: str = "PENDING"
+    submitted_at: datetime | None = None
+    finished_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -31,10 +36,23 @@ class JobMetadataRepository:
     """SQLite-backed metadata access whose reads always require an owner."""
 
     def __init__(self, database_url: str, *, engine: Engine | None = None) -> None:
-        self._engine = engine or create_engine(database_url)
+        if engine is not None:
+            self._engine = engine
+        elif database_url == "sqlite://":
+            self._engine = create_engine(
+                database_url,
+                connect_args={"check_same_thread": False},
+                poolclass=StaticPool,
+            )
+        else:
+            self._engine = create_engine(database_url)
         self._session_factory = sessionmaker(self._engine, expire_on_commit=False)
 
     def initialize(self) -> None:
+        if self._engine.dialect.name == "sqlite":
+            database_path = self._engine.url.database
+            if database_path not in {None, "", ":memory:"}:
+                Path(database_path).parent.mkdir(parents=True, exist_ok=True)
         Base.metadata.create_all(self._engine)
 
     def upsert(self, record: JobMetadataRecord) -> JobMetadataRecord:
@@ -97,6 +115,9 @@ class JobMetadataRepository:
             "time_limit_minutes": record.time_limit_minutes,
             "stdout_path": record.stdout_path,
             "stderr_path": record.stderr_path,
+            "state": record.state,
+            "submitted_at": record.submitted_at,
+            "finished_at": record.finished_at,
         }
 
     @staticmethod
@@ -116,6 +137,17 @@ class JobMetadataRepository:
             time_limit_minutes=model.time_limit_minutes,
             stdout_path=model.stdout_path,
             stderr_path=model.stderr_path,
+            state=model.state,
+            submitted_at=(
+                JobMetadataRepository._as_utc(model.submitted_at)
+                if model.submitted_at is not None
+                else None
+            ),
+            finished_at=(
+                JobMetadataRepository._as_utc(model.finished_at)
+                if model.finished_at is not None
+                else None
+            ),
             created_at=JobMetadataRepository._as_utc(model.created_at),
             updated_at=JobMetadataRepository._as_utc(model.updated_at),
         )
