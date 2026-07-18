@@ -90,6 +90,7 @@ See `docs/03-ENVIRONMENT_CHECK.md` for the complete verified environment record.
 - Keep `NATIVE_SUBMISSION_ENABLED=false` by default. Enabling Native `POST /api/jobs` requires the verified UID/owner gate, persistent idempotency records, a configured active-job limit, sanitized error mapping, and relevant local/platform gate checks.
 - Native HTTP submissions must require `Idempotency-Key`; never store the raw key, and never allow a key to represent two different request payloads.
 - The competition Native concurrency guard assumes one Uvicorn worker. Do not run multiple backend workers until the active-count check and idempotency reservation use shared cross-process atomic coordination.
+- Keep `NATIVE_LOGS_ENABLED=false` by default. Native logs may only use owner-scoped persisted metadata and the exact `JOB_WORKSPACE_DIRECTORY/submission-<id>/stdout.log|stderr.log` layout; never accept a path from HTTP input or follow a log symlink outside its recorded directory.
 
 ## Security
 

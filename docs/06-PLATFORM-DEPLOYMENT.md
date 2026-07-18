@@ -196,6 +196,22 @@ backend/.venv/bin/python scripts/check-native-submit-api-gate.py
 
 2026-07-18 已在 107 对提交 `0f88ede` 完成本检查：有效用户 `pb24030760`（UID `68311`），`runtime_submit=true`，缺少幂等键返回 `400`，Shell 语法命令返回 `422`，取消、克隆和日志能力均为 `false`，`would_invoke_sbatch=false`。临时开关只存在于验收 shell，没有写入长期服务配置；运行时 `data/` 证据保持未跟踪且未被修改或删除。
 
+## Native 日志路径无读取预检
+
+日志能力默认关闭。代码更新后，可先只验证 Job `24011` 的持久化路径，不打开或读取日志文件：
+
+```bash
+export SLURM_DATA_SOURCE=native
+export DASHBOARD_OWNER="$(id -un)"
+export DATABASE_URL="sqlite:////home/scc/$(id -un)/107dashboard/data/dashboard.sqlite3"
+export JOB_WORKSPACE_DIRECTORY="/home/scc/$(id -un)/107dashboard/data/jobs"
+export NATIVE_LOGS_ENABLED=true
+
+backend/.venv/bin/python scripts/check-native-log-path-preflight.py --job-id 24011
+```
+
+通过时 `stdout_path_safe`、`stderr_path_safe` 为 `true`，且 `would_open_log=false`、`would_read_log=false`。该检查只读取 SQLite 元数据并规范化路径，不读取 stdout/stderr 内容；完成前不要把日志开关写入长期服务配置。
+
 ## 安全边界
 
 - 部署公钥保持只读，不改用个人写入密钥；

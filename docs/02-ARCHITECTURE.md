@@ -118,7 +118,7 @@ Native HTTP 提交现采用显式部署门：默认 `NATIVE_SUBMISSION_ENABLED=f
 
 该方案只用于比赛时单平台账号演示，不等同于多学生认证。未来接入校园 SSO 或平台网关身份时，只有在后端端口不可绕过且代理身份头经过清洗和信任校验后，才能将可信代理身份映射到不同 Slurm 用户。
 
-当前已将有效 UID 用户名解析、部署 owner 精确匹配断言和 SQLite 作业元数据仓库接入应用装配与作业 service。Native 模式只有在有效 UID 与 `DASHBOARD_OWNER` 完全一致时才能创建，并仅开放列表、详情、用户摘要和资源统计；提交、取消、克隆和日志继续 fail closed。`squeue`/`sacct` 查询固定传入可信 owner，解析后再次丢弃 Slurm `user` 不一致的记录，详情和 usage 还必须先命中当前 owner 的可见作业。
+当前已将有效 UID 用户名解析、部署 owner 精确匹配断言和 SQLite 作业元数据仓库接入应用装配与作业 service。Native 模式只有在有效 UID 与 `DASHBOARD_OWNER` 完全一致时才能创建，默认仅开放列表、详情、用户摘要和资源统计；提交与日志各自通过默认关闭的部署门独立开放，取消和克隆继续 fail closed。`squeue`/`sacct` 查询固定传入可信 owner，解析后再次丢弃 Slurm `user` 不一致的记录，详情、usage 和日志还必须先命中当前 owner 的可见作业。
 
 SQLite 元数据增加 `source=fixture|native` 隔离，避免模拟作业混入真实列表。Slurm 实时状态优先，数据库只补充可信命令、资源申请和时间字段；相同 Slurm Job ID 去重后只返回一条。旧原型数据库会以固定列定义补充 `source`、状态和时间字段，不删除已有记录。
 
@@ -129,3 +129,7 @@ SQLite 元数据增加 `source=fixture|native` 隔离，避免模拟作业混入
 - `sacct` 可能存在延迟，前端要显示同步时间和未知状态。
 - 日志读取应支持文件不存在、权限不足、作业尚未开始和日志轮转等情况。
 - 所有 Slurm 调用都需要超时、错误记录和可诊断的错误响应。
+
+### Native 日志路径
+
+Native 日志 API 不接受客户端路径。后端先确认作业在可信 owner 的 Slurm 可见范围内，再按 owner + Slurm Job ID 查询 `source=native` 元数据。持久化路径必须是绝对路径，且严格匹配 `JOB_WORKSPACE_DIRECTORY/submission-<32位hex>/stdout.log|stderr.log`；拒绝 `..`、工作区外路径、错误文件名、额外嵌套、跨 owner 元数据和改变目录的符号链接。读取使用固定字节上限、同一文件描述符的 `fstat/seek/read`，并要求普通文件；路径和底层系统错误不进入 API 响应。

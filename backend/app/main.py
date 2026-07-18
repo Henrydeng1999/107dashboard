@@ -28,7 +28,10 @@ def create_app(settings: Settings | None = None, job_catalog: JobCatalog | None 
             submit=(settings.slurm_data_source == "fixture" or native_submission_enabled),
             cancel=settings.slurm_data_source == "fixture",
             clone=settings.slurm_data_source == "fixture",
-            logs=settings.slurm_data_source == "fixture",
+            logs=(
+                settings.slurm_data_source == "fixture"
+                or (settings.slurm_data_source == "native" and settings.native_logs_enabled)
+            ),
         ),
     )
 

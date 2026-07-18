@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
+import os
 from pathlib import Path
 import re
+import stat
 from threading import Condition
 from time import monotonic
 from typing import Callable, Literal
@@ -45,6 +47,7 @@ from app.services.native_submission import (
     NativeIdempotencyRequiredError,
     NativeSubmissionService,
 )
+from app.services.native_logs import NativeLogPathError, resolve_native_log_path
 
 _DASHBOARD_ID_PREFIX = "slurm-"
 _TIME_LIMIT_PATTERN = re.compile(
@@ -137,6 +140,11 @@ def build_job_catalog(settings: Settings) -> "JobCatalog":
         metadata_source=settings.slurm_data_source,
         native_submission_service=native_submission_service,
         native_max_active_jobs=settings.native_max_active_jobs,
+        native_log_workspace=(
+            settings.job_workspace_directory
+            if settings.slurm_data_source == "native" and settings.native_logs_enabled
+            else None
+        ),
     )
 
 
@@ -290,6 +298,7 @@ class JobCatalog:
         metadata_source: Literal["fixture", "native"] = "fixture",
         native_submission_service: NativeSubmissionService | None = None,
         native_max_active_jobs: int = 1,
+        native_log_workspace: Path | None = None,
         clock: Callable[[], float] = monotonic,
     ) -> None:
         if not 0.1 <= cache_ttl_seconds <= 60:
@@ -308,6 +317,7 @@ class JobCatalog:
         self.metadata_source = metadata_source
         self.native_submission_service = native_submission_service
         self.native_max_active_jobs = native_max_active_jobs
+        self.native_log_workspace = native_log_workspace
         self._clock = clock
         self._cache_condition = Condition()
         self._cached_jobs: tuple[Job, ...] | None = None
@@ -704,20 +714,61 @@ class JobCatalog:
         job = self.get_job(dashboard_job_id)
         if job is None:
             raise JobNotFound("Job was not found")
-        if self.fixture_job_output_directory is None:
-            raise JobLogsUnavailable("Job logs are unavailable")
         if re.fullmatch(r"[0-9]+(?:[._+][A-Za-z0-9_-]+)*", job.slurm_job_id) is None:
             raise JobLogsUnavailable("Job log identifier is unsafe")
 
-        output_directory = self.fixture_job_output_directory.resolve()
-        log_path = (output_directory / f"{job.slurm_job_id}.{stream.value}.log").resolve()
-        if log_path.parent != output_directory:
-            raise JobLogsUnavailable("Job log path is unsafe")
+        if self.native_log_workspace is not None:
+            log_path = self._native_log_path(job.slurm_job_id, stream)
+        elif self.fixture_job_output_directory is not None:
+            output_directory = self.fixture_job_output_directory.resolve()
+            log_path = (output_directory / f"{job.slurm_job_id}.{stream.value}.log").resolve()
+            if log_path.parent != output_directory:
+                raise JobLogsUnavailable("Job log path is unsafe")
+        else:
+            raise JobLogsUnavailable("Job logs are unavailable")
+
+        return self._read_log_path(job.id, stream, log_path, offset, limit)
+
+    def _native_log_path(self, slurm_job_id: str, stream: JobLogStream) -> Path:
+        if self.metadata_repository is None or self.native_log_workspace is None:
+            raise JobLogsUnavailable("Native job metadata is unavailable")
         try:
-            size = log_path.stat().st_size
+            metadata = self.metadata_repository.get_by_slurm_job_id(
+                slurm_job_id, owner=self.owner
+            )
+        except SQLAlchemyError as exc:
+            raise JobLogsUnavailable("Native job metadata is unavailable") from exc
+        if metadata is None or metadata.source != "native":
+            raise JobLogsUnavailable("Native job log metadata is unavailable")
+
+        configured_value = (
+            metadata.stdout_path if stream == JobLogStream.STDOUT else metadata.stderr_path
+        )
+        if configured_value is None:
+            raise JobLogsUnavailable("Native job log path is unavailable")
+        try:
+            return resolve_native_log_path(
+                configured_value,
+                workspace=self.native_log_workspace,
+                stream=stream.value,
+            )
+        except NativeLogPathError as exc:
+            raise JobLogsUnavailable("Native job log path is unsafe") from exc
+
+    @staticmethod
+    def _read_log_path(
+        job_id: str,
+        stream: JobLogStream,
+        log_path: Path,
+        offset: int,
+        limit: int,
+    ) -> JobLogResponse:
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        try:
+            descriptor = os.open(log_path, flags)
         except FileNotFoundError:
             return JobLogResponse(
-                job_id=job.id,
+                job_id=job_id,
                 stream=stream,
                 content="",
                 offset=offset,
@@ -726,19 +777,29 @@ class JobCatalog:
                 available=False,
             )
         except OSError as exc:
-            raise JobLogsUnavailable("Job log could not be inspected") from exc
-        if offset > size:
-            raise JobLogOffsetOutOfRange("Job log offset is beyond the current file size")
+            raise JobLogsUnavailable("Job log could not be opened") from exc
 
         try:
-            with log_path.open("rb") as log_file:
-                log_file.seek(offset)
-                chunk = log_file.read(limit)
+            file_status = os.fstat(descriptor)
+            if not stat.S_ISREG(file_status.st_mode):
+                raise JobLogsUnavailable("Job log is not a regular file")
+            size = file_status.st_size
+            if offset > size:
+                raise JobLogOffsetOutOfRange(
+                    "Job log offset is beyond the current file size"
+                )
+            os.lseek(descriptor, offset, os.SEEK_SET)
+            chunk = os.read(descriptor, limit)
+        except (JobLogOffsetOutOfRange, JobLogsUnavailable):
+            raise
         except OSError as exc:
             raise JobLogsUnavailable("Job log could not be read") from exc
+        finally:
+            os.close(descriptor)
+
         next_offset = offset + len(chunk)
         return JobLogResponse(
-            job_id=job.id,
+            job_id=job_id,
             stream=stream,
             content=chunk.decode("utf-8", errors="replace"),
             offset=offset,

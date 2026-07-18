@@ -561,13 +561,21 @@ export function JobDashboard() {
         {runtime?.read_only && (
           <div className="mode-notice" role="status">
             <strong>Native 只读模式</strong>
-            <span>列表、详情和资源统计来自当前 Unix 账号的 Slurm 记录；提交、取消、克隆和日志尚未开放。</span>
+            <span>
+              {runtime.capabilities.logs
+                ? "列表、详情、资源统计和受控日志来自当前 Unix 账号；提交、取消和克隆尚未开放。"
+                : "列表、详情和资源统计来自当前 Unix 账号的 Slurm 记录；提交、取消、克隆和日志尚未开放。"}
+            </span>
           </div>
         )}
         {runtime?.data_source === "native" && runtime.capabilities.submit && (
           <div className="mode-notice" role="status">
             <strong>Native 受控提交模式</strong>
-            <span>提交已开放并受幂等键与活跃作业上限保护；取消、克隆和日志仍未开放。</span>
+            <span>
+              {runtime.capabilities.logs
+                ? "提交受幂等键与活跃作业上限保护，受控日志已开放；取消和克隆仍未开放。"
+                : "提交已开放并受幂等键与活跃作业上限保护；取消、克隆和日志仍未开放。"}
+            </span>
           </div>
         )}
         <div className="section-heading">
