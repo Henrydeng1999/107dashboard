@@ -247,6 +247,8 @@ backend/.venv/bin/python scripts/run-native-control-acceptance.py \
 
 运行后还应使用 `sacct` 核对脚本输出的两个 Job ID 均进入终态，并确认没有遗留的活动验收作业。以上开关仅用于本次 shell，不写入 `.env` 或长期服务配置。
 
+2026-07-18 已在 107 对提交 `11cd3b4` 完成集中验收。Job `24011` 的 stdout 限量读取 14 字节、stderr 读取 0 字节，两个流均到达 EOF，正文没有回显。控制脚本创建 Job `24063` 与 `24064`，每个申请 `1 CPU / 512 MiB / 0 GPU / 2 分钟`，两个作业均由 UID `68311` 取消；`sacct` 状态为 `CANCELLED by 68311`，`squeue` 无遗留活动验收作业。Owner、两条取消幂等记录和 `SBATCH_ACCEPTED -> SCANCEL_VALIDATED -> SCANCEL_ACCEPTED` 审计证据均通过；所有开关只存在于验收 shell，`data/` 证据保持未跟踪。
+
 ## 安全边界
 
 - 部署公钥保持只读，不改用个人写入密钥；

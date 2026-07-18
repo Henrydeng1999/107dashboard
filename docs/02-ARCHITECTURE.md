@@ -124,6 +124,8 @@ SQLite 元数据增加 `source=fixture|native` 隔离，避免模拟作业混入
 
 Native 取消只接受纯数字 allocation ID，并仅在当前 owner 的 Slurm 可见状态为 `PENDING` 或 `RUNNING`、持久化元数据也属于同一 owner/source/Job ID 时执行参数数组 `scancel <job_id>`。原始幂等键只计算 SHA-256 摘要，成功重放不会再次取消；审计只保存状态和脱敏结果码。Native 克隆不复用客户端参数，而是从 owner 元数据构造新的 `JobSubmitRequest`，使用来源 Job namespaced idempotency，再走与普通提交相同的校验、并发和审计链。
 
+前端轮询按当前页是否存在 `PENDING`/`RUNNING` 作业在活跃与空闲频率间切换，并在页面隐藏时暂停；状态变化只比较同一 Dashboard Job ID 的前后快照。资源可视化严格区分“分配/申请”“峰值/申请”和“运行时长/时限”，缺失指标显示未知而不是补零。模板只预填现有结构化提交字段，最终仍由后端重新校验；排障提示只基于状态、退出码和 Slurm reason，不能替代日志与平台事实。
+
 ## 可靠性要求
 
 - Slurm 是作业状态的事实来源，数据库中的状态是缓存和展示数据。

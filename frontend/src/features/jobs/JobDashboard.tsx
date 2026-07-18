@@ -4,6 +4,8 @@ import { ApiError, cancelJob, cloneJob, fetchJob, fetchJobLog, fetchJobSummary, 
 import type { Job, JobListResponse, JobLogStream, JobState, JobSubmitRequest, JobUsageResponse, RuntimeCapabilities, RuntimeInfo, UserJobSummary } from "./types";
 
 const PAGE_SIZE = 5;
+const ACTIVE_REFRESH_MS = 5_000;
+const IDLE_REFRESH_MS = 15_000;
 
 const stateLabels: Record<JobState, string> = {
   PENDING: "排队中",
@@ -29,8 +31,69 @@ const defaultSubmission: JobSubmitRequest = {
   resources: { cpus: 2, memory_mb: 4096, gpus: 1, time_limit_minutes: 60 },
 };
 
+const jobTemplates: Array<{
+  id: string;
+  label: string;
+  description: string;
+  submission: JobSubmitRequest;
+}> = [
+  {
+    id: "cpu-check",
+    label: "CPU 快速检查",
+    description: "单核、无 GPU、5 分钟，适合环境与依赖确认。",
+    submission: {
+      ...defaultSubmission,
+      name: "cpu-env-check",
+      command: "python3 --version",
+      resources: { cpus: 1, memory_mb: 1024, gpus: 0, time_limit_minutes: 5 },
+    },
+  },
+  {
+    id: "gpu-training",
+    label: "单卡训练",
+    description: "1 张 GPU、2 核、8 GiB，适合作为课程训练起点。",
+    submission: {
+      ...defaultSubmission,
+      name: "gpu-training",
+      command: "python train.py",
+      resources: { cpus: 2, memory_mb: 8192, gpus: 1, time_limit_minutes: 60 },
+    },
+  },
+  {
+    id: "cpu-analysis",
+    label: "CPU 数据分析",
+    description: "4 核、无 GPU、16 GiB，适合内存型分析任务。",
+    submission: {
+      ...defaultSubmission,
+      name: "cpu-analysis",
+      command: "python analysis.py",
+      resources: { cpus: 4, memory_mb: 16384, gpus: 0, time_limit_minutes: 120 },
+    },
+  },
+];
+
+function copySubmission(submission: JobSubmitRequest): JobSubmitRequest {
+  return { ...submission, resources: { ...submission.resources } };
+}
+
 function valueOrDash(value: string | number | null | undefined): string {
   return value === null || value === undefined || value === "" ? "—" : String(value);
+}
+
+function nativeCapabilitySummary(runtime: RuntimeInfo): string {
+  const labels: Array<[keyof RuntimeCapabilities, string]> = [
+    ["submit", "提交"],
+    ["logs", "日志"],
+    ["cancel", "取消"],
+    ["clone", "克隆"],
+  ];
+  const enabled = labels.filter(([key]) => runtime.capabilities[key]).map(([, label]) => label);
+  const disabled = labels.filter(([key]) => !runtime.capabilities[key]).map(([, label]) => label);
+  return [
+    enabled.length > 0 ? `已开放：${enabled.join("、")}` : "当前只开放查询与资源统计",
+    disabled.length > 0 ? `未开放：${disabled.join("、")}` : "全部 MVP 能力已开放",
+    "所有操作均绑定当前 Unix 账号",
+  ].join("；");
 }
 
 function formatMemory(memoryMb: number | null): string {
@@ -114,6 +177,41 @@ function formatSeconds(seconds: number | null): string {
     .join(" ");
 }
 
+function ratioPercent(value: number | null, maximum: number | null): number | null {
+  if (value === null || maximum === null || maximum <= 0) return null;
+  return Math.min(100, Math.max(0, (value / maximum) * 100));
+}
+
+function UsageComparison({
+  label,
+  value,
+  maximum,
+  detail,
+}: {
+  label: string;
+  value: number | null;
+  maximum: number | null;
+  detail: string;
+}) {
+  const percent = ratioPercent(value, maximum);
+  return (
+    <div className="usage-comparison">
+      <div><span>{label}</span><strong>{detail}</strong></div>
+      <div
+        className={`usage-track ${percent === null ? "is-unknown" : ""}`}
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent === null ? undefined : Math.round(percent)}
+        aria-valuetext={percent === null ? "平台未提供完整数据" : detail}
+      >
+        <span style={{ width: percent === null ? "0%" : `${percent}%` }} />
+      </div>
+    </div>
+  );
+}
+
 function JobUsagePanel({ jobId }: { jobId: string }) {
   const [usage, setUsage] = useState<JobUsageResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -156,15 +254,79 @@ function JobUsagePanel({ jobId }: { jobId: string }) {
       {error && <p className="form-error" role="alert">{error}</p>}
       {!error && !usage && <div className="usage-loading">正在读取资源统计…</div>}
       {usage && (
-        <div className="usage-grid">
-          {metrics.map(([label, value, unit]) => (
-            <div key={label}>
-              <span>{label}</span>
-              <strong>{value}{value !== "平台未提供" && value !== "—" ? unit : ""}</strong>
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="usage-grid">
+            {metrics.map(([label, value, unit]) => (
+              <div key={label}>
+                <span>{label}</span>
+                <strong>{value}{value !== "平台未提供" && value !== "—" ? unit : ""}</strong>
+              </div>
+            ))}
+          </div>
+          <div className="usage-comparisons" aria-label="资源使用对比">
+            <UsageComparison
+              label="CPU 分配 / 申请"
+              value={usage.allocated.cpus}
+              maximum={usage.requested.cpus}
+              detail={`${valueOrDash(usage.allocated.cpus)} / ${valueOrDash(usage.requested.cpus)} 核`}
+            />
+            <UsageComparison
+              label="峰值内存 / 申请"
+              value={usage.max_rss_kb === null ? null : usage.max_rss_kb / 1024}
+              maximum={usage.requested.memory_mb}
+              detail={`${formatMemoryKb(usage.max_rss_kb)} / ${formatMemory(usage.requested.memory_mb)}`}
+            />
+            <UsageComparison
+              label="运行时长 / 时限"
+              value={usage.elapsed_seconds}
+              maximum={usage.time_limit_seconds}
+              detail={`${formatSeconds(usage.elapsed_seconds)} / ${formatSeconds(usage.time_limit_seconds)}`}
+            />
+          </div>
+        </>
       )}
+    </section>
+  );
+}
+
+function jobDiagnosticHints(job: Job): string[] {
+  const hints: string[] = [];
+  const reason = job.reason?.toLowerCase() ?? "";
+  if (job.state === "TIMEOUT") {
+    hints.push("作业达到时限；先检查是否存在重复计算，再按实际需要提高时间上限。 ");
+  }
+  if (job.state === "FAILED") {
+    hints.push("优先查看 stderr 和退出码；不要只根据 FAILED 状态猜测根因。 ");
+  }
+  if (reason.includes("memory") || reason.includes("oom")) {
+    hints.push("调度原因包含内存线索；对比峰值内存与申请内存后再调整资源。 ");
+  }
+  if (job.exit_code?.startsWith("137:") || job.exit_code === "137") {
+    hints.push("退出码 137 常与进程被终止或内存压力有关，需要结合 stderr 与 MaxRSS 确认。 ");
+  }
+  if (job.state === "PENDING") {
+    hints.push(`当前仍在排队${job.reason ? `（${job.reason}）` : ""}；这不代表程序执行失败。`);
+  }
+  if (job.state === "UNKNOWN") {
+    hints.push("Slurm 状态暂时未知，可能处于记账同步窗口；稍后刷新再判断。 ");
+  }
+  if (job.state === "COMPLETED" && job.exit_code === "0:0") {
+    hints.push("Slurm 报告正常完成且退出码为 0:0；资源效率仍需结合统计面板判断。 ");
+  }
+  return hints.map((hint) => hint.trim());
+}
+
+function JobDiagnosticPanel({ job }: { job: Job }) {
+  const hints = jobDiagnosticHints(job);
+  if (hints.length === 0) return null;
+  return (
+    <section className="diagnostic-panel" aria-labelledby="diagnostic-title">
+      <div>
+        <p className="section-kicker">排查提示</p>
+        <h3 id="diagnostic-title">基于当前证据的下一步</h3>
+      </div>
+      <ul>{hints.map((hint) => <li key={hint}>{hint}</li>)}</ul>
+      <small>提示用于缩小排查范围，不替代 Slurm 状态、退出码和日志原文。</small>
     </section>
   );
 }
@@ -310,6 +472,7 @@ function JobDetail({
           </div>
         ))}
       </dl>
+      <JobDiagnosticPanel job={job} />
       {capabilities.usage && <JobUsagePanel jobId={job.id} />}
       {capabilities.logs
         ? <JobLogPanel jobId={job.id} />
@@ -367,6 +530,12 @@ function JobSubmitForm({
     }));
   };
 
+  const applyTemplate = (template: (typeof jobTemplates)[number]) => {
+    setSubmission(copySubmission(template.submission));
+    setSubmitError(null);
+    idempotency.current = null;
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitting(true);
@@ -397,6 +566,15 @@ function JobSubmitForm({
           </p>
         </div>
         <button className="quiet-button" type="button" onClick={onCancel}>关闭</button>
+      </div>
+
+      <div className="template-picker" aria-label="常用作业模板">
+        {jobTemplates.map((template) => (
+          <button key={template.id} type="button" onClick={() => applyTemplate(template)}>
+            <strong>{template.label}</strong>
+            <span>{template.description}</span>
+          </button>
+        ))}
       </div>
 
       <div className="form-grid">
@@ -446,7 +624,7 @@ function JobSubmitForm({
       <div className="form-actions">
         <button className="quiet-button" type="button" onClick={onCancel}>取消</button>
         <button className="primary-button" type="submit" disabled={submitting}>
-          {submitting ? "正在提交…" : "提交到 Fixture 队列"}
+          {submitting ? "正在提交…" : nativeMode ? "提交到 Slurm" : "提交到 Fixture 队列"}
         </button>
       </div>
     </form>
@@ -469,6 +647,11 @@ export function JobDashboard() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
   const [runtimeError, setRuntimeError] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [pageVisible, setPageVisible] = useState(() => !document.hidden);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [stateEvents, setStateEvents] = useState<string[]>([]);
+  const previousStates = useRef<Map<string, JobState>>(new Map());
 
   useEffect(() => {
     const controller = new AbortController();
@@ -482,11 +665,37 @@ export function JobDashboard() {
   }, []);
 
   useEffect(() => {
+    const updateVisibility = () => setPageVisible(!document.hidden);
+    document.addEventListener("visibilitychange", updateVisibility);
+    return () => document.removeEventListener("visibilitychange", updateVisibility);
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
     fetchJobs(page, PAGE_SIZE, stateFilter, controller.signal)
-      .then(setData)
+      .then((payload) => {
+        const nextStates = new Map(previousStates.current);
+        const changes: string[] = [];
+        for (const job of payload.items) {
+          const previous = previousStates.current.get(job.id);
+          if (previous !== undefined && previous !== job.state) {
+            changes.push(`#${job.slurm_job_id}：${stateLabels[previous]} → ${stateLabels[job.state]}`);
+          }
+          nextStates.set(job.id, job.state);
+        }
+        previousStates.current = nextStates;
+        if (changes.length > 0) {
+          setStateEvents((current) => [...changes, ...current].slice(0, 4));
+        }
+        setData(payload);
+        setLastSyncedAt(new Date());
+        setSelectedJob((current) => {
+          if (current === null) return null;
+          return payload.items.find((job) => job.id === current.id) ?? current;
+        });
+      })
       .catch((reason: unknown) => {
         if (reason instanceof DOMException && reason.name === "AbortError") return;
         setError(reason instanceof ApiError ? reason.message : "无法连接作业 API");
@@ -496,6 +705,15 @@ export function JobDashboard() {
       });
     return () => controller.abort();
   }, [page, reloadKey, stateFilter]);
+
+  const hasActiveJobs = data?.items.some((job) => ["PENDING", "RUNNING"].includes(job.state)) ?? false;
+  const refreshDelay = hasActiveJobs ? ACTIVE_REFRESH_MS : IDLE_REFRESH_MS;
+
+  useEffect(() => {
+    if (!autoRefresh || !pageVisible) return;
+    const timer = window.setTimeout(() => setReloadKey((value) => value + 1), refreshDelay);
+    return () => window.clearTimeout(timer);
+  }, [autoRefresh, pageVisible, refreshDelay, reloadKey]);
 
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
 
@@ -563,33 +781,32 @@ export function JobDashboard() {
       </header>
 
       <section className="workspace" aria-labelledby="jobs-title">
-        {runtime?.read_only && (
+        {runtime?.data_source === "native" && (
           <div className="mode-notice" role="status">
-            <strong>Native 只读模式</strong>
-            <span>
-              {runtime.capabilities.logs
-                ? "列表、详情、资源统计和受控日志来自当前 Unix 账号；提交、取消和克隆尚未开放。"
-                : "列表、详情和资源统计来自当前 Unix 账号的 Slurm 记录；提交、取消、克隆和日志尚未开放。"}
-            </span>
-          </div>
-        )}
-        {runtime?.data_source === "native" && runtime.capabilities.submit && (
-          <div className="mode-notice" role="status">
-            <strong>Native 受控提交模式</strong>
-            <span>
-              {runtime.capabilities.logs
-                ? "提交受幂等键与活跃作业上限保护，受控日志已开放；取消和克隆仍未开放。"
-                : "提交已开放并受幂等键与活跃作业上限保护；取消、克隆和日志仍未开放。"}
-            </span>
+            <strong>{runtime.read_only ? "Native 只读模式" : "Native 受控操作模式"}</strong>
+            <span>{nativeCapabilitySummary(runtime)}</span>
           </div>
         )}
         <div className="section-heading">
           <div>
             <p className="section-kicker">作业队列与历史</p>
             <h2 id="jobs-title">当前账户的计算任务</h2>
-            <p>先确认数据和操作路径，视觉细节将在后续统一完善。</p>
+            <p>自动跟踪状态变化，并对比申请资源、分配资源与实际指标。</p>
           </div>
           <div className="section-actions">
+            <div className="refresh-control" role="group" aria-label="自动刷新控制">
+              <button type="button" onClick={() => setAutoRefresh((value) => !value)}>
+                {autoRefresh ? "暂停自动刷新" : "开启自动刷新"}
+              </button>
+              <button type="button" onClick={() => setReloadKey((value) => value + 1)}>立即刷新</button>
+              <span>
+                {!pageVisible
+                  ? "页面隐藏，已暂停"
+                  : autoRefresh
+                    ? `${hasActiveJobs ? "活跃" : "空闲"} · ${refreshDelay / 1000} 秒`
+                    : "自动刷新已暂停"}
+              </span>
+            </div>
             <label className="filter-control">
               <span>状态筛选</span>
               <select
@@ -614,6 +831,18 @@ export function JobDashboard() {
         </div>
 
         <JobSummaryPanel refreshKey={reloadKey} />
+
+        <div className="sync-status" aria-live="polite">
+          <span>{lastSyncedAt ? `上次同步 ${lastSyncedAt.toLocaleTimeString("zh-CN", { hour12: false })}` : "等待首次同步"}</span>
+          <span>页面失焦时自动暂停网络请求</span>
+        </div>
+
+        {stateEvents.length > 0 && (
+          <div className="notice state-change-notice" role="status">
+            <div><strong>作业状态发生变化</strong><span>{stateEvents.join("；")}</span></div>
+            <button type="button" onClick={() => setStateEvents([])}>清除</button>
+          </div>
+        )}
 
         {showSubmitForm && (
           <JobSubmitForm
