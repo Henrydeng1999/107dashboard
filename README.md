@@ -154,7 +154,7 @@ backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --rel
 
 ## 当前状态
 
-当前仓库已经完成前后端最小骨架、完整 Fixture MVP 故事，以及受有效 Unix UID、部署 owner 和 Slurm user 三层约束的 Native 查询链路。提交 `05a64a3` 已于 2026-07-18 在 107 完成正式只读验收；提交安全底座随后在 `88a0147` 上完成唯一一次最小真实作业验收，Job `24011` 正常完成并返回 `0:0`。Native `POST /api/jobs` 在 `0f88ede` 完成 107 无 `sbatch` 门禁检查。Native 日志现已完成本地受控实现，只允许 owner 元数据中位于服务端作业目录的固定 stdout/stderr 路径；部署开关默认关闭，尚未读取 107 真实日志。取消和克隆继续关闭。按章节顺序阅读：[01 开发计划](docs/01-PLAN.md)、[02 系统架构](docs/02-ARCHITECTURE.md)、[03 环境检查](docs/03-ENVIRONMENT_CHECK.md)、[04 团队协作](docs/04-COLLABORATION.md)、[05 目录规范](docs/05-DIRECTORY-STRUCTURE.md)、[06 平台部署](docs/06-PLATFORM-DEPLOYMENT.md)、[07 MVP API 设计](docs/07-MVP-API-DESIGN.md)。
+当前仓库已经完成前后端最小骨架、完整 Fixture MVP 故事，以及受有效 Unix UID、部署 owner 和 Slurm user 三层约束的 Native 查询链路。提交 `05a64a3` 已于 2026-07-18 在 107 完成正式只读验收；提交安全底座随后在 `88a0147` 上完成唯一一次最小真实作业验收，Job `24011` 正常完成并返回 `0:0`。Native `POST /api/jobs` 在 `0f88ede` 完成 107 无 `sbatch` 门禁检查。提交 `beb39f7` 的 Native 日志路径也已在 107 完成不打开文件的安全预检，只允许 owner 元数据中位于服务端作业目录的固定 stdout/stderr 路径；部署开关默认关闭，尚未读取 107 真实日志内容。取消和克隆继续关闭。按章节顺序阅读：[01 开发计划](docs/01-PLAN.md)、[02 系统架构](docs/02-ARCHITECTURE.md)、[03 环境检查](docs/03-ENVIRONMENT_CHECK.md)、[04 团队协作](docs/04-COLLABORATION.md)、[05 目录规范](docs/05-DIRECTORY-STRUCTURE.md)、[06 平台部署](docs/06-PLATFORM-DEPLOYMENT.md)、[07 MVP API 设计](docs/07-MVP-API-DESIGN.md)。
 
 算力平台的实际环境检查结果见 [03 环境检查](docs/03-ENVIRONMENT_CHECK.md)。
 

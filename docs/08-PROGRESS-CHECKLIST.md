@@ -10,7 +10,7 @@
   <div class="progress-stat progress-stat-done"><strong>可用</strong><span>前后端最小骨架</span></div>
   <div class="progress-stat progress-stat-done"><strong>195 / 195</strong><span>后端测试通过</span></div>
   <div class="progress-stat progress-stat-done"><strong>通过</strong><span>前端类型检查与构建</span></div>
-  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>107 日志路径无读取预检</span></div>
+  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>单次真实日志读取验收</span></div>
 </div>
 
 > **状态说明：** <span class="status-badge status-done">✓ 已完成</span> 已实现并通过对应测试、构建、fixture 或平台证据验证；<span class="status-badge status-active">→ 进行中</span> 已有部分成果；<span class="status-badge status-pending">○ 待开始</span> 尚未实现；<span class="status-badge status-later">◇ 赛后</span> 不阻塞比赛 MVP。
@@ -80,6 +80,7 @@
 | <span class="status-badge status-done">✓</span> | Native 受控 HTTP 提交 | 默认关闭的部署门、持久化幂等摘要、同键安全重放、异请求冲突、活跃作业上限、稳定 Dashboard ID 和前端幂等重试 | 注入式 API 回归证明相同请求仅调用一次伪 `sbatch`；前端类型检查和生产构建通过；未调用真实 `sbatch` |
 | <span class="status-badge status-done">✓</span> | Native HTTP 门禁验收 | 临时启用提交能力，验证缺少幂等键和非法命令在 `sbatch` 前稳定拒绝，其他写/日志能力继续关闭 | 提交 `0f88ede`；用户 `pb24030760`；`400/422`；`would_invoke_sbatch=false`；开关未持久化 |
 | <span class="status-badge status-done">✓</span> | Native 受控日志 | owner/source 元数据限定、固定 submission 路径、普通文件与符号链接边界、字节偏移读取和默认关闭部署门 | 本地正常/缺失/跨 owner/穿越/文件类型/416/503 回归通过；未读取真实日志 |
+| <span class="status-badge status-done">✓</span> | Native 日志路径预检 | 在不打开文件的前提下校验 Job `24011` 的 owner 元数据及 stdout/stderr 受控目录边界 | 提交 `beb39f7`；用户 `pb24030760`；两个路径均安全；`would_open_log=false`；`would_read_log=false`；开关未持久化 |
 | <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 后端 195 个 pytest 通过（符号链接用例在 Windows 跳过），目标 Ruff 通过；0 个生产依赖漏洞 |
 | <span class="status-badge status-done">✓</span> | 文档 | 架构、环境、协作、部署、API 契约 | 文档站可直接访问 |
 | <span class="status-badge status-done">✓</span> | 文档体验 | 单章节按需加载、模糊过渡、URL 定位、前进后退和章节筛选 | 浏览器交互检查通过 |
@@ -87,7 +88,7 @@
 ## 当前待办与提示
 
 <div class="notice-grid">
-  <div class="notice notice-next"><strong>下一开发项</strong><span>在 107 对 Job `24011` 运行只规范化元数据路径、不打开文件的日志预检；通过后再单独决定是否授权读取脱敏 stdout。</span></div>
+  <div class="notice notice-next"><strong>下一开发项</strong><span>路径预检已经通过；等待单独授权后，在 107 对 Job `24011` 执行一次受控 stdout/stderr 读取验收，并记录字节偏移、可用状态和脱敏证据。</span></div>
   <div class="notice notice-warning"><strong>暂时限制</strong><span>Native 提交和日志长期部署开关均保持关闭；取消与克隆仍未实现，不得重复运行真实提交验收脚本。</span></div>
   <div class="notice notice-safe"><strong>安全边界</strong><span>真实测试只能通过 Slurm 提交，禁止在登录节点直接运行学生计算任务。</span></div>
   <div class="notice notice-info"><strong>验证方式</strong><span>Fixture 与注入式 Native 回归用于本地稳定验证，107 脚本用于平台门禁与真实验收：后端 pytest 195 passed、目标 Ruff、前端类型检查和生产构建通过。</span></div>
@@ -108,7 +109,8 @@
 - [x] Native HTTP 提交幂等、并发门禁和默认关闭的部署开关
 - [x] Native HTTP 提交在 107 的无作业门禁检查
 - [x] Fixture stdout/stderr 日志查看与增量读取
-- [ ] 真实日志路径映射、所有权校验与平台验收
+- [x] 真实日志路径映射、所有权校验与无读取平台预检
+- [ ] 单次真实 stdout/stderr 读取验收
 - [x] Fixture 作业取消与克隆
 - [ ] 真实 scancel 与基于持久化元数据的克隆
 - [x] Fixture 作业级 CPU、GPU、内存和运行时长统计

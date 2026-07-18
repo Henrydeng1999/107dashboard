@@ -212,6 +212,8 @@ backend/.venv/bin/python scripts/check-native-log-path-preflight.py --job-id 240
 
 通过时 `stdout_path_safe`、`stderr_path_safe` 为 `true`，且 `would_open_log=false`、`would_read_log=false`。该检查只读取 SQLite 元数据并规范化路径，不读取 stdout/stderr 内容；完成前不要把日志开关写入长期服务配置。
 
+2026-07-18 已在 107 对提交 `beb39f7` 和 Job `24011` 完成本检查：owner `pb24030760` 校验通过，stdout 与 stderr 路径均位于受控作业目录，`stdout_path_safe=true`、`stderr_path_safe=true`、`would_open_log=false`、`would_read_log=false`。临时日志开关仅存在于本次验收 shell，没有写入长期配置；运行时 `data/` 证据未删除、未修改、保持未跟踪。该结果只批准路径映射，真实日志读取仍需项目管理员单独授权。
+
 ## 安全边界
 
 - 部署公钥保持只读，不改用个人写入密钥；
