@@ -1,11 +1,12 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
-import { ApiError, cancelJob, cloneJob, fetchJob, fetchJobLog, fetchJobSummary, fetchJobUsage, fetchJobs, fetchRuntimeInfo, submitJob } from "../../api/jobs";
-import type { Job, JobListResponse, JobLogStream, JobState, JobSubmitRequest, JobUsageResponse, RuntimeCapabilities, RuntimeInfo, UserJobSummary } from "./types";
+import { ApiError, cancelJob, cloneJob, fetchJob, fetchJobLog, fetchJobSummary, fetchJobUsage, fetchJobs, fetchRuntimeInfo, fetchTestProjects, submitJob } from "../../api/jobs";
+import type { Job, JobListResponse, JobLogStream, JobState, JobSubmitRequest, JobUsageResponse, RuntimeCapabilities, RuntimeInfo, TestProject, UserJobSummary } from "./types";
 
 const PAGE_SIZE = 5;
 const ACTIVE_REFRESH_MS = 5_000;
 const IDLE_REFRESH_MS = 15_000;
+type Theme = "dark" | "light";
 
 const stateLabels: Record<JobState, string> = {
   PENDING: "排队中",
@@ -554,7 +555,20 @@ function JobSubmitForm({
   const [submission, setSubmission] = useState<JobSubmitRequest>(defaultSubmission);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [testProjects, setTestProjects] = useState<TestProject[]>([]);
   const idempotency = useRef<{ fingerprint: string; key: string } | null>(null);
+
+  useEffect(() => {
+    if (!nativeMode) return;
+    const controller = new AbortController();
+    fetchTestProjects(controller.signal)
+      .then(({ items }) => setTestProjects(items))
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") return;
+        setSubmitError(reason instanceof ApiError ? reason.message : "无法读取验收项目");
+      });
+    return () => controller.abort();
+  }, [nativeMode]);
 
   const updateResource = (field: keyof JobSubmitRequest["resources"], value: number) => {
     setSubmission((current) => ({
@@ -565,6 +579,17 @@ function JobSubmitForm({
 
   const applyTemplate = (template: (typeof jobTemplates)[number]) => {
     setSubmission(copySubmission(template.submission));
+    setSubmitError(null);
+    idempotency.current = null;
+  };
+
+  const applyTestProject = (project: TestProject) => {
+    setSubmission({
+      ...defaultSubmission,
+      name: `accept-${project.id}`,
+      command: project.command,
+      resources: { ...project.resources },
+    });
     setSubmitError(null);
     idempotency.current = null;
   };
@@ -602,9 +627,13 @@ function JobSubmitForm({
       </div>
 
       <div className="template-picker" aria-label="常用作业模板">
-        {jobTemplates.map((template) => (
-          <button key={template.id} type="button" onClick={() => applyTemplate(template)}>
-            <strong>{template.label}</strong>
+        {(testProjects.length > 0 ? testProjects : jobTemplates).map((template) => (
+          <button
+            key={template.id}
+            type="button"
+            onClick={() => "command" in template ? applyTestProject(template) : applyTemplate(template)}
+          >
+            <strong>{"name" in template ? template.name : template.label}</strong>
             <span>{template.description}</span>
           </button>
         ))}
@@ -628,11 +657,14 @@ function JobSubmitForm({
             maxLength={500}
             aria-describedby="native-command-policy"
             value={submission.command}
+            readOnly={submission.command.startsWith("python3 @project/")}
             onChange={(event) => setSubmission({ ...submission, command: event.target.value })}
           />
           {nativeMode && (
             <small className="field-hint" id="native-command-policy">
-              当前仅允许 python/python3 及安全参数；不支持管道、重定向、命令替换或绝对路径。
+              {submission.command.startsWith("python3 @project/")
+                ? "受控验收项目将在提交时复制到独立运行快照；项目路径不能由浏览器修改。"
+                : "当前仅允许 python/python3 及安全参数；不支持管道、重定向、命令替换或绝对路径。"}
             </small>
           )}
         </label>
@@ -671,6 +703,10 @@ function JobSubmitForm({
 }
 
 export function JobDashboard() {
+  const [theme, setTheme] = useState<Theme>(() => {
+    const savedTheme = window.localStorage.getItem("107dashboard-theme");
+    return savedTheme === "light" ? "light" : "dark";
+  });
   const [stateFilter, setStateFilter] = useState<JobState | "ALL">("ALL");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<JobListResponse | null>(null);
@@ -691,6 +727,12 @@ export function JobDashboard() {
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [stateEvents, setStateEvents] = useState<string[]>([]);
   const previousStates = useRef<Map<string, JobState>>(new Map());
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    window.localStorage.setItem("107dashboard-theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     const updateVisibility = () => setPageVisible(!document.hidden);
@@ -816,6 +858,24 @@ export function JobDashboard() {
                 : runtime.data_source === "native"
                   ? "Native 真实交互"
                   : "Fixture 已连接"}
+        </div>
+        <div className="theme-toggle" role="group" aria-label="显示主题">
+          <button
+            className={theme === "dark" ? "is-active" : ""}
+            type="button"
+            aria-pressed={theme === "dark"}
+            onClick={() => setTheme("dark")}
+          >
+            深色
+          </button>
+          <button
+            className={theme === "light" ? "is-active" : ""}
+            type="button"
+            aria-pressed={theme === "light"}
+            onClick={() => setTheme("light")}
+          >
+            浅色
+          </button>
         </div>
       </header>
 

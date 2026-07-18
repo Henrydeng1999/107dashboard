@@ -21,6 +21,7 @@ from app.slurm.submission import (
     parse_allowed_command,
     write_submission_receipt,
 )
+from app.services.test_projects import TestProjectCatalog
 
 
 class SlurmSubmitter(Protocol):
@@ -57,11 +58,13 @@ class NativeSubmissionService:
         workspace_root: Path,
         submitter: SlurmSubmitter,
         repository: SubmissionRepository,
+        project_catalog: TestProjectCatalog | None = None,
     ) -> None:
         self._owner = owner
         self._workspace_root = workspace_root
         self._submitter = submitter
         self._repository = repository
+        self._project_catalog = project_catalog
         self._submission_lock = Lock()
 
     def submit(
@@ -164,6 +167,7 @@ class NativeSubmissionService:
             request,
             owner=self._owner,
             workspace_root=self._workspace_root,
+            project_catalog=self._project_catalog,
         )
         self._repository.record_event(self._audit(plan, "PREPARED", "VALIDATED"))
         try:

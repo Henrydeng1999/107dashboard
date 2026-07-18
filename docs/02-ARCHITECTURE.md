@@ -128,6 +128,8 @@ Native 取消只接受纯数字 allocation ID，并仅在当前 owner 的 Slurm 
 
 Native 全交互部署仍使用同一个 FastAPI 进程、有效 Unix owner 和 SQLite 元数据链。四项能力开关必须同时由部署方启用，回退状态出现时写能力继续自动关闭。前端对活动作业每 3 秒按字节偏移增量跟踪当前日志，并在作业更新时间变化时刷新 usage；命令输入框明确展示窄 `python`/`python3` 策略。集中验收只通过 HTTP 路由操作脚本自己创建的 Job，输出不包含日志正文，完成回执以 `0600` 权限写入未跟踪作业目录并阻止 V1 意外重复执行。
 
+单账号真实试用的项目源目录与作业工作目录分离。`TEST_PROJECT_DIRECTORY` 只包含当前 UID 拥有、不可组写或其他用户写入的登记项目；API 返回项目 ID、说明、入口和默认资源，不返回服务器路径。提交命令使用 `python3 @project/<id>` 引用，后端重新加载 manifest、拒绝符号链接和超限文件，并把入口脚本以 `0600` 复制到新的 `submission-<id>/source/` 快照后再生成 `sbatch`。克隆保存同一项目引用并重新执行全部校验与快照流程。
+
 比赛演示可显式启用 `DEMO_FALLBACK_ENABLED`。该模式不在启动时伪装 Native 成功：正常状态继续读取真实 Slurm；只有受控查询抛出已脱敏的数据源不可用错误时，目录层才在冷却期内切换到脱敏 Fixture。`GET /api/runtime` 动态返回 `serving_source=fixture_fallback`、`degraded=true`，前端显示醒目标记。回退目录不允许 Fixture 提交，包装层同时拒绝提交、取消和克隆；恢复探测仅由列表刷新触发，成功后整体切回 Native，避免单次页面中混合真实和演示数据。
 
 真实基础产品部署与演示回退配置严格分离。`deploy/107-native-interactive.env.example` 固定 `SLURM_DATA_SOURCE=native` 与 `DEMO_FALLBACK_ENABLED=false`，启动检查要求所有可见 Job ID 使用 `slurm-` 前缀；Slurm 查询失败时产品显示 API 错误，不用模拟结果掩盖故障。Fixture 仅保留给本地自动化和单独的演示回退验收，不参与用户判断真实作业状态。

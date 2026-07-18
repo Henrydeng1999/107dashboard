@@ -9,10 +9,12 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes.health import router as health_router
 from app.api.routes.jobs import router as jobs_router
+from app.api.routes.projects import router as projects_router
 from app.core.config import Settings, get_settings
 from app.services.demo_fallback import DemoFallbackJobCatalog
 from app.services.job_catalog import JobCatalog, build_job_catalog
 from app.schemas.system import RuntimeCapabilities, RuntimeInfo
+from app.services.test_projects import TestProjectCatalog
 
 
 def _runtime_info(
@@ -82,6 +84,11 @@ def create_app(
     settings = settings or get_settings()
     application = FastAPI(title=settings.app_name, version="0.1.0")
     application.state.job_catalog = job_catalog or build_job_catalog(settings)
+    application.state.test_project_catalog = (
+        TestProjectCatalog(settings.test_project_directory)
+        if settings.test_project_directory is not None
+        else None
+    )
     application.state.runtime_info_provider = lambda: _runtime_info(
         settings, application.state.job_catalog
     )
@@ -118,6 +125,7 @@ def create_app(
     )
     application.include_router(health_router, prefix="/api")
     application.include_router(jobs_router, prefix="/api")
+    application.include_router(projects_router, prefix="/api")
     if settings.serve_frontend:
         frontend_index = settings.frontend_dist_directory / "index.html"
         if not frontend_index.is_file():

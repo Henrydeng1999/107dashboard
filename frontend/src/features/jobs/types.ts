@@ -56,6 +56,20 @@ export interface JobSubmitRequest {
   };
 }
 
+export interface TestProject {
+  id: string;
+  name: string;
+  description: string;
+  entrypoint: string;
+  expected_outcome: string;
+  command: string;
+  resources: JobSubmitRequest["resources"];
+}
+
+export interface TestProjectListResponse {
+  items: TestProject[];
+}
+
 export type JobLogStream = "stdout" | "stderr";
 
 export interface JobLogResponse {

@@ -47,6 +47,20 @@ class JobSubmitRequest(BaseModel):
     resources: JobSubmitResources
 
 
+class TestProjectResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    entrypoint: str
+    expected_outcome: str
+    command: str
+    resources: JobSubmitResources
+
+
+class TestProjectListResponse(BaseModel):
+    items: list[TestProjectResponse]
+
+
 class Job(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -20,10 +20,17 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.core.config import Settings  # noqa: E402
 from app.core.identity import assert_deployment_owner, resolve_effective_unix_username  # noqa: E402
 from app.main import create_app  # noqa: E402
+from app.services.test_projects import TestProjectCatalog, TestProjectError  # noqa: E402
 
 REQUIRED_COMMANDS = ("sbatch", "scancel", "squeue", "sacct")
 REQUIRED_CAPABILITIES = ("submit", "logs", "cancel", "clone")
 PRODUCT_BUILD = "native-basic-v1"
+REQUIRED_TEST_PROJECTS = {
+    "cpu-smoke",
+    "log-stream",
+    "controlled-failure",
+    "cancelable-task",
+}
 
 
 def validate_product_settings(settings: Settings) -> dict[str, object]:
@@ -66,12 +73,24 @@ def validate_product_settings(settings: Settings) -> dict[str, object]:
         settings.dashboard_owner,
         resolve_effective_unix_username(),
     )
+    test_projects: list[str] = []
+    if settings.test_project_directory is not None:
+        try:
+            test_projects = [
+                project.id
+                for project in TestProjectCatalog(settings.test_project_directory).list_projects()
+            ]
+        except TestProjectError as exc:
+            raise RuntimeError("registered test projects are invalid") from exc
+        if set(test_projects) != REQUIRED_TEST_PROJECTS:
+            raise RuntimeError("the complete registered test project set is required")
     return {
         "owner": owner,
         "frontend_index": True,
         "frontend_assets": True,
         "product_build": PRODUCT_BUILD,
         "slurm_commands": list(REQUIRED_COMMANDS),
+        "test_projects": test_projects,
     }
 
 

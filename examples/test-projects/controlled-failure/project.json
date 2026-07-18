@@ -1,0 +1,8 @@
+{
+  "id": "controlled-failure",
+  "name": "受控失败检查",
+  "description": "向 stderr 写入已知错误并以 17 退出，用于检查失败状态和诊断。",
+  "entrypoint": "main.py",
+  "expected_outcome": "FAILED",
+  "resources": {"cpus": 1, "memory_mb": 512, "gpus": 0, "time_limit_minutes": 2}
+}

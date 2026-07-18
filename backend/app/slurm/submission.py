@@ -1,12 +1,15 @@
 import os
 import re
 import shlex
+import shutil
+import stat
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from uuid import uuid4
 
 from app.schemas.jobs import JobSubmitRequest
 from app.slurm.runner import CommandResult, SubprocessCommandRunner
+from app.services.test_projects import TestProject, TestProjectCatalog, TestProjectError
 
 
 class SubmissionValidationError(ValueError):
@@ -56,10 +59,16 @@ class SubmissionPlan:
     script_path: Path
     stdout_path: Path
     stderr_path: Path
+    project: TestProject | None = None
 
     @property
     def script_text(self) -> str:
-        return "#!/usr/bin/env bash\nset -euo pipefail\nexec " + render_allowed_command(self.arguments) + "\n"
+        arguments = (
+            ("python3", f"source/{self.project.entrypoint}")
+            if self.project is not None
+            else self.arguments
+        )
+        return "#!/usr/bin/env bash\nset -euo pipefail\nexec " + render_allowed_command(arguments) + "\n"
 
     @property
     def sbatch_arguments(self) -> tuple[str, ...]:
@@ -96,8 +105,17 @@ def build_submission_plan(
     owner: str,
     workspace_root: Path,
     submission_id: str | None = None,
+    project_catalog: TestProjectCatalog | None = None,
 ) -> SubmissionPlan:
     arguments = parse_allowed_command(request.command)
+    project = None
+    if len(arguments) == 2 and arguments[0] == "python3" and arguments[1].startswith("@project/"):
+        if project_catalog is None:
+            raise SubmissionValidationError("registered test projects are unavailable")
+        try:
+            project = project_catalog.get(arguments[1].removeprefix("@project/"))
+        except TestProjectError as exc:
+            raise SubmissionValidationError("registered test project is invalid") from exc
     if _SAFE_OWNER.fullmatch(owner) is None:
         raise SubmissionValidationError("submission owner is invalid")
     root = workspace_root.resolve()
@@ -116,11 +134,26 @@ def build_submission_plan(
         script_path=directory / "job.sh",
         stdout_path=directory / "stdout.log",
         stderr_path=directory / "stderr.log",
+        project=project,
     )
 
 
 def materialize_submission(plan: SubmissionPlan) -> None:
     plan.directory.mkdir(parents=True, exist_ok=False, mode=0o700)
+    if plan.project is not None:
+        source_directory = plan.directory / "source"
+        source_directory.mkdir(mode=0o700)
+        target = source_directory / plan.project.entrypoint
+        source_descriptor = os.open(plan.project.source_path, os.O_RDONLY | os.O_NOFOLLOW)
+        source_metadata = os.fstat(source_descriptor)
+        if not stat.S_ISREG(source_metadata.st_mode) or source_metadata.st_size > 64 * 1024:
+            os.close(source_descriptor)
+            raise SubmissionValidationError("registered test project source changed unsafely")
+        descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(source_descriptor, "rb") as source, os.fdopen(descriptor, "wb") as output:
+            shutil.copyfileobj(source, output, length=64 * 1024)
+            output.flush()
+            os.fsync(output.fileno())
     descriptor = os.open(plan.script_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o700)
     with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
         stream.write(plan.script_text)

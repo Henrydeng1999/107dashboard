@@ -1,0 +1,8 @@
+{
+  "id": "cpu-smoke",
+  "name": "CPU 完成检查",
+  "description": "快速完成并输出 Python、主机和 Slurm 环境摘要。",
+  "entrypoint": "main.py",
+  "expected_outcome": "COMPLETED",
+  "resources": {"cpus": 1, "memory_mb": 512, "gpus": 0, "time_limit_minutes": 2}
+}

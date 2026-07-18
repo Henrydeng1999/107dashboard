@@ -49,6 +49,7 @@ from app.services.native_submission import (
     NativeIdempotencyRequiredError,
     NativeSubmissionService,
 )
+from app.services.test_projects import TestProjectCatalog
 from app.services.native_logs import NativeLogPathError, resolve_native_log_path
 from app.services.native_control import (
     NativeControlIdempotencyConflict,
@@ -119,6 +120,11 @@ def build_job_catalog(settings: Settings) -> "JobCatalog":
         owner = assert_deployment_owner(owner, resolve_effective_unix_username())
 
     adapter = build_slurm_adapter(settings)
+    test_project_catalog = (
+        TestProjectCatalog(settings.test_project_directory)
+        if settings.test_project_directory is not None
+        else None
+    )
     metadata_repository = JobMetadataRepository(settings.database_url)
     metadata_repository.initialize()
     native_submission_service = None
@@ -141,6 +147,7 @@ def build_job_catalog(settings: Settings) -> "JobCatalog":
                 SubprocessCommandRunner(settings.slurm_command_timeout_seconds)
             ),
             repository=submission_repository,
+            project_catalog=test_project_catalog,
         )
     if settings.slurm_data_source == "native" and settings.native_cancel_enabled:
         operation_repository = JobControlRepository(settings.database_url)

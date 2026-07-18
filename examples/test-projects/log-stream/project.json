@@ -1,0 +1,8 @@
+{
+  "id": "log-stream",
+  "name": "增量日志检查",
+  "description": "约 20 秒内分批输出日志，用于检查自动刷新、偏移和 EOF。",
+  "entrypoint": "main.py",
+  "expected_outcome": "COMPLETED",
+  "resources": {"cpus": 1, "memory_mb": 512, "gpus": 0, "time_limit_minutes": 2}
+}

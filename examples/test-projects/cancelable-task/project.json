@@ -1,0 +1,8 @@
+{
+  "id": "cancelable-task",
+  "name": "取消与克隆检查",
+  "description": "低负载等待任务，用于检查运行中取消、克隆和再次取消。",
+  "entrypoint": "main.py",
+  "expected_outcome": "CANCELLED",
+  "resources": {"cpus": 1, "memory_mb": 512, "gpus": 0, "time_limit_minutes": 3}
+}

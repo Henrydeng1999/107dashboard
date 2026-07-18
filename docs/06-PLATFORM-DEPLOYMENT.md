@@ -282,6 +282,15 @@ backend/.venv/bin/python scripts/run-native-live-interaction.py \
 
 ## 用户目录基础产品服务
 
+单账号验收项目部署在源码仓库之外：
+
+```bash
+rsync -az --delete examples/test-projects/ 107:~/dashboard-test-projects/
+ssh 107 'chmod -R go-rwx ~/dashboard-test-projects'
+```
+
+正式环境配置使用 `TEST_PROJECT_DIRECTORY=~/dashboard-test-projects` 的绝对展开路径。产品启动检查会加载 CPU 完成、增量日志、受控失败、取消与克隆四个项目；目录缺失、owner 不匹配、文件可被组/其他用户写入、符号链接、非法 manifest 或项目集合不完整都会阻止服务启动。该检查不执行项目源码，也不调用 `sbatch`。
+
 正式产品配置不启用 Fixture 回退。开发电脑先生成带 `native-basic-v1` 标识的统一导航前端并传输到 107：
 
 ```bash

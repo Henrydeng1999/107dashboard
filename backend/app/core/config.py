@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     slurm_fixture_directory: Path = PROJECT_ROOT / "fixtures" / "slurm"
     fixture_job_output_directory: Path = PROJECT_ROOT / "fixtures" / "job-output"
     job_workspace_directory: Path = PROJECT_ROOT / "data" / "jobs"
+    test_project_directory: Path | None = None
     slurm_command_timeout_seconds: float = 10.0
     slurm_query_cache_ttl_seconds: float = 2.0
     slurm_max_jobs: int = 1000
@@ -55,6 +56,14 @@ class Settings(BaseSettings):
     )
     @classmethod
     def resolve_fixture_directory(cls, value: object) -> Path:
+        path = Path(value) if isinstance(value, (str, Path)) else Path(str(value))
+        return path if path.is_absolute() else PROJECT_ROOT / path
+
+    @field_validator("test_project_directory", mode="before")
+    @classmethod
+    def resolve_optional_directory(cls, value: object) -> Path | None:
+        if value is None or value == "":
+            return None
         path = Path(value) if isinstance(value, (str, Path)) else Path(str(value))
         return path if path.is_absolute() else PROJECT_ROOT / path
 
