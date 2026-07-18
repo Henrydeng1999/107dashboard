@@ -50,7 +50,8 @@ def main() -> int:
         submission_id="submission-00000000000000000000000000000000",
     )
     workspace_parent = nearest_existing_parent(settings.job_workspace_directory)
-    database_parent = nearest_existing_parent(Path(settings.database_url.removeprefix("sqlite:///")))
+    database_path = Path(settings.database_url.removeprefix("sqlite:///"))
+    database_parent = nearest_existing_parent(database_path.parent)
     result = {
         "mode": "native-submit-read-only-preflight",
         "passed": all(
