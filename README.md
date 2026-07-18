@@ -154,7 +154,7 @@ backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --rel
 
 ## 当前状态
 
-当前仓库已经完成前后端最小骨架、完整 Fixture MVP 故事，以及受有效 Unix UID、部署 owner 和 Slurm user 三层约束的 Native 只读链路。Native 模式开放列表、详情、用户摘要和资源统计；提交、取消、克隆和日志仍在服务端关闭，前端也会读取 `/api/runtime` 隐藏这些操作。SQLite 元数据按 Fixture/Native 来源隔离，并与 Slurm 实时状态去重合并。提交 `05a64a3` 已于 2026-07-18 在 107 使用账号 `pb24030760` 完成正式只读验收，真实作业 `21482` 的状态、退出码和资源统计字段读取通过。未接入 HTTP 的 Native 提交安全底座也已完成本地测试，下一步是在 107 运行不调用 `sbatch` 的预检；真实提交仍需新的明确授权。按章节顺序阅读：[01 开发计划](docs/01-PLAN.md)、[02 系统架构](docs/02-ARCHITECTURE.md)、[03 环境检查](docs/03-ENVIRONMENT_CHECK.md)、[04 团队协作](docs/04-COLLABORATION.md)、[05 目录规范](docs/05-DIRECTORY-STRUCTURE.md)、[06 平台部署](docs/06-PLATFORM-DEPLOYMENT.md)、[07 MVP API 设计](docs/07-MVP-API-DESIGN.md)。
+当前仓库已经完成前后端最小骨架、完整 Fixture MVP 故事，以及受有效 Unix UID、部署 owner 和 Slurm user 三层约束的 Native 只读链路。Native 模式开放列表、详情、用户摘要和资源统计；提交、取消、克隆和日志仍在服务端关闭，前端也会读取 `/api/runtime` 隐藏这些操作。SQLite 元数据按 Fixture/Native 来源隔离，并与 Slurm 实时状态去重合并。提交 `05a64a3` 已于 2026-07-18 在 107 使用账号 `pb24030760` 完成正式只读验收；提交安全底座随后在 `88a0147` 上完成唯一一次最小真实作业验收，Job `24011` 以 `1 CPU / 512 MiB / 0 GPU / 1 分钟` 正常完成并返回 `0:0`，元数据、回执和审计均已持久化。Native HTTP 写能力仍未开放。按章节顺序阅读：[01 开发计划](docs/01-PLAN.md)、[02 系统架构](docs/02-ARCHITECTURE.md)、[03 环境检查](docs/03-ENVIRONMENT_CHECK.md)、[04 团队协作](docs/04-COLLABORATION.md)、[05 目录规范](docs/05-DIRECTORY-STRUCTURE.md)、[06 平台部署](docs/06-PLATFORM-DEPLOYMENT.md)、[07 MVP API 设计](docs/07-MVP-API-DESIGN.md)。
 
 算力平台的实际环境检查结果见 [03 环境检查](docs/03-ENVIRONMENT_CHECK.md)。
 
