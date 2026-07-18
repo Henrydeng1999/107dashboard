@@ -123,6 +123,27 @@ https://henrydeng1999.github.io/107dashboard/
 
 默认 `DATABASE_URL=sqlite:///./data/dashboard.sqlite3` 会由后端解析为仓库根目录下的 `data/dashboard.sqlite3`，首次应用装配时自动创建父目录和表。测试固定使用线程安全的内存 SQLite，不会复用部署数据库；服务器上的 `data/` 必须保留为运行时目录，不能提交到 Git。
 
+## Native 只读验收
+
+当前 Native 模式只开放作业列表、详情、用户摘要和资源统计。验收脚本不会提交或取消作业，也不会读取日志；它只通过 API 执行 `squeue`、`sacct` 对应的只读查询，并检查返回记录均属于后端进程的有效 Unix 用户。
+
+更新服务器副本并执行：
+
+```bash
+cd ~/107dashboard
+git pull --ff-only
+
+export SLURM_DATA_SOURCE=native
+export DASHBOARD_OWNER="$(id -un)"
+export DATABASE_URL="sqlite:////home/scc/$(id -un)/107dashboard/data/dashboard.sqlite3"
+
+backend/.venv/bin/python scripts/check-native-readonly.py
+```
+
+通过时脚本输出 JSON 证据，包括模式、owner 检查、可见作业数、抽样 Job ID、状态、退出码和资源字段是否存在。空队列也是合法结果，此时 `total_jobs=0`、`sample=null`。若有效 UID 与 `DASHBOARD_OWNER` 不一致、Slurm 命令缺失/超时/失败、响应混入其他 owner，脚本会以非零状态退出。
+
+验收后启动 Web 服务时使用同一组环境变量。`GET /api/runtime` 应返回 `data_source=native`、`read_only=true`；Native 前端会隐藏新建、取消、克隆和日志入口。不要为了测试按钮而开启写操作。
+
 ## 安全边界
 
 - 部署公钥保持只读，不改用个人写入密钥；

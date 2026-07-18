@@ -3,14 +3,14 @@
 <div class="progress-meta">
   <span class="status-badge status-done">● 最近本地验证通过</span>
   <span>更新时间：2026-07-18</span>
-  <span>开发基线：<code>83bdb7e</code></span>
+  <span>开发基线：<code>8dc5c73</code></span>
 </div>
 
 <div class="progress-summary" aria-label="当前项目摘要">
   <div class="progress-stat progress-stat-done"><strong>可用</strong><span>前后端最小骨架</span></div>
-  <div class="progress-stat progress-stat-done"><strong>128 / 128</strong><span>后端测试通过</span></div>
+  <div class="progress-stat progress-stat-done"><strong>138 / 138</strong><span>后端测试通过</span></div>
   <div class="progress-stat progress-stat-done"><strong>通过</strong><span>前端类型检查与构建</span></div>
-  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>开放 Native 只读链路并在 107 验收</span></div>
+  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>在 107 执行 Native 只读验收</span></div>
 </div>
 
 > **状态说明：** <span class="status-badge status-done">✓ 已完成</span> 已实现并通过对应测试、构建、fixture 或平台证据验证；<span class="status-badge status-active">→ 进行中</span> 已有部分成果；<span class="status-badge status-pending">○ 待开始</span> 尚未实现；<span class="status-badge status-later">◇ 赛后</span> 不阻塞比赛 MVP。
@@ -31,7 +31,7 @@
   <div class="phase-row">
     <div class="phase-heading"><strong>阶段 2 · 作业只读视图</strong><span class="status-badge status-active">4 / 5</span></div>
     <div class="progress-track" role="progressbar" aria-label="作业只读视图完成度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="80"><span class="progress-fill progress-80"></span></div>
-    <p>作业模型、Fixture jobs API 和基础前端列表/详情已完成；有效 UID 校验、owner 限定元数据仓库和逐操作可见性复核已接入 Fixture service。Native 只读链路曾在 107 临时实例验证，正式 API 仍无条件关闭，下一步按新门禁重新开放并验收。</p>
+    <p>Native 只读列表、详情、摘要和资源统计已在身份门禁后正式接入；Slurm 与 SQLite 去重合并、source 隔离和前端能力提示均通过本地回归。当前等待在 107 执行正式验收脚本。</p>
   </div>
   <div class="phase-row">
     <div class="phase-heading"><strong>阶段 3 · 作业提交与控制</strong><span class="status-badge status-active">4 / 5</span></div>
@@ -62,7 +62,7 @@
 | <span class="status-badge status-done">✓</span> | Slurm fixtures | 脱敏 squeue、sacct、sinfo 和空队列输出样例 | 解析器与 Fixture adapter 测试通过 |
 | <span class="status-badge status-done">✓</span> | Slurm adapter | SlurmAdapter Protocol、参数数组 runner、Fixture/Native adapter、超时与命令错误映射 | adapter 单元测试通过；107 临时只读实例已执行真实 `squeue`/`sacct` |
 | <span class="status-badge status-done">✓</span> | Slurm 解析 | squeue、sacct、sinfo 的作业状态、节点、退出码和资源字段解析 | fixture、异常输入和状态映射测试通过 |
-| <span class="status-badge status-done">✓</span> | API 安全边界 | Native jobs API 无条件 fail-closed；404/422/503 使用脱敏错误 envelope 与服务端 request ID | 外部 native 环境下完整 pytest 通过；未调用 subprocess |
+| <span class="status-badge status-done">✓</span> | API 安全边界 | Native 仅开放受 UID/owner 门禁保护的 GET 列表、详情、摘要和 usage；写操作与日志 fail closed | 其他 owner 隐藏、身份失败、命令失败、空队列和只读能力测试通过 |
 | <span class="status-badge status-done">✓</span> | 前端骨架 | React 页面入口、基础布局与 API 状态 | TypeScript 检查、Vite 构建通过 |
 | <span class="status-badge status-done">✓</span> | 前端作业视图 | Fixture 作业列表、状态筛选、分页、详情、加载、空数据和错误重试 | TypeScript 检查、Vite 生产构建通过 |
 | <span class="status-badge status-done">✓</span> | Fixture 作业提交 | 结构化提交 API、固定分区/账户/QoS、资源上限校验、模拟排队 Job ID 和基础提交表单 | 合法提交、非法参数测试及前端构建通过；未执行 sbatch |
@@ -71,19 +71,20 @@
 | <span class="status-badge status-done">✓</span> | Fixture 资源统计 | 区分申请、分配和实际指标，聚合顶层与 `.batch` 数据，展示CPU、GPU、内存和时长 | 真实字段格式驱动的 parser、adapter、API 测试及前端构建通过；GPU实际使用保持未知 |
 | <span class="status-badge status-done">✓</span> | 当前用户摘要 | 作业总数、活跃/成功/异常数量、完整状态分布和带字段覆盖率的资源快照合计 | 摘要初始值、提交后更新和前端构建通过；不声称为实际利用率 |
 | <span class="status-badge status-done">✓</span> | Fixture MVP 回归 | 健康检查、列表/详情、日志、资源、提交、取消、克隆和摘要组成单一可重复故事 | `test_mvp_fixture_flow.py` 通过，不调用真实 Slurm |
-| <span class="status-badge status-done">✓</span> | 身份设计 | 比赛原型采用后端进程有效 UID 对应的单 Unix 账号，HTTP 输入不能选择 Slurm 用户 | 架构、API 与 Agent 安全边界已同步；Native 继续 fail closed |
-| <span class="status-badge status-done">✓</span> | 身份与元数据链路 | 有效 UID 与部署 owner 断言、SQLite 初始化、Fixture 提交/取消持久化、重建恢复和 owner 限定查询 | 身份失败、恢复、跨 owner 隔离、唯一性和五类 API 越权测试通过；Native 仍 fail closed |
-| <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 后端 128 个 pytest 通过，目标 Ruff 通过；0 个生产依赖漏洞 |
+| <span class="status-badge status-done">✓</span> | 身份设计 | 比赛原型采用后端进程有效 UID 对应的单 Unix 账号，HTTP 输入不能选择 Slurm 用户 | Native 创建前 UID/owner 精确匹配测试通过 |
+| <span class="status-badge status-done">✓</span> | 身份与元数据链路 | SQLite source 隔离、旧表兼容升级、Slurm 状态优先去重合并和 owner 限定查询 | 恢复、跨 owner、来源隔离、旧表升级和合并测试通过 |
+| <span class="status-badge status-done">✓</span> | Native 只读界面 | `/api/runtime` 声明能力，前端展示 Native 只读状态并隐藏写操作与日志 | TypeScript 检查和 Vite 生产构建通过 |
+| <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 后端 138 个 pytest 通过，目标 Ruff 通过；0 个生产依赖漏洞 |
 | <span class="status-badge status-done">✓</span> | 文档 | 架构、环境、协作、部署、API 契约 | 文档站可直接访问 |
 | <span class="status-badge status-done">✓</span> | 文档体验 | 单章节按需加载、模糊过渡、URL 定位、前进后退和章节筛选 | 浏览器交互检查通过 |
 
 ## 当前待办与提示
 
 <div class="notice-grid">
-  <div class="notice notice-next"><strong>下一开发项</strong><span>在有效 UID 与部署 owner 一致时开放 Native 只读列表、详情和统计，并在 107 使用真实 Slurm user 字段重新验收。</span></div>
-  <div class="notice notice-warning"><strong>暂时限制</strong><span>当前提交、取消和克隆仍是 Fixture 模拟，日志来自脱敏 Fixture；Native 正式 API、真实写操作和真实日志尚未开放。</span></div>
+  <div class="notice notice-next"><strong>下一开发项</strong><span>在 107 执行 `scripts/check-native-readonly.py`，记录当前提交、抽样 Job ID、状态、退出码和资源字段证据；通过后进入真实 sbatch 受控提交流程。</span></div>
+  <div class="notice notice-warning"><strong>暂时限制</strong><span>Native 只读实现尚未在当前提交上完成 107 正式验收；真实提交、取消、克隆和日志继续关闭。</span></div>
   <div class="notice notice-safe"><strong>安全边界</strong><span>真实测试只能通过 Slurm 提交，禁止在登录节点直接运行学生计算任务。</span></div>
-  <div class="notice notice-info"><strong>验证方式</strong><span>Fixture 完整故事和边界测试用于稳定回归，Native 用于阶段性真实验收：后端 pytest 128 passed、目标 Ruff、前端类型检查和生产构建通过。</span></div>
+  <div class="notice notice-info"><strong>验证方式</strong><span>Fixture 与注入式 Native 回归用于本地稳定验证，107 脚本用于真实验收：后端 pytest 138 passed、目标 Ruff、前端类型检查和生产构建通过。</span></div>
 </div>
 
 ## MVP 必须功能
@@ -92,8 +93,8 @@
 - [x] 作业数据模型与 Fixture 只读 API
 - [x] squeue、sacct、sinfo 受控查询参数与 fixture 输出解析
 - [x] Fixture adapter 接入 jobs service/API
-- [ ] 真实 Slurm 查询与 jobs service/API 正式接入（读取链路已验证，等待身份与逐操作 owner 复核接入）
-- [ ] Native 作业所有权校验（Fixture 五类 API 与持久化 owner 隔离已通过）
+- [x] 真实 Slurm 查询与 jobs service/API 只读实现（待 107 当前版本验收）
+- [x] Native 作业所有权校验实现与自动回归（待 107 当前版本验收）
 - [x] 有效 UID 身份解析、部署 owner 断言和 SQLite 元数据仓库接入
 - [x] 基础作业列表与详情页面
 - [x] Fixture 作业提交与资源校验

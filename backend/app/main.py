@@ -10,12 +10,24 @@ from app.api.routes.health import router as health_router
 from app.api.routes.jobs import router as jobs_router
 from app.core.config import Settings, get_settings
 from app.services.job_catalog import JobCatalog, build_job_catalog
+from app.schemas.system import RuntimeCapabilities, RuntimeInfo
 
 
 def create_app(settings: Settings | None = None, job_catalog: JobCatalog | None = None) -> FastAPI:
     settings = settings or get_settings()
     application = FastAPI(title=settings.app_name, version="0.1.0")
     application.state.job_catalog = job_catalog or build_job_catalog(settings)
+    native_read_only = settings.slurm_data_source == "native"
+    application.state.runtime_info = RuntimeInfo(
+        data_source=settings.slurm_data_source,
+        read_only=native_read_only,
+        capabilities=RuntimeCapabilities(
+            submit=not native_read_only,
+            cancel=not native_read_only,
+            clone=not native_read_only,
+            logs=not native_read_only,
+        ),
+    )
 
     @application.middleware("http")
     async def assign_request_id(

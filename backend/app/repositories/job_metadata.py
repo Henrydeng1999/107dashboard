@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine, select
+from sqlalchemy import Engine, create_engine, inspect, select, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -23,6 +23,7 @@ class JobMetadataRecord:
     memory_mb: int
     gpus: int
     time_limit_minutes: int
+    source: str = "fixture"
     stdout_path: str | None = None
     stderr_path: str | None = None
     state: str = "PENDING"
@@ -54,6 +55,24 @@ class JobMetadataRepository:
             if database_path not in {None, "", ":memory:"}:
                 Path(database_path).parent.mkdir(parents=True, exist_ok=True)
         Base.metadata.create_all(self._engine)
+        self._upgrade_sqlite_schema()
+
+    def _upgrade_sqlite_schema(self) -> None:
+        if self._engine.dialect.name != "sqlite":
+            return
+        columns = {column["name"] for column in inspect(self._engine).get_columns("job_metadata")}
+        additions = {
+            "source": "VARCHAR(16) NOT NULL DEFAULT 'fixture'",
+            "state": "VARCHAR(32) NOT NULL DEFAULT 'PENDING'",
+            "submitted_at": "DATETIME",
+            "finished_at": "DATETIME",
+        }
+        with self._engine.begin() as connection:
+            for column, definition in additions.items():
+                if column not in columns:
+                    connection.execute(
+                        text(f"ALTER TABLE job_metadata ADD COLUMN {column} {definition}")
+                    )
 
     def upsert(self, record: JobMetadataRecord) -> JobMetadataRecord:
         with self._session_factory.begin() as session:
@@ -64,8 +83,10 @@ class JobMetadataRepository:
             else:
                 if model.owner != record.owner:
                     raise ValueError("job metadata owner cannot be changed")
+                if model.source != record.source:
+                    raise ValueError("job metadata source cannot be changed")
                 for field, value in self._write_values(record).items():
-                    if field not in {"id", "owner"}:
+                    if field not in {"id", "owner", "source"}:
                         setattr(model, field, value)
             session.flush()
             return self._to_record(model)
@@ -84,12 +105,11 @@ class JobMetadataRepository:
         )
         return self._fetch_one(statement)
 
-    def list_by_owner(self, owner: str) -> list[JobMetadataRecord]:
-        statement = (
-            select(JobMetadata)
-            .where(JobMetadata.owner == owner)
-            .order_by(JobMetadata.created_at.desc(), JobMetadata.id.desc())
-        )
+    def list_by_owner(self, owner: str, *, source: str | None = None) -> list[JobMetadataRecord]:
+        statement = select(JobMetadata).where(JobMetadata.owner == owner)
+        if source is not None:
+            statement = statement.where(JobMetadata.source == source)
+        statement = statement.order_by(JobMetadata.created_at.desc(), JobMetadata.id.desc())
         with self._session_factory() as session:
             return [self._to_record(model) for model in session.scalars(statement)]
 
@@ -104,6 +124,7 @@ class JobMetadataRepository:
             "id": record.id,
             "slurm_job_id": record.slurm_job_id,
             "owner": record.owner,
+            "source": record.source,
             "name": record.name,
             "command": record.command,
             "partition": record.partition,
@@ -126,6 +147,7 @@ class JobMetadataRepository:
             id=model.id,
             slurm_job_id=model.slurm_job_id,
             owner=model.owner,
+            source=model.source,
             name=model.name,
             command=model.command,
             partition=model.partition,

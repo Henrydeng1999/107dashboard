@@ -154,7 +154,7 @@ backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --rel
 
 ## 当前状态
 
-当前仓库已经完成前后端最小骨架、Fixture jobs API、基础作业列表/详情，以及带资源校验的 Fixture 模拟提交、取消、克隆、stdout/stderr 增量日志、作业级资源统计和当前用户摘要；完整 Fixture MVP 故事已有自动回归。比赛原型的有效 UID 身份解析、部署 owner 一致性断言和 SQLite 作业元数据仓库已接入应用与 Fixture 作业服务，模拟提交和取消状态可在服务重建后恢复，详情、日志、统计、取消和克隆统一执行 owner 复核。Native API 继续无条件关闭，下一步单独开放并验收只读链路。按章节顺序阅读：[01 开发计划](docs/01-PLAN.md)、[02 系统架构](docs/02-ARCHITECTURE.md)、[03 环境检查](docs/03-ENVIRONMENT_CHECK.md)、[04 团队协作](docs/04-COLLABORATION.md)、[05 目录规范](docs/05-DIRECTORY-STRUCTURE.md)、[06 平台部署](docs/06-PLATFORM-DEPLOYMENT.md)、[07 MVP API 设计](docs/07-MVP-API-DESIGN.md)。
+当前仓库已经完成前后端最小骨架、完整 Fixture MVP 故事，以及受有效 Unix UID、部署 owner 和 Slurm user 三层约束的 Native 只读链路。Native 模式开放列表、详情、用户摘要和资源统计；提交、取消、克隆和日志仍在服务端关闭，前端也会读取 `/api/runtime` 隐藏这些操作。SQLite 元数据按 Fixture/Native 来源隔离，并与 Slurm 实时状态去重合并。当前版本已通过本地自动回归，等待在 107 使用 `scripts/check-native-readonly.py` 完成正式验收。按章节顺序阅读：[01 开发计划](docs/01-PLAN.md)、[02 系统架构](docs/02-ARCHITECTURE.md)、[03 环境检查](docs/03-ENVIRONMENT_CHECK.md)、[04 团队协作](docs/04-COLLABORATION.md)、[05 目录规范](docs/05-DIRECTORY-STRUCTURE.md)、[06 平台部署](docs/06-PLATFORM-DEPLOYMENT.md)、[07 MVP API 设计](docs/07-MVP-API-DESIGN.md)。
 
 算力平台的实际环境检查结果见 [03 环境检查](docs/03-ENVIRONMENT_CHECK.md)。
 

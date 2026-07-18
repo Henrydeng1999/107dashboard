@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 
-import { ApiError, cancelJob, cloneJob, fetchJob, fetchJobLog, fetchJobSummary, fetchJobUsage, fetchJobs, submitJob } from "../../api/jobs";
-import type { Job, JobListResponse, JobLogStream, JobState, JobSubmitRequest, JobUsageResponse, UserJobSummary } from "./types";
+import { ApiError, cancelJob, cloneJob, fetchJob, fetchJobLog, fetchJobSummary, fetchJobUsage, fetchJobs, fetchRuntimeInfo, submitJob } from "../../api/jobs";
+import type { Job, JobListResponse, JobLogStream, JobState, JobSubmitRequest, JobUsageResponse, RuntimeCapabilities, RuntimeInfo, UserJobSummary } from "./types";
 
 const PAGE_SIZE = 5;
 
@@ -262,6 +262,7 @@ function JobLogPanel({ jobId }: { jobId: string }) {
 
 function JobDetail({
   job,
+  capabilities,
   actionPending,
   actionError,
   onCancelJob,
@@ -269,6 +270,7 @@ function JobDetail({
   onClose,
 }: {
   job: Job;
+  capabilities: RuntimeCapabilities;
   actionPending: "cancel" | "clone" | null;
   actionError: string | null;
   onCancelJob: () => void;
@@ -308,30 +310,38 @@ function JobDetail({
           </div>
         ))}
       </dl>
-      <JobUsagePanel jobId={job.id} />
-      <JobLogPanel jobId={job.id} />
+      {capabilities.usage && <JobUsagePanel jobId={job.id} />}
+      {capabilities.logs
+        ? <JobLogPanel jobId={job.id} />
+        : <div className="mode-notice compact">Native 只读阶段暂不开放日志路径读取。</div>}
       {job.command === null && (
-        <p className="detail-note">Fixture 查询暂不提供提交命令和事件时间，真实平台接入后再补充。</p>
+        <p className="detail-note">当前 Slurm 查询未提供提交命令和完整事件时间；仅由可信元数据补充这些字段。</p>
       )}
       {actionError && <p className="form-error" role="alert">{actionError}</p>}
-      <div className="detail-actions">
-        <button
-          className="danger-button"
-          type="button"
-          disabled={actionPending !== null || !["PENDING", "RUNNING"].includes(job.state)}
-          onClick={onCancelJob}
-        >
-          {actionPending === "cancel" ? "正在取消…" : "取消作业"}
-        </button>
-        <button
-          className="primary-button"
-          type="button"
-          disabled={actionPending !== null || job.command === null}
-          onClick={onCloneJob}
-        >
-          {actionPending === "clone" ? "正在克隆…" : "克隆为新作业"}
-        </button>
-      </div>
+      {(capabilities.cancel || capabilities.clone) && (
+        <div className="detail-actions">
+          {capabilities.cancel && (
+            <button
+              className="danger-button"
+              type="button"
+              disabled={actionPending !== null || !["PENDING", "RUNNING"].includes(job.state)}
+              onClick={onCancelJob}
+            >
+              {actionPending === "cancel" ? "正在取消…" : "取消作业"}
+            </button>
+          )}
+          {capabilities.clone && (
+            <button
+              className="primary-button"
+              type="button"
+              disabled={actionPending !== null || job.command === null}
+              onClick={onCloneJob}
+            >
+              {actionPending === "clone" ? "正在克隆…" : "克隆为新作业"}
+            </button>
+          )}
+        </div>
+      )}
     </aside>
   );
 }
@@ -445,6 +455,19 @@ export function JobDashboard() {
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
   const [actionPending, setActionPending] = useState<"cancel" | "clone" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
+  const [runtimeError, setRuntimeError] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchRuntimeInfo(controller.signal)
+      .then(setRuntime)
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") return;
+        setRuntimeError(true);
+      });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -511,11 +534,23 @@ export function JobDashboard() {
         </div>
         <div className={`connection-pill ${error ? "is-offline" : ""}`}>
           <span className="status-dot" />
-          {error ? "API 异常" : loading ? "正在同步" : "Fixture 已连接"}
+          {error || runtimeError
+            ? "API 异常"
+            : loading || runtime === null
+              ? "正在同步"
+              : runtime.read_only
+                ? "Native 只读"
+                : "Fixture 已连接"}
         </div>
       </header>
 
       <section className="workspace" aria-labelledby="jobs-title">
+        {runtime?.read_only && (
+          <div className="mode-notice" role="status">
+            <strong>Native 只读模式</strong>
+            <span>列表、详情和资源统计来自当前 Unix 账号的 Slurm 记录；提交、取消、克隆和日志尚未开放。</span>
+          </div>
+        )}
         <div className="section-heading">
           <div>
             <p className="section-kicker">作业队列与历史</p>
@@ -538,9 +573,11 @@ export function JobDashboard() {
                 ))}
               </select>
             </label>
-            <button className="primary-button new-job-button" type="button" onClick={() => setShowSubmitForm(true)}>
-              新建作业
-            </button>
+            {runtime?.capabilities.submit && (
+              <button className="primary-button new-job-button" type="button" onClick={() => setShowSubmitForm(true)}>
+                新建作业
+              </button>
+            )}
           </div>
         </div>
 
@@ -639,6 +676,15 @@ export function JobDashboard() {
       {selectedJob && (
         <JobDetail
           job={selectedJob}
+          capabilities={runtime?.capabilities ?? {
+            list_jobs: true,
+            job_details: true,
+            usage: true,
+            submit: false,
+            cancel: false,
+            clone: false,
+            logs: false,
+          }}
           actionPending={actionPending}
           actionError={actionError}
           onCancelJob={() => void operateOnJob("cancel")}

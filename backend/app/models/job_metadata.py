@@ -19,6 +19,7 @@ class JobMetadata(Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     slurm_job_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     owner: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="fixture")
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     command: Mapped[str] = mapped_column(String(500), nullable=False)
     partition: Mapped[str] = mapped_column(String(64), nullable=False)

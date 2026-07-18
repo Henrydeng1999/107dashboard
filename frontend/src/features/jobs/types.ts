@@ -107,3 +107,19 @@ export interface ApiErrorResponse {
     request_id?: string;
   };
 }
+
+export interface RuntimeCapabilities {
+  list_jobs: boolean;
+  job_details: boolean;
+  usage: boolean;
+  submit: boolean;
+  cancel: boolean;
+  clone: boolean;
+  logs: boolean;
+}
+
+export interface RuntimeInfo {
+  data_source: "fixture" | "native";
+  read_only: boolean;
+  capabilities: RuntimeCapabilities;
+}

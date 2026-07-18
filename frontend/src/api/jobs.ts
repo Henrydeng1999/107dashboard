@@ -7,6 +7,7 @@ import type {
   JobState,
   JobSubmitRequest,
   JobUsageResponse,
+  RuntimeInfo,
   UserJobSummary,
 } from "../features/jobs/types";
 
@@ -90,4 +91,8 @@ export function fetchJobUsage(jobId: string, signal?: AbortSignal): Promise<JobU
 
 export function fetchJobSummary(signal?: AbortSignal): Promise<UserJobSummary> {
   return request<UserJobSummary>("/jobs/summary", { signal });
+}
+
+export function fetchRuntimeInfo(signal?: AbortSignal): Promise<RuntimeInfo> {
+  return request<RuntimeInfo>("/runtime", { signal });
 }

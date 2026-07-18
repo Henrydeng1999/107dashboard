@@ -7,8 +7,8 @@ import pytest
 from app.core.config import Settings
 from app.core.identity import TrustedIdentityError
 from app.main import create_app
-from app.services.job_catalog import JobCatalog, NativeSlurmApiDisabled, build_job_catalog
-from app.slurm import SlurmCommandFailed, SlurmJob
+from app.services.job_catalog import JobCatalog, build_job_catalog
+from app.slurm import SlurmCommandFailed, SlurmJob, SlurmResources, SlurmUsageRecord
 
 
 class FailingAdapter:
@@ -24,6 +24,69 @@ class FailingAdapter:
 
     def list_partitions(self) -> list[object]:
         return []
+
+
+class NativeReadOnlyAdapter:
+    def __init__(self, *, empty: bool = False) -> None:
+        self.empty = empty
+        self.requested_users: list[str] = []
+        self.requested_usage_ids: list[str] = []
+
+    def list_queue(self, user: str) -> list[SlurmJob]:
+        self.requested_users.append(user)
+        if self.empty:
+            return []
+        return [
+            SlurmJob(
+                job_id="21483",
+                user=user,
+                name="native-running",
+                state="RUNNING",
+                partition="Students",
+                account="stu",
+                qos="qos_stu_default",
+                allocated=SlurmResources(cpus=2, memory_mb=4096, gpus=1),
+            ),
+            SlurmJob(job_id="99999", user="another-user", state="RUNNING"),
+        ]
+
+    def list_accounting(self, user: str) -> list[SlurmJob]:
+        self.requested_users.append(user)
+        if self.empty:
+            return []
+        return [
+            SlurmJob(
+                job_id="21482",
+                user=user,
+                name="native-completed",
+                state="COMPLETED",
+                partition="Students",
+                account="stu",
+                qos="qos_stu_default",
+                exit_code="0:0",
+                requested=SlurmResources(cpus=2, memory_mb=4096, gpus=1),
+                allocated=SlurmResources(cpus=2, memory_mb=4096, gpus=1),
+                time_limit="00:05:00",
+                elapsed="00:00:00",
+            )
+        ]
+
+    def list_partitions(self) -> list[object]:
+        return []
+
+    def get_usage(self, job_id: str) -> list[SlurmUsageRecord]:
+        self.requested_usage_ids.append(job_id)
+        return [
+            SlurmUsageRecord(
+                job_id=job_id,
+                requested=SlurmResources(cpus=2, memory_mb=4096, gpus=1),
+                allocated=SlurmResources(cpus=2, memory_mb=4096, gpus=1),
+                elapsed_seconds=0,
+                time_limit_seconds=300,
+                total_cpu_seconds=0.148,
+            ),
+            SlurmUsageRecord(job_id=f"{job_id}.batch", max_rss_kb=260),
+        ]
 
 
 def _fixture_client(**settings_overrides: object) -> TestClient:
@@ -179,7 +242,7 @@ def test_missing_or_malformed_fixture_maps_to_stable_503(tmp_path: Path) -> None
         assert str(tmp_path) not in response.text
 
 
-def test_native_gate_blocks_app_before_subprocess(
+def test_native_app_creation_validates_identity_without_running_slurm(
     monkeypatch,
 ) -> None:
     calls: list[object] = []
@@ -192,9 +255,9 @@ def test_native_gate_blocks_app_before_subprocess(
         "app.services.job_catalog.resolve_effective_unix_username", lambda: "demo-user"
     )
 
-    with pytest.raises(NativeSlurmApiDisabled):
-        create_app(Settings(_env_file=None, slurm_data_source="native"))
+    application = create_app(Settings(_env_file=None, slurm_data_source="native"))
 
+    assert application.state.runtime_info.read_only is True
     assert calls == []
 
 
@@ -211,6 +274,94 @@ def test_native_owner_mismatch_fails_before_adapter_creation(monkeypatch) -> Non
                 dashboard_owner="configured-user",
             )
         )
+
+
+def test_native_read_only_api_exposes_owned_jobs_usage_and_capabilities(monkeypatch) -> None:
+    adapter = NativeReadOnlyAdapter()
+    monkeypatch.setattr(
+        "app.services.job_catalog.resolve_effective_unix_username", lambda: "demo-user"
+    )
+    monkeypatch.setattr("app.services.job_catalog.build_slurm_adapter", lambda settings: adapter)
+    client = TestClient(
+        create_app(
+            Settings(
+                _env_file=None,
+                slurm_data_source="native",
+                dashboard_owner="demo-user",
+                database_url="sqlite://",
+            )
+        )
+    )
+
+    runtime = client.get("/api/runtime")
+    jobs = client.get("/api/jobs")
+    detail = client.get("/api/jobs/slurm-21482")
+    usage = client.get("/api/jobs/slurm-21482/usage")
+
+    assert runtime.json()["read_only"] is True
+    assert runtime.json()["capabilities"] == {
+        "list_jobs": True,
+        "job_details": True,
+        "usage": True,
+        "submit": False,
+        "cancel": False,
+        "clone": False,
+        "logs": False,
+    }
+    assert jobs.status_code == 200
+    assert jobs.json()["total"] == 2
+    assert {job["owner"] for job in jobs.json()["items"]} == {"demo-user"}
+    assert client.get("/api/jobs/slurm-99999").status_code == 404
+    assert detail.status_code == 200
+    assert detail.json()["exit_code"] == "0:0"
+    assert usage.status_code == 200
+    assert usage.json()["max_rss_kb"] == 260
+    assert usage.json()["total_cpu_seconds"] == 0.148
+    assert adapter.requested_users == ["demo-user", "demo-user"]
+    assert adapter.requested_usage_ids == ["21482"]
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "expected_code"),
+    [
+        ("POST", "/api/jobs", "JOB_SUBMISSION_UNAVAILABLE"),
+        ("POST", "/api/jobs/slurm-21483/cancel", "JOB_CONTROL_UNAVAILABLE"),
+        ("POST", "/api/jobs/slurm-21482/clone", "JOB_CLONE_UNAVAILABLE"),
+        ("GET", "/api/jobs/slurm-21482/logs", "JOB_LOGS_UNAVAILABLE"),
+    ],
+)
+def test_native_read_only_api_keeps_write_and_log_operations_closed(
+    method: str, path: str, expected_code: str
+) -> None:
+    catalog = JobCatalog(adapter=NativeReadOnlyAdapter(), owner="demo-user")
+    client = TestClient(
+        create_app(
+            Settings(_env_file=None, slurm_data_source="native"),
+            job_catalog=catalog,
+        )
+    )
+    options = {"json": _valid_submission()} if path == "/api/jobs" else {}
+
+    response = client.request(method, path, **options)
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == expected_code
+
+
+def test_native_read_only_api_handles_empty_queue() -> None:
+    catalog = JobCatalog(adapter=NativeReadOnlyAdapter(empty=True), owner="demo-user")
+    client = TestClient(
+        create_app(
+            Settings(_env_file=None, slurm_data_source="native"),
+            job_catalog=catalog,
+        )
+    )
+
+    response = client.get("/api/jobs")
+
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+    assert response.json()["total"] == 0
 
 
 def test_error_envelope_and_openapi_responses() -> None:

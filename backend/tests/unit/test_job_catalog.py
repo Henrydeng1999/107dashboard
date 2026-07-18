@@ -6,8 +6,9 @@ from pydantic import ValidationError
 
 from app.core.config import PROJECT_ROOT, Settings
 from app.schemas.jobs import JobState
-from app.services.job_catalog import JobCatalog, NativeSlurmApiDisabled, build_slurm_adapter
-from app.slurm import FixtureSlurmAdapter, SlurmJob, SlurmResources
+from app.services.job_catalog import JobCatalog, build_slurm_adapter
+from app.slurm import FixtureSlurmAdapter, NativeSlurmAdapter, SlurmJob, SlurmResources
+from app.slurm.runner import SubprocessCommandRunner
 
 
 class StaticAdapter:
@@ -105,16 +106,18 @@ def test_factory_builds_fixture_adapter() -> None:
     assert isinstance(fixture, FixtureSlurmAdapter)
 
 
-@pytest.mark.parametrize("legacy_gate", [False, True])
-def test_native_factory_always_fails_closed(legacy_gate: bool) -> None:
-    with pytest.raises(NativeSlurmApiDisabled, match="trusted authentication"):
-        build_slurm_adapter(
-            Settings(
-                _env_file=None,
-                slurm_data_source="native",
-                slurm_native_api_enabled=legacy_gate,
-            )
+def test_native_factory_builds_read_only_adapter_with_configured_timeout() -> None:
+    adapter = build_slurm_adapter(
+        Settings(
+            _env_file=None,
+            slurm_data_source="native",
+            slurm_command_timeout_seconds=7,
         )
+    )
+
+    assert isinstance(adapter, NativeSlurmAdapter)
+    assert isinstance(adapter.runner, SubprocessCommandRunner)
+    assert adapter.runner.timeout_seconds == 7
 
 
 def test_catalog_reuses_snapshot_until_cache_expires() -> None:

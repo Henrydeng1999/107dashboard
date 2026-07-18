@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 from threading import Condition
 from time import monotonic
-from typing import Callable
+from typing import Callable, Literal
 
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
@@ -25,12 +25,14 @@ from app.schemas.jobs import (
 )
 from app.slurm import (
     FixtureSlurmAdapter,
+    NativeSlurmAdapter,
     SlurmAdapter,
     SlurmCommandError,
     SlurmJob,
     SlurmParseError,
     SlurmResources,
 )
+from app.slurm.runner import SubprocessCommandRunner
 
 _DASHBOARD_ID_PREFIX = "slurm-"
 _TIME_LIMIT_PATTERN = re.compile(
@@ -40,10 +42,6 @@ _TIME_LIMIT_PATTERN = re.compile(
 
 class JobCatalogUnavailable(RuntimeError):
     """The configured Slurm data source could not provide a safe response."""
-
-
-class NativeSlurmApiDisabled(RuntimeError):
-    """Native Slurm API access is unavailable without trusted request identity."""
 
 
 class JobSubmissionUnavailable(RuntimeError):
@@ -70,8 +68,8 @@ def build_slurm_adapter(settings: Settings) -> SlurmAdapter:
     if settings.slurm_data_source == "fixture":
         return FixtureSlurmAdapter(settings.slurm_fixture_directory)
     if settings.slurm_data_source == "native":
-        raise NativeSlurmApiDisabled(
-            "Native Slurm API access is disabled until trusted authentication is configured"
+        return NativeSlurmAdapter(
+            SubprocessCommandRunner(settings.slurm_command_timeout_seconds)
         )
     raise ValueError(f"Unsupported Slurm data source: {settings.slurm_data_source!r}")
 
@@ -96,6 +94,7 @@ def build_job_catalog(settings: Settings) -> "JobCatalog":
             else None
         ),
         metadata_repository=metadata_repository,
+        metadata_source=settings.slurm_data_source,
     )
 
 
@@ -195,6 +194,47 @@ def _to_job(job: SlurmJob, owner: str, observed_at: datetime) -> Job:
     )
 
 
+def _merge_job_metadata(observed: Job, metadata: Job) -> Job:
+    """Keep Slurm state authoritative while filling trusted submission metadata."""
+    if observed.id != metadata.id or observed.owner != metadata.owner:
+        raise ValueError("job snapshots must have matching identity and owner")
+    return observed.model_copy(
+        update={
+            "name": observed.name or metadata.name,
+            "partition": observed.partition or metadata.partition,
+            "account": observed.account or metadata.account,
+            "qos": observed.qos or metadata.qos,
+            "command": metadata.command,
+            "resources": JobResources(
+                cpus=(
+                    observed.resources.cpus
+                    if observed.resources.cpus is not None
+                    else metadata.resources.cpus
+                ),
+                memory_mb=(
+                    observed.resources.memory_mb
+                    if observed.resources.memory_mb is not None
+                    else metadata.resources.memory_mb
+                ),
+                gpus=(
+                    observed.resources.gpus
+                    if observed.resources.gpus is not None
+                    else metadata.resources.gpus
+                ),
+                time_limit_minutes=(
+                    observed.resources.time_limit_minutes
+                    if observed.resources.time_limit_minutes is not None
+                    else metadata.resources.time_limit_minutes
+                ),
+            ),
+            "reason": observed.reason or metadata.reason,
+            "submitted_at": observed.submitted_at or metadata.submitted_at,
+            "started_at": observed.started_at or metadata.started_at,
+            "finished_at": observed.finished_at or metadata.finished_at,
+        }
+    )
+
+
 class JobCatalog:
     def __init__(
         self,
@@ -205,6 +245,7 @@ class JobCatalog:
         allow_fixture_submissions: bool = False,
         fixture_job_output_directory: Path | None = None,
         metadata_repository: JobMetadataRepository | None = None,
+        metadata_source: Literal["fixture", "native"] = "fixture",
         clock: Callable[[], float] = monotonic,
     ) -> None:
         if not 0.1 <= cache_ttl_seconds <= 60:
@@ -218,6 +259,7 @@ class JobCatalog:
         self.allow_fixture_submissions = allow_fixture_submissions
         self.fixture_job_output_directory = fixture_job_output_directory
         self.metadata_repository = metadata_repository
+        self.metadata_source = metadata_source
         self._clock = clock
         self._cache_condition = Condition()
         self._cached_jobs: tuple[Job, ...] | None = None
@@ -233,7 +275,9 @@ class JobCatalog:
         if self.metadata_repository is None:
             return
         try:
-            records = self.metadata_repository.list_by_owner(self.owner)
+            records = self.metadata_repository.list_by_owner(
+                self.owner, source=self.metadata_source
+            )
         except SQLAlchemyError as exc:
             raise JobCatalogUnavailable("Job metadata is unavailable") from exc
         for record in records:
@@ -306,6 +350,7 @@ class JobCatalog:
                     id=job.id,
                     slurm_job_id=job.slurm_job_id,
                     owner=job.owner,
+                    source=self.metadata_source,
                     name=job.name,
                     command=job.command,
                     partition=job.partition,
@@ -329,14 +374,22 @@ class JobCatalog:
         with self._cache_condition:
             submitted = tuple(self._submitted_jobs.values())
             overrides = dict(self._fixture_state_overrides)
-        observed = tuple(
-            overrides.get(job.id, job)
+        visible_jobs = {
+            job.id: overrides.get(job.id, job)
             for job in jobs
             if job.owner == self.owner
-        )
-        submitted = tuple(job for job in submitted if job.owner == self.owner)
+        }
+        for metadata_job in submitted:
+            if metadata_job.owner != self.owner:
+                continue
+            observed_job = visible_jobs.get(metadata_job.id)
+            visible_jobs[metadata_job.id] = (
+                _merge_job_metadata(observed_job, metadata_job)
+                if observed_job is not None
+                else metadata_job
+            )
         return sorted(
-            [*submitted, *observed],
+            visible_jobs.values(),
             key=lambda job: _job_sort_key(SlurmJob(job_id=job.slurm_job_id)),
             reverse=True,
         )
