@@ -249,6 +249,35 @@ backend/.venv/bin/python scripts/run-native-control-acceptance.py \
 
 2026-07-18 已在 107 对提交 `11cd3b4` 完成集中验收。Job `24011` 的 stdout 限量读取 14 字节、stderr 读取 0 字节，两个流均到达 EOF，正文没有回显。控制脚本创建 Job `24063` 与 `24064`，每个申请 `1 CPU / 512 MiB / 0 GPU / 2 分钟`，两个作业均由 UID `68311` 取消；`sacct` 状态为 `CANCELLED by 68311`，`squeue` 无遗留活动验收作业。Owner、两条取消幂等记录和 `SBATCH_ACCEPTED -> SCANCEL_VALIDATED -> SCANCEL_ACCEPTED` 审计证据均通过；所有开关只存在于验收 shell，`data/` 证据保持未跟踪。
 
+## Native 全交互集中验收
+
+该验收一次覆盖真实 HTTP 提交、状态查询、限量日志、资源统计、取消和克隆。它会创建三个最小 CPU 作业：一个正常完成，另外两个由脚本取消。只在 107 登录节点执行，计算内容均通过 `sbatch` 调度；脚本不会回显日志正文，也不会操作自己未创建的作业。
+
+```bash
+cd ~/107dashboard
+git pull --ff-only
+
+export SLURM_DATA_SOURCE=native
+export DASHBOARD_OWNER="$(id -un)"
+export DATABASE_URL="sqlite:////home/scc/$(id -un)/107dashboard/data/dashboard.sqlite3"
+export JOB_WORKSPACE_DIRECTORY="/home/scc/$(id -un)/107dashboard/data/jobs"
+export NATIVE_SUBMISSION_ENABLED=true
+export NATIVE_LOGS_ENABLED=true
+export NATIVE_CANCEL_ENABLED=true
+export NATIVE_CLONE_ENABLED=true
+export NATIVE_MAX_ACTIVE_JOBS=2
+export DEMO_FALLBACK_ENABLED=true
+export SERVE_FRONTEND=false
+
+backend/.venv/bin/python scripts/run-native-live-interaction.py \
+  --confirm RUN-NATIVE-LIVE-INTERACTION-V1 \
+  --timeout-seconds 120
+```
+
+通过输出必须包含 `mode=native-live-http-full-interaction`、`passed=true`、三个不同 Slurm Job ID、完成作业 `COMPLETED/0:0`、`submitted_jobs=3`、`cancelled_jobs=2`、`raw_log_content_emitted=false` 和 `audit_chain_present=true`。随后用 `squeue -u "$USER"` 确认没有遗留活动验收作业，并用 `sacct` 核对三个 Job 的终态。一次性回执位于未跟踪的作业工作目录；不要为了重跑而删除回执，失败时应先保留现场并检查脚本输出和 `squeue`。
+
+平台集中验收通过后，可将 `deploy/107-native-interactive.env.example` 复制到未跟踪的运行配置并替换 `USERNAME`。全交互配置仍应只监听回环地址或受控反向代理，使用单 Uvicorn worker；任何 Native 故障触发 Fixture 回退时写能力必须保持关闭。
+
 ## 演示发布集中验收
 
 本阶段不再创建或取消 Slurm 作业。它集中验证真实 Native 查询仍健康、作业与摘要数量一致、自动回退能在模拟故障下展示脱敏 Fixture，并证明回退期间 HTTP 写能力返回 503 且不会调用 `sbatch`。

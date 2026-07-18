@@ -212,7 +212,7 @@ function UsageComparison({
   );
 }
 
-function JobUsagePanel({ jobId }: { jobId: string }) {
+function JobUsagePanel({ jobId, refreshToken }: { jobId: string; refreshToken: string }) {
   const [usage, setUsage] = useState<JobUsageResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -227,7 +227,7 @@ function JobUsagePanel({ jobId }: { jobId: string }) {
         setError(reason instanceof ApiError ? reason.message : "无法读取资源统计");
       });
     return () => controller.abort();
-  }, [jobId]);
+  }, [jobId, refreshToken]);
 
   const metrics = usage
     ? [
@@ -331,7 +331,7 @@ function JobDiagnosticPanel({ job }: { job: Job }) {
   );
 }
 
-function JobLogPanel({ jobId }: { jobId: string }) {
+function JobLogPanel({ jobId, active }: { jobId: string; active: boolean }) {
   const [stream, setStream] = useState<JobLogStream>("stdout");
   const [content, setContent] = useState("");
   const [nextOffset, setNextOffset] = useState(0);
@@ -340,6 +340,7 @@ function JobLogPanel({ jobId }: { jobId: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [followKey, setFollowKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -347,6 +348,7 @@ function JobLogPanel({ jobId }: { jobId: string }) {
     setError(null);
     setContent("");
     setNextOffset(0);
+    setFollowKey(0);
     fetchJobLog(jobId, stream, 0, controller.signal)
       .then((log) => {
         setContent(log.content);
@@ -363,6 +365,34 @@ function JobLogPanel({ jobId }: { jobId: string }) {
       });
     return () => controller.abort();
   }, [jobId, refreshKey, stream]);
+
+  useEffect(() => {
+    if (!active || loading) return;
+    const timer = window.setTimeout(() => setFollowKey((value) => value + 1), 3_000);
+    return () => window.clearTimeout(timer);
+  }, [active, followKey, jobId, loading, stream]);
+
+  useEffect(() => {
+    if (followKey === 0 || !active) return;
+    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
+    fetchJobLog(jobId, stream, nextOffset, controller.signal)
+      .then((log) => {
+        setContent((current) => current + log.content);
+        setNextOffset(log.next_offset);
+        setAvailable(log.available);
+        setEof(log.eof);
+      })
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") return;
+        setError(reason instanceof ApiError ? reason.message : "无法自动跟踪作业日志");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [active, followKey, jobId, stream]);
 
   const loadMore = async () => {
     setLoading(true);
@@ -413,7 +443,10 @@ function JobLogPanel({ jobId }: { jobId: string }) {
         <pre className="log-output" aria-live="polite">{content || (loading ? "正在读取…" : "日志为空")}</pre>
       )}
       <div className="log-footer">
-        <span>{available ? `已读取 ${nextOffset} 字节` : "等待日志文件"}</span>
+        <span>
+          {available ? `已读取 ${nextOffset} 字节` : "等待日志文件"}
+          {active ? " · 每 3 秒自动跟踪" : ""}
+        </span>
         <button className="quiet-button" type="button" disabled={loading || !available || eof} onClick={() => void loadMore()}>
           {loading ? "读取中…" : eof ? "已到末尾" : "继续加载"}
         </button>
@@ -473,9 +506,9 @@ function JobDetail({
         ))}
       </dl>
       <JobDiagnosticPanel job={job} />
-      {capabilities.usage && <JobUsagePanel jobId={job.id} />}
+      {capabilities.usage && <JobUsagePanel jobId={job.id} refreshToken={job.updated_at} />}
       {capabilities.logs
-        ? <JobLogPanel jobId={job.id} />
+        ? <JobLogPanel jobId={job.id} active={["PENDING", "RUNNING"].includes(job.state)} />
         : <div className="mode-notice compact">Native 只读阶段暂不开放日志路径读取。</div>}
       {job.command === null && (
         <p className="detail-note">当前 Slurm 查询未提供提交命令和完整事件时间；仅由可信元数据补充这些字段。</p>
@@ -593,9 +626,15 @@ function JobSubmitForm({
           <input
             required
             maxLength={500}
+            aria-describedby="native-command-policy"
             value={submission.command}
             onChange={(event) => setSubmission({ ...submission, command: event.target.value })}
           />
+          {nativeMode && (
+            <small className="field-hint" id="native-command-policy">
+              当前仅允许 python/python3 及安全参数；不支持管道、重定向、命令替换或绝对路径。
+            </small>
+          )}
         </label>
         <label className="field">
           <span>CPU（1–4）</span>

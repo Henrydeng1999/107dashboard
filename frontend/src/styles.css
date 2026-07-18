@@ -80,6 +80,7 @@ h1 { margin-bottom: 0; font-size: 25px; letter-spacing: -.02em; }
 .field-wide { grid-column: span 2; }
 .field input { width: 100%; padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; color: #edf2fb; background: #0d1526; }
 .field input:invalid { border-color: #7a4650; }
+.field-hint { color: #74849e; font-size: 10px; line-height: 1.45; }
 .fixed-config { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 16px; padding: 11px 13px; border-radius: 9px; color: var(--muted); background: #0c1424; font-size: 12px; }
 .fixed-config strong { color: #dce5f4; font-weight: 600; }
 .form-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; }
