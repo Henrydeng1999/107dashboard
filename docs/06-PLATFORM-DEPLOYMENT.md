@@ -276,6 +276,8 @@ backend/.venv/bin/python scripts/check-demo-release.py
 
 完整网页演示前，在开发电脑执行 `npm run build`，把未跟踪的 `frontend/dist/` 复制到 107 的仓库同一路径，再参考 `deploy/107-native.env.example` 设置 `SERVE_FRONTEND=true`。后端找不到 `index.html` 时会拒绝启动，防止出现 API 正常但网页空白的假部署。
 
+2026-07-18 已在 107 对提交 `b253ac0` 完成本验收。真实 Native 路径的 `visible_jobs=4`、`summary_jobs=4`，样例 Job ID 为 `24064`；模拟故障路径返回 `serving_source=fixture_fallback` 和 5 个脱敏作业，写请求状态为 503，`would_invoke_sbatch=false`。提交、取消、克隆和日志能力均保持关闭，没有调用 `sbatch` 或 `scancel`、没有读取真实日志，`squeue` 无活动作业，未跟踪的 `data/` 验收证据未修改或删除。
+
 ## 安全边界
 
 - 部署公钥保持只读，不改用个人写入密钥；
