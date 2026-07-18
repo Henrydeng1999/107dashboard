@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     slurm_data_source: Literal["fixture", "native"] = "fixture"
     slurm_fixture_directory: Path = PROJECT_ROOT / "fixtures" / "slurm"
     fixture_job_output_directory: Path = PROJECT_ROOT / "fixtures" / "job-output"
+    job_workspace_directory: Path = PROJECT_ROOT / "data" / "jobs"
     slurm_command_timeout_seconds: float = 10.0
     slurm_query_cache_ttl_seconds: float = 2.0
     slurm_max_jobs: int = 1000
@@ -35,7 +36,12 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
-    @field_validator("slurm_fixture_directory", "fixture_job_output_directory", mode="before")
+    @field_validator(
+        "slurm_fixture_directory",
+        "fixture_job_output_directory",
+        "job_workspace_directory",
+        mode="before",
+    )
     @classmethod
     def resolve_fixture_directory(cls, value: object) -> Path:
         path = Path(value) if isinstance(value, (str, Path)) else Path(str(value))

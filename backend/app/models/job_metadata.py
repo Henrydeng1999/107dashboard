@@ -38,3 +38,15 @@ class JobMetadata(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
+
+
+class SubmissionAudit(Base):
+    __tablename__ = "submission_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    submission_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    owner: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    result_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    slurm_job_id: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

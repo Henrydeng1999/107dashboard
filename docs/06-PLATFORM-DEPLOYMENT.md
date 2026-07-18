@@ -146,6 +146,26 @@ backend/.venv/bin/python scripts/check-native-readonly.py
 
 2026-07-18 已在 107 对提交 `05a64a3` 完成本流程：有效用户 `pb24030760`（UID `68311`），owner 检查通过，读取到真实作业 `21482`，状态 `COMPLETED`、退出码 `0:0`，`elapsed_seconds`、`max_rss_kb`、`total_cpu_seconds` 均存在，脚本退出码为 0。验收没有执行任何写操作或日志读取。
 
+## Native 提交无写入预检
+
+仓库已提供提交安全底座，但尚未接入 Native HTTP API。更新代码后，先运行以下预检：
+
+```bash
+cd ~/107dashboard
+git pull --ff-only
+
+export SLURM_DATA_SOURCE=native
+export DASHBOARD_OWNER="$(id -un)"
+export DATABASE_URL="sqlite:////home/scc/$(id -un)/107dashboard/data/dashboard.sqlite3"
+export JOB_WORKSPACE_DIRECTORY="/home/scc/$(id -un)/107dashboard/data/jobs"
+
+backend/.venv/bin/python scripts/check-native-submit-preflight.py
+```
+
+预检只检查有效 Unix 身份、`sbatch` 是否可发现、数据库与作业目录父级访问权限，以及最小请求能否生成安全参数计划。脚本不会创建目录、写数据库或调用 `sbatch`，输出中的 `would_invoke_sbatch` 必须为 `false`。
+
+预检通过后也不能直接开放网页提交。下一步必须由项目管理员重新明确授权，再通过未接入 HTTP 的受控 service 提交一次 `1 CPU / 512 MiB / 0 GPU / 1 分钟`、命令为 `python3 --version` 的最小作业，并记录 Job ID、资源、状态和退出码。没有该次授权时，只停留在预检阶段。
+
 ## 安全边界
 
 - 部署公钥保持只读，不改用个人写入密钥；
