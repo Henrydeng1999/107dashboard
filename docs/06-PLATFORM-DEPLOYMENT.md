@@ -166,6 +166,15 @@ backend/.venv/bin/python scripts/check-native-submit-preflight.py
 
 预检通过后也不能直接开放网页提交。下一步必须由项目管理员重新明确授权，再通过未接入 HTTP 的受控 service 提交一次 `1 CPU / 512 MiB / 0 GPU / 1 分钟`、命令为 `python3 --version` 的最小作业，并记录 Job ID、资源、状态和退出码。没有该次授权时，只停留在预检阶段。
 
+获得明确授权后，使用固定的一次性验收入口：
+
+```bash
+backend/.venv/bin/python scripts/submit-native-smoke-test.py \
+  --confirm SUBMIT-ONE-MINIMAL-NATIVE-JOB
+```
+
+该脚本不接受命令或资源覆盖参数，并在作业目录中发现已有真实提交回执时拒绝重复运行。它只提交作业并保存 Job ID、元数据和审计，不读取 stdout/stderr、不取消作业，也不会开放 HTTP 提交。随后使用输出的 Job ID 执行只读 `sacct` 验证最终状态与退出码。
+
 ## 安全边界
 
 - 部署公钥保持只读，不改用个人写入密钥；
