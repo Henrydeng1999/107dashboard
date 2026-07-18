@@ -3,14 +3,14 @@
 <div class="progress-meta">
   <span class="status-badge status-done">● 本地回归通过 · 最近 107 验收通过</span>
   <span>更新时间：2026-07-19</span>
-  <span>平台验收提交：<code>0d2c1d7</code></span>
+  <span>平台验收提交：<code>85c9646</code></span>
 </div>
 
 <div class="progress-summary" aria-label="当前项目摘要">
   <div class="progress-stat progress-stat-done"><strong>可用</strong><span>前后端最小骨架</span></div>
   <div class="progress-stat progress-stat-done"><strong>210 / 210</strong><span>后端测试通过</span></div>
   <div class="progress-stat progress-stat-done"><strong>通过</strong><span>前端类型检查与构建</span></div>
-  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>107 Native 全交互验收</span></div>
+  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>真实 Web 与浏览器联调</span></div>
 </div>
 
 > **状态说明：** <span class="status-badge status-done">✓ 已完成</span> 已实现并通过对应测试、构建、fixture 或平台证据验证；<span class="status-badge status-active">→ 进行中</span> 已有部分成果；<span class="status-badge status-pending">○ 待开始</span> 尚未实现；<span class="status-badge status-later">◇ 赛后</span> 不阻塞比赛 MVP。
@@ -89,7 +89,7 @@
 | <span class="status-badge status-done">✓</span> | 演示部署骨架 | FastAPI 可选托管预构建前端，缺少 index 时快速失败；提供 Native 环境和用户级 systemd 模板 | 静态页面/API 共存测试、前端生产构建和配置校验通过 |
 | <span class="status-badge status-done">✓</span> | 发布验收脚本 | 一条命令集中验证真实 Native 读取与模拟 Fixture 回退，真实查询降级时拒绝误报通过 | 提交 `b253ac0` 在 107 通过：Native 4 个作业、Fixture 5 个作业、写请求 503、`would_invoke_sbatch=false` |
 | <span class="status-badge status-done">✓</span> | 整页演示部署 | 固定统一导航构建、SSH 隧道恢复和桌面/移动端整页检查 | 提交 `0d2c1d7` 在 107 与本机统一入口通过；无资源、控制台、溢出或重叠错误 |
-| <span class="status-badge status-active">→</span> | Native 全交互综合链 | 通过真实 HTTP 路由集中覆盖提交、终态、日志、usage、取消、克隆、再次取消、幂等与审计 | 本地注入式 Slurm 集成测试及前端构建通过；107 三个最小 CPU 作业集中验收待执行 |
+| <span class="status-badge status-done">✓</span> | Native 全交互综合链 | 通过真实 HTTP 路由集中覆盖提交、终态、日志、usage、取消、克隆、再次取消、幂等与审计 | 提交 `85c9646` 在 107 通过；Job `24159` 完成，Job `24160/24161` 取消，5 条幂等记录及审计链完整，无活动作业遗留 |
 | <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 后端 210 个 pytest 通过（符号链接用例在 Windows 跳过），目标 Ruff 通过；0 个生产依赖漏洞 |
 | <span class="status-badge status-done">✓</span> | 文档 | 架构、环境、协作、部署、API 契约 | 文档站可直接访问 |
 | <span class="status-badge status-done">✓</span> | 文档体验 | 单章节按需加载、模糊过渡、URL 定位、前进后退和章节筛选 | 浏览器交互检查通过 |
@@ -97,8 +97,8 @@
 ## 当前待办与提示
 
 <div class="notice-grid">
-  <div class="notice notice-next"><strong>下一开发项</strong><span>在 107 运行一次 Native 全交互集中验收，核对三个最小作业终态、日志字节数、usage、五条幂等记录与审计链，再决定长期启用交互配置。</span></div>
-  <div class="notice notice-warning"><strong>暂时限制</strong><span>Native 四项能力的本地完整链路已实现，但长期部署开关仍保持关闭；`deploy/107-native-interactive.env.example` 只能在 107 综合验收通过后启用。</span></div>
+  <div class="notice notice-next"><strong>下一开发项</strong><span>将已验收的 Native 交互配置部署到 107 Web 服务，从浏览器完成提交、观察、日志、usage、取消和克隆的端到端回归，再扩展脚本与环境配置能力。</span></div>
+  <div class="notice notice-warning"><strong>暂时限制</strong><span>综合脚本已证明完整 HTTP 链可用，但真实 Web 服务尚未长期启用四项交互开关；当前命令策略仍仅允许 python/python3 与安全参数。</span></div>
   <div class="notice notice-safe"><strong>安全边界</strong><span>真实测试只能通过 Slurm 提交，禁止在登录节点直接运行学生计算任务。</span></div>
   <div class="notice notice-info"><strong>验证方式</strong><span>Fixture 与注入式 Native 回归用于本地稳定验证，107 脚本用于平台真实验收：后端 pytest 210 passed、目标 Ruff、前端类型检查、普通构建与统一导航构建通过。</span></div>
 </div>
@@ -128,7 +128,7 @@
 - [x] 真实统计平台验收
 - [x] Mock/Fixture 完整故事自动回归
 - [x] 预提交作业与真实平台演示回归
-- [ ] Native HTTP 提交、状态、日志、usage、取消与克隆的单次真实平台综合验收
+- [x] Native HTTP 提交、状态、日志、usage、取消与克隆的单次真实平台综合验收
 
 ## 可选创新功能
 

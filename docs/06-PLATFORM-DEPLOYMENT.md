@@ -278,6 +278,8 @@ backend/.venv/bin/python scripts/run-native-live-interaction.py \
 
 平台集中验收通过后，可将 `deploy/107-native-interactive.env.example` 复制到未跟踪的运行配置并替换 `USERNAME`。全交互配置仍应只监听回环地址或受控反向代理，使用单 Uvicorn worker；任何 Native 故障触发 Fixture 回退时写能力必须保持关闭。
 
+2026-07-19 已在 107 对提交 `85c9646` 完成本验收。完成作业 Job `24159` 使用 `1 CPU / 512 MiB / 0 GPU / 1 分钟`，状态为 `COMPLETED`、退出码 `0:0`，stdout/stderr 限量读取 14/0 字节且正文未输出；usage 返回 `elapsed_seconds=0.0`、`max_rss_kb=24`、`total_cpu_seconds=0.004`。控制 Job `24160` 与克隆 Job `24161` 均由 UID `68311` 取消。三个提交、两个取消的幂等记录全部为 `SUCCEEDED`，审计链完整，`squeue` 无活动作业，一次性回执权限为 `0600`，运行时证据保留在未跟踪的 `data/` 中。
+
 ## 演示发布集中验收
 
 本阶段不再创建或取消 Slurm 作业。它集中验证真实 Native 查询仍健康、作业与摘要数量一致、自动回退能在模拟故障下展示脱敏 Fixture，并证明回退期间 HTTP 写能力返回 503 且不会调用 `sbatch`。
