@@ -654,17 +654,6 @@ export function JobDashboard() {
   const previousStates = useRef<Map<string, JobState>>(new Map());
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetchRuntimeInfo(controller.signal)
-      .then(setRuntime)
-      .catch((reason: unknown) => {
-        if (reason instanceof DOMException && reason.name === "AbortError") return;
-        setRuntimeError(true);
-      });
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
     const updateVisibility = () => setPageVisible(!document.hidden);
     document.addEventListener("visibilitychange", updateVisibility);
     return () => document.removeEventListener("visibilitychange", updateVisibility);
@@ -691,6 +680,15 @@ export function JobDashboard() {
         }
         setData(payload);
         setLastSyncedAt(new Date());
+        void fetchRuntimeInfo(controller.signal)
+          .then((runtimeInfo) => {
+            setRuntime(runtimeInfo);
+            setRuntimeError(false);
+          })
+          .catch((reason: unknown) => {
+            if (reason instanceof DOMException && reason.name === "AbortError") return;
+            setRuntimeError(true);
+          });
         setSelectedJob((current) => {
           if (current === null) return null;
           return payload.items.find((job) => job.id === current.id) ?? current;
@@ -766,13 +764,15 @@ export function JobDashboard() {
           <p className="eyebrow">STUDENT SLURM CONSOLE</p>
           <h1>算力作业</h1>
         </div>
-        <div className={`connection-pill ${error ? "is-offline" : ""}`}>
+        <div className={`connection-pill ${error ? "is-offline" : runtime?.degraded ? "is-degraded" : ""}`}>
           <span className="status-dot" />
           {error || runtimeError
             ? "API 异常"
             : loading || runtime === null
               ? "正在同步"
-              : runtime.read_only
+              : runtime.degraded
+                ? "Fixture 演示回退"
+                : runtime.read_only
                 ? "Native 只读"
                 : runtime.data_source === "native"
                   ? "Native 受控提交"
@@ -782,9 +782,19 @@ export function JobDashboard() {
 
       <section className="workspace" aria-labelledby="jobs-title">
         {runtime?.data_source === "native" && (
-          <div className="mode-notice" role="status">
-            <strong>{runtime.read_only ? "Native 只读模式" : "Native 受控操作模式"}</strong>
-            <span>{nativeCapabilitySummary(runtime)}</span>
+          <div className={`mode-notice ${runtime.degraded ? "fallback-notice" : ""}`} role="status">
+            <strong>
+              {runtime.degraded
+                ? "Slurm 暂不可用 · 已进入只读演示回退"
+                : runtime.read_only
+                  ? "Native 只读模式"
+                  : "Native 受控操作模式"}
+            </strong>
+            <span>
+              {runtime.degraded
+                ? "当前展示脱敏 Fixture；提交、取消和克隆已强制关闭，系统将在冷却后自动探测 Native 恢复。"
+                : nativeCapabilitySummary(runtime)}
+            </span>
           </div>
         )}
         <div className="section-heading">
@@ -846,12 +856,12 @@ export function JobDashboard() {
 
         {showSubmitForm && (
           <JobSubmitForm
-            nativeMode={runtime?.data_source === "native"}
+            nativeMode={runtime?.serving_source === "native"}
             onCancel={() => setShowSubmitForm(false)}
             onSubmitted={(job) => {
               setShowSubmitForm(false);
               setSubmissionNotice(
-                runtime?.data_source === "native"
+                runtime?.serving_source === "native"
                   ? `作业 #${job.slurm_job_id} 已提交到 Slurm`
                   : `作业 #${job.slurm_job_id} 已加入 Fixture 队列`,
               );

@@ -27,11 +27,14 @@ h1 { margin-bottom: 0; font-size: 25px; letter-spacing: -.02em; }
 .connection-pill { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 9px 13px; border: 1px solid var(--line); border-radius: 999px; color: #c8d4e8; font-size: 13px; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
 .connection-pill.is-offline .status-dot { background: var(--red); }
+.connection-pill.is-degraded .status-dot { background: var(--amber); }
 
 .workspace { margin-top: 44px; }
 .mode-notice { display: grid; gap: 5px; margin-bottom: 16px; padding: 14px 16px; border: 1px solid #365486; border-radius: 12px; color: #cfe0f7; background: #101d33; }
 .mode-notice span { color: var(--muted); font-size: 12px; }
 .mode-notice.compact { margin: 20px 0 0; }
+.mode-notice.fallback-notice { border-color: #775c28; color: #ffe1a8; background: #2c2312; }
+.mode-notice.fallback-notice span { color: #d5bd8a; }
 .section-heading { display: flex; justify-content: space-between; align-items: end; gap: 28px; margin-bottom: 22px; }
 .section-heading h2 { margin-bottom: 8px; font-size: clamp(24px, 4vw, 36px); letter-spacing: -.035em; }
 .section-heading p:last-child { margin-bottom: 0; color: var(--muted); }

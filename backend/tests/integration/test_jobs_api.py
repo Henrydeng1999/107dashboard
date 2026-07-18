@@ -258,7 +258,7 @@ def test_native_app_creation_validates_identity_without_running_slurm(
 
     application = create_app(Settings(_env_file=None, slurm_data_source="native"))
 
-    assert application.state.runtime_info.read_only is True
+    assert application.state.runtime_info_provider().read_only is True
     assert calls == []
 
 

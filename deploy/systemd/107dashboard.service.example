@@ -1,0 +1,16 @@
+[Unit]
+Description=107 Dashboard competition demo
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/107dashboard
+EnvironmentFile=%h/107dashboard/data/107dashboard.env
+ExecStart=%h/107dashboard/backend/.venv/bin/python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

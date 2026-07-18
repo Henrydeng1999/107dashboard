@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     app_log_level: str = "INFO"
     database_url: str = "sqlite:///./data/dashboard.sqlite3"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    serve_frontend: bool = False
+    frontend_dist_directory: Path = PROJECT_ROOT / "frontend" / "dist"
     slurm_data_source: Literal["fixture", "native"] = "fixture"
     slurm_fixture_directory: Path = PROJECT_ROOT / "fixtures" / "slurm"
     fixture_job_output_directory: Path = PROJECT_ROOT / "fixtures" / "job-output"
@@ -30,6 +32,9 @@ class Settings(BaseSettings):
     native_logs_enabled: bool = False
     native_cancel_enabled: bool = False
     native_clone_enabled: bool = False
+    demo_fallback_enabled: bool = False
+    demo_fallback_cooldown_seconds: float = 30.0
+    demo_fallback_owner: str = "demo-user"
 
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env",
@@ -45,6 +50,7 @@ class Settings(BaseSettings):
         "slurm_fixture_directory",
         "fixture_job_output_directory",
         "job_workspace_directory",
+        "frontend_dist_directory",
         mode="before",
     )
     @classmethod
@@ -76,6 +82,13 @@ class Settings(BaseSettings):
             raise ValueError("SLURM_QUERY_CACHE_TTL_SECONDS must be between 0.1 and 60")
         return value
 
+    @field_validator("demo_fallback_cooldown_seconds")
+    @classmethod
+    def validate_demo_fallback_cooldown(cls, value: float) -> float:
+        if not 1 <= value <= 300:
+            raise ValueError("DEMO_FALLBACK_COOLDOWN_SECONDS must be between 1 and 300")
+        return value
+
     @field_validator("slurm_max_jobs")
     @classmethod
     def validate_max_jobs(cls, value: int) -> int:
@@ -90,7 +103,7 @@ class Settings(BaseSettings):
             raise ValueError("NATIVE_MAX_ACTIVE_JOBS must be between 1 and 100")
         return value
 
-    @field_validator("dashboard_owner")
+    @field_validator("dashboard_owner", "demo_fallback_owner")
     @classmethod
     def validate_dashboard_owner(cls, value: str) -> str:
         if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,31}", value, re.ASCII) is None:

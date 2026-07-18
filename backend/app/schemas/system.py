@@ -15,5 +15,9 @@ class RuntimeCapabilities(BaseModel):
 
 class RuntimeInfo(BaseModel):
     data_source: Literal["fixture", "native"]
+    serving_source: Literal["fixture", "native", "fixture_fallback"]
     read_only: bool
+    degraded: bool = False
+    demo_fallback_enabled: bool = False
+    fallback_reason: Literal["slurm_unavailable"] | None = None
     capabilities: RuntimeCapabilities

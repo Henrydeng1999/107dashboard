@@ -249,6 +249,33 @@ backend/.venv/bin/python scripts/run-native-control-acceptance.py \
 
 2026-07-18 已在 107 对提交 `11cd3b4` 完成集中验收。Job `24011` 的 stdout 限量读取 14 字节、stderr 读取 0 字节，两个流均到达 EOF，正文没有回显。控制脚本创建 Job `24063` 与 `24064`，每个申请 `1 CPU / 512 MiB / 0 GPU / 2 分钟`，两个作业均由 UID `68311` 取消；`sacct` 状态为 `CANCELLED by 68311`，`squeue` 无遗留活动验收作业。Owner、两条取消幂等记录和 `SBATCH_ACCEPTED -> SCANCEL_VALIDATED -> SCANCEL_ACCEPTED` 审计证据均通过；所有开关只存在于验收 shell，`data/` 证据保持未跟踪。
 
+## 演示发布集中验收
+
+本阶段不再创建或取消 Slurm 作业。它集中验证真实 Native 查询仍健康、作业与摘要数量一致、自动回退能在模拟故障下展示脱敏 Fixture，并证明回退期间 HTTP 写能力返回 503 且不会调用 `sbatch`。
+
+```bash
+cd ~/107dashboard
+git pull --ff-only
+
+export SLURM_DATA_SOURCE=native
+export DASHBOARD_OWNER="$(id -un)"
+export DATABASE_URL="sqlite:////home/scc/$(id -un)/107dashboard/data/dashboard.sqlite3"
+export JOB_WORKSPACE_DIRECTORY="/home/scc/$(id -un)/107dashboard/data/jobs"
+export DEMO_FALLBACK_ENABLED=true
+export DEMO_FALLBACK_COOLDOWN_SECONDS=30
+export NATIVE_SUBMISSION_ENABLED=false
+export NATIVE_LOGS_ENABLED=false
+export NATIVE_CANCEL_ENABLED=false
+export NATIVE_CLONE_ENABLED=false
+export SERVE_FRONTEND=false
+
+backend/.venv/bin/python scripts/check-demo-release.py
+```
+
+通过输出必须包含 `mode=demo-release-readiness-no-write`、`passed=true`、Native `serving_source=native`、回退 `serving_source=fixture_fallback`、`write_status=503` 和 `would_invoke_sbatch=false`。如果真实查询已进入回退，脚本会主动失败，不能把 Fixture 成功误记为 Native 平台通过。
+
+完整网页演示前，在开发电脑执行 `npm run build`，把未跟踪的 `frontend/dist/` 复制到 107 的仓库同一路径，再参考 `deploy/107-native.env.example` 设置 `SERVE_FRONTEND=true`。后端找不到 `index.html` 时会拒绝启动，防止出现 API 正常但网页空白的假部署。
+
 ## 安全边界
 
 - 部署公钥保持只读，不改用个人写入密钥；

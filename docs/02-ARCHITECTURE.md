@@ -126,6 +126,8 @@ Native 取消只接受纯数字 allocation ID，并仅在当前 owner 的 Slurm 
 
 前端轮询按当前页是否存在 `PENDING`/`RUNNING` 作业在活跃与空闲频率间切换，并在页面隐藏时暂停；状态变化只比较同一 Dashboard Job ID 的前后快照。资源可视化严格区分“分配/申请”“峰值/申请”和“运行时长/时限”，缺失指标显示未知而不是补零。模板只预填现有结构化提交字段，最终仍由后端重新校验；排障提示只基于状态、退出码和 Slurm reason，不能替代日志与平台事实。
 
+比赛演示可显式启用 `DEMO_FALLBACK_ENABLED`。该模式不在启动时伪装 Native 成功：正常状态继续读取真实 Slurm；只有受控查询抛出已脱敏的数据源不可用错误时，目录层才在冷却期内切换到脱敏 Fixture。`GET /api/runtime` 动态返回 `serving_source=fixture_fallback`、`degraded=true`，前端显示醒目标记。回退目录不允许 Fixture 提交，包装层同时拒绝提交、取消和克隆；恢复探测仅由列表刷新触发，成功后整体切回 Native，避免单次页面中混合真实和演示数据。
+
 ## 可靠性要求
 
 - Slurm 是作业状态的事实来源，数据库中的状态是缓存和展示数据。

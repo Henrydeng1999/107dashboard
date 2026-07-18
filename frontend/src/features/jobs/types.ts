@@ -120,6 +120,10 @@ export interface RuntimeCapabilities {
 
 export interface RuntimeInfo {
   data_source: "fixture" | "native";
+  serving_source: "fixture" | "native" | "fixture_fallback";
   read_only: boolean;
+  degraded: boolean;
+  demo_fallback_enabled: boolean;
+  fallback_reason: "slurm_unavailable" | null;
   capabilities: RuntimeCapabilities;
 }

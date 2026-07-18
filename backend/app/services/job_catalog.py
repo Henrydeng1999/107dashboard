@@ -154,7 +154,7 @@ def build_job_catalog(settings: Settings) -> "JobCatalog":
                 SubprocessCommandRunner(settings.slurm_command_timeout_seconds)
             ),
         )
-    return JobCatalog(
+    primary_catalog = JobCatalog(
         adapter=adapter,
         owner=owner,
         cache_ttl_seconds=settings.slurm_query_cache_ttl_seconds,
@@ -177,6 +177,24 @@ def build_job_catalog(settings: Settings) -> "JobCatalog":
             if settings.slurm_data_source == "native" and settings.native_logs_enabled
             else None
         ),
+    )
+    if settings.slurm_data_source != "native" or not settings.demo_fallback_enabled:
+        return primary_catalog
+
+    from app.services.demo_fallback import DemoFallbackJobCatalog
+
+    fallback_catalog = JobCatalog(
+        adapter=FixtureSlurmAdapter(settings.slurm_fixture_directory),
+        owner=settings.demo_fallback_owner,
+        cache_ttl_seconds=settings.slurm_query_cache_ttl_seconds,
+        max_jobs=settings.slurm_max_jobs,
+        allow_fixture_submissions=False,
+        fixture_job_output_directory=settings.fixture_job_output_directory,
+    )
+    return DemoFallbackJobCatalog(
+        primary_catalog,
+        fallback_catalog,
+        cooldown_seconds=settings.demo_fallback_cooldown_seconds,
     )
 
 

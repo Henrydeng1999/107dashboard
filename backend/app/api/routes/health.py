@@ -14,4 +14,4 @@ def health_check() -> dict[str, str]:
 
 @router.get("/runtime", response_model=RuntimeInfo)
 def runtime_info(request: Request) -> RuntimeInfo:
-    return request.app.state.runtime_info
+    return request.app.state.runtime_info_provider()

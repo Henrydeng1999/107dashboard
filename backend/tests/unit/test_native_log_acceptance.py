@@ -38,7 +38,11 @@ class FakeClient:
             return FakeResponse(
                 {
                     "data_source": "native",
+                    "serving_source": "native",
                     "read_only": True,
+                    "degraded": False,
+                    "demo_fallback_enabled": False,
+                    "fallback_reason": None,
                     "capabilities": {
                         "submit": False,
                         "cancel": False,
