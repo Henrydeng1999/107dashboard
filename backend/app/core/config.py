@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     native_submission_enabled: bool = False
     native_max_active_jobs: int = 1
     native_logs_enabled: bool = False
+    native_cancel_enabled: bool = False
+    native_clone_enabled: bool = False
 
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env",

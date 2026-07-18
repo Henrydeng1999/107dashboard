@@ -214,6 +214,39 @@ backend/.venv/bin/python scripts/check-native-log-path-preflight.py --job-id 240
 
 2026-07-18 已在 107 对提交 `beb39f7` 和 Job `24011` 完成本检查：owner `pb24030760` 校验通过，stdout 与 stderr 路径均位于受控作业目录，`stdout_path_safe=true`、`stderr_path_safe=true`、`would_open_log=false`、`would_read_log=false`。临时日志开关仅存在于本次验收 shell，没有写入长期配置；运行时 `data/` 证据未删除、未修改、保持未跟踪。该结果只批准路径映射，真实日志读取仍需项目管理员单独授权。
 
+## Native 日志与控制集中验收
+
+真实日志读取只对已验收的 Job `24011` 执行一次，每个流最多读取 4096 字节，输出只包含字节数、偏移、EOF 和可用状态，不回显正文：
+
+```bash
+export SLURM_DATA_SOURCE=native
+export DASHBOARD_OWNER="$(id -un)"
+export DATABASE_URL="sqlite:////home/scc/$(id -un)/107dashboard/data/dashboard.sqlite3"
+export JOB_WORKSPACE_DIRECTORY="/home/scc/$(id -un)/107dashboard/data/jobs"
+export NATIVE_SUBMISSION_ENABLED=false
+export NATIVE_CANCEL_ENABLED=false
+export NATIVE_CLONE_ENABLED=false
+export NATIVE_LOGS_ENABLED=true
+
+backend/.venv/bin/python scripts/read-native-log-acceptance.py \
+  --confirm READ-ONE-NATIVE-JOB-LOG-SAMPLE
+```
+
+控制闭环会创建两个 `1 CPU / 512 MiB / 0 GPU / 2 分钟` 的 CPU 测试作业：第一个提交后取消，再从其可信元数据克隆并取消克隆。脚本只操作自身返回并持久化的 Job ID，固定幂等键防止重复提交：
+
+```bash
+export NATIVE_LOGS_ENABLED=false
+export NATIVE_SUBMISSION_ENABLED=true
+export NATIVE_CANCEL_ENABLED=true
+export NATIVE_CLONE_ENABLED=true
+export NATIVE_MAX_ACTIVE_JOBS=2
+
+backend/.venv/bin/python scripts/run-native-control-acceptance.py \
+  --confirm RUN-ONE-NATIVE-CONTROL-ACCEPTANCE
+```
+
+运行后还应使用 `sacct` 核对脚本输出的两个 Job ID 均进入终态，并确认没有遗留的活动验收作业。以上开关仅用于本次 shell，不写入 `.env` 或长期服务配置。
+
 ## 安全边界
 
 - 部署公钥保持只读，不改用个人写入密钥；

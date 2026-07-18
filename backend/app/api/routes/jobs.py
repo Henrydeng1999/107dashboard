@@ -234,9 +234,14 @@ def _job_operation(
     job_id: str,
     request: Request,
     catalog: JobCatalog,
+    idempotency_key: str | None,
 ) -> Job | JSONResponse:
     try:
-        return catalog.cancel_job(job_id) if operation == "cancel" else catalog.clone_job(job_id)
+        return (
+            catalog.cancel_job(job_id, idempotency_key=idempotency_key)
+            if operation == "cancel"
+            else catalog.clone_job(job_id, idempotency_key=idempotency_key)
+        )
     except JobNotFound:
         return _error_response(request, 404, "JOB_NOT_FOUND", "Job was not found")
     except JobOperationConflict:
@@ -245,6 +250,20 @@ def _job_operation(
             409,
             "JOB_OPERATION_CONFLICT",
             "Job cannot be operated on in its current state",
+        )
+    except JobIdempotencyRequired:
+        return _error_response(
+            request,
+            400,
+            "IDEMPOTENCY_KEY_REQUIRED",
+            "A valid Idempotency-Key header is required",
+        )
+    except JobIdempotencyConflict:
+        return _error_response(
+            request,
+            409,
+            "JOB_IDEMPOTENCY_CONFLICT",
+            "Idempotency-Key conflicts with an earlier operation",
         )
     except JobSubmissionUnavailable:
         code = "JOB_CONTROL_UNAVAILABLE" if operation == "cancel" else "JOB_CLONE_UNAVAILABLE"
@@ -265,8 +284,13 @@ def _job_operation(
         503: {"model": ErrorResponse, "description": "Job control unavailable"},
     },
 )
-def cancel_job(job_id: str, request: Request, catalog: CatalogDependency) -> Job | JSONResponse:
-    return _job_operation("cancel", job_id, request, catalog)
+def cancel_job(
+    job_id: str,
+    request: Request,
+    catalog: CatalogDependency,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> Job | JSONResponse:
+    return _job_operation("cancel", job_id, request, catalog, idempotency_key)
 
 
 @router.post(
@@ -279,5 +303,10 @@ def cancel_job(job_id: str, request: Request, catalog: CatalogDependency) -> Job
         503: {"model": ErrorResponse, "description": "Job cloning unavailable"},
     },
 )
-def clone_job(job_id: str, request: Request, catalog: CatalogDependency) -> Job | JSONResponse:
-    return _job_operation("clone", job_id, request, catalog)
+def clone_job(
+    job_id: str,
+    request: Request,
+    catalog: CatalogDependency,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> Job | JSONResponse:
+    return _job_operation("clone", job_id, request, catalog, idempotency_key)

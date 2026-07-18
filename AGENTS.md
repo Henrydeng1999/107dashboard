@@ -91,6 +91,8 @@ See `docs/03-ENVIRONMENT_CHECK.md` for the complete verified environment record.
 - Native HTTP submissions must require `Idempotency-Key`; never store the raw key, and never allow a key to represent two different request payloads.
 - The competition Native concurrency guard assumes one Uvicorn worker. Do not run multiple backend workers until the active-count check and idempotency reservation use shared cross-process atomic coordination.
 - Keep `NATIVE_LOGS_ENABLED=false` by default. Native logs may only use owner-scoped persisted metadata and the exact `JOB_WORKSPACE_DIRECTORY/submission-<id>/stdout.log|stderr.log` layout; never accept a path from HTTP input or follow a log symlink outside its recorded directory.
+- Keep `NATIVE_CANCEL_ENABLED=false` and `NATIVE_CLONE_ENABLED=false` by default. Native cancellation requires an owner-visible `PENDING`/`RUNNING` allocation, matching persisted Native metadata, a hashed idempotency key, parameter-array `scancel`, and audit evidence. Native clone must rebuild from owner-scoped metadata and rerun submission validation, active-job limits, and namespaced idempotency.
+- Real control acceptance may operate only on minimal jobs created by the acceptance flow itself. Record every created Slurm Job ID and ensure every still-active acceptance job is cancelled; never select another user's job or infer permission from a numeric Job ID alone.
 
 ## Security
 

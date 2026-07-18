@@ -465,6 +465,7 @@ export function JobDashboard() {
   const [showSubmitForm, setShowSubmitForm] = useState(false);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
   const [actionPending, setActionPending] = useState<"cancel" | "clone" | null>(null);
+  const operationIdempotency = useRef<Record<string, string>>({});
   const [actionError, setActionError] = useState<string | null>(null);
   const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
   const [runtimeError, setRuntimeError] = useState(false);
@@ -515,10 +516,14 @@ export function JobDashboard() {
     if (operation === "cancel" && !window.confirm(`确定取消作业 #${selectedJob.slurm_job_id} 吗？`)) return;
     setActionPending(operation);
     setActionError(null);
+    const operationKey = `${operation}:${selectedJob.id}`;
+    const idempotencyKey = operationIdempotency.current[operationKey] ?? crypto.randomUUID();
+    operationIdempotency.current[operationKey] = idempotencyKey;
     try {
       const job = operation === "cancel"
-        ? await cancelJob(selectedJob.id)
-        : await cloneJob(selectedJob.id);
+        ? await cancelJob(selectedJob.id, idempotencyKey)
+        : await cloneJob(selectedJob.id, idempotencyKey);
+      delete operationIdempotency.current[operationKey];
       setSelectedJob(job);
       setSubmissionNotice(
         operation === "cancel"

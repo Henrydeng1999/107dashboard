@@ -118,9 +118,11 @@ Native HTTP 提交现采用显式部署门：默认 `NATIVE_SUBMISSION_ENABLED=f
 
 该方案只用于比赛时单平台账号演示，不等同于多学生认证。未来接入校园 SSO 或平台网关身份时，只有在后端端口不可绕过且代理身份头经过清洗和信任校验后，才能将可信代理身份映射到不同 Slurm 用户。
 
-当前已将有效 UID 用户名解析、部署 owner 精确匹配断言和 SQLite 作业元数据仓库接入应用装配与作业 service。Native 模式只有在有效 UID 与 `DASHBOARD_OWNER` 完全一致时才能创建，默认仅开放列表、详情、用户摘要和资源统计；提交与日志各自通过默认关闭的部署门独立开放，取消和克隆继续 fail closed。`squeue`/`sacct` 查询固定传入可信 owner，解析后再次丢弃 Slurm `user` 不一致的记录，详情、usage 和日志还必须先命中当前 owner 的可见作业。
+当前已将有效 UID 用户名解析、部署 owner 精确匹配断言和 SQLite 作业元数据仓库接入应用装配与作业 service。Native 模式只有在有效 UID 与 `DASHBOARD_OWNER` 完全一致时才能创建，默认仅开放列表、详情、用户摘要和资源统计；提交、日志、取消与克隆分别由 `NATIVE_SUBMISSION_ENABLED`、`NATIVE_LOGS_ENABLED`、`NATIVE_CANCEL_ENABLED`、`NATIVE_CLONE_ENABLED` 四个默认关闭门禁独立开放。`squeue`/`sacct` 查询固定传入可信 owner，解析后再次丢弃 Slurm `user` 不一致的记录，详情、usage、日志和控制操作还必须先命中当前 owner 的可见作业。
 
 SQLite 元数据增加 `source=fixture|native` 隔离，避免模拟作业混入真实列表。Slurm 实时状态优先，数据库只补充可信命令、资源申请和时间字段；相同 Slurm Job ID 去重后只返回一条。旧原型数据库会以固定列定义补充 `source`、状态和时间字段，不删除已有记录。
+
+Native 取消只接受纯数字 allocation ID，并仅在当前 owner 的 Slurm 可见状态为 `PENDING` 或 `RUNNING`、持久化元数据也属于同一 owner/source/Job ID 时执行参数数组 `scancel <job_id>`。原始幂等键只计算 SHA-256 摘要，成功重放不会再次取消；审计只保存状态和脱敏结果码。Native 克隆不复用客户端参数，而是从 owner 元数据构造新的 `JobSubmitRequest`，使用来源 Job namespaced idempotency，再走与普通提交相同的校验、并发和审计链。
 
 ## 可靠性要求
 

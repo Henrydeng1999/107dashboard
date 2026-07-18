@@ -20,14 +20,24 @@ def create_app(settings: Settings | None = None, job_catalog: JobCatalog | None 
     native_submission_enabled = (
         settings.slurm_data_source == "native" and settings.native_submission_enabled
     )
-    native_read_only = settings.slurm_data_source == "native" and not native_submission_enabled
+    native_write_enabled = native_submission_enabled or (
+        settings.slurm_data_source == "native"
+        and (settings.native_cancel_enabled or settings.native_clone_enabled)
+    )
+    native_read_only = settings.slurm_data_source == "native" and not native_write_enabled
     application.state.runtime_info = RuntimeInfo(
         data_source=settings.slurm_data_source,
         read_only=native_read_only,
         capabilities=RuntimeCapabilities(
             submit=(settings.slurm_data_source == "fixture" or native_submission_enabled),
-            cancel=settings.slurm_data_source == "fixture",
-            clone=settings.slurm_data_source == "fixture",
+            cancel=(
+                settings.slurm_data_source == "fixture"
+                or (settings.slurm_data_source == "native" and settings.native_cancel_enabled)
+            ),
+            clone=(
+                settings.slurm_data_source == "fixture"
+                or (settings.slurm_data_source == "native" and settings.native_clone_enabled)
+            ),
             logs=(
                 settings.slurm_data_source == "fixture"
                 or (settings.slurm_data_source == "native" and settings.native_logs_enabled)

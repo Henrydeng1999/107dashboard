@@ -12,6 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import Settings
 from app.core.identity import assert_deployment_owner, resolve_effective_unix_username
+from app.repositories.job_control import JobControlRepository
 from app.repositories.job_metadata import JobMetadataRecord, JobMetadataRepository
 from app.repositories.submission import SubmissionRepository
 from app.schemas.jobs import (
@@ -36,6 +37,7 @@ from app.slurm import (
     SlurmResources,
 )
 from app.slurm.runner import SubprocessCommandRunner
+from app.slurm.control import NativeSlurmCanceller
 from app.slurm.submission import (
     NativeSlurmSubmitter,
     SubmissionValidationError,
@@ -48,6 +50,12 @@ from app.services.native_submission import (
     NativeSubmissionService,
 )
 from app.services.native_logs import NativeLogPathError, resolve_native_log_path
+from app.services.native_control import (
+    NativeControlIdempotencyConflict,
+    NativeControlIdempotencyRequired,
+    NativeControlStateConflict,
+    NativeJobControlService,
+)
 
 _DASHBOARD_ID_PREFIX = "slurm-"
 _TIME_LIMIT_PATTERN = re.compile(
@@ -114,9 +122,18 @@ def build_job_catalog(settings: Settings) -> "JobCatalog":
     metadata_repository = JobMetadataRepository(settings.database_url)
     metadata_repository.initialize()
     native_submission_service = None
-    if settings.slurm_data_source == "native" and settings.native_submission_enabled:
+    native_control_service = None
+    native_write_support = settings.slurm_data_source == "native" and (
+        settings.native_submission_enabled
+        or settings.native_clone_enabled
+        or settings.native_cancel_enabled
+    )
+    if native_write_support:
         submission_repository = SubmissionRepository(settings.database_url)
         submission_repository.initialize()
+    if settings.slurm_data_source == "native" and (
+        settings.native_submission_enabled or settings.native_clone_enabled
+    ):
         native_submission_service = NativeSubmissionService(
             owner=owner,
             workspace_root=settings.job_workspace_directory,
@@ -124,6 +141,18 @@ def build_job_catalog(settings: Settings) -> "JobCatalog":
                 SubprocessCommandRunner(settings.slurm_command_timeout_seconds)
             ),
             repository=submission_repository,
+        )
+    if settings.slurm_data_source == "native" and settings.native_cancel_enabled:
+        operation_repository = JobControlRepository(settings.database_url)
+        operation_repository.initialize()
+        native_control_service = NativeJobControlService(
+            owner=owner,
+            metadata_repository=metadata_repository,
+            operation_repository=operation_repository,
+            audit_repository=submission_repository,
+            canceller=NativeSlurmCanceller(
+                SubprocessCommandRunner(settings.slurm_command_timeout_seconds)
+            ),
         )
     return JobCatalog(
         adapter=adapter,
@@ -139,6 +168,9 @@ def build_job_catalog(settings: Settings) -> "JobCatalog":
         metadata_repository=metadata_repository,
         metadata_source=settings.slurm_data_source,
         native_submission_service=native_submission_service,
+        allow_native_submission=settings.native_submission_enabled,
+        allow_native_clone=settings.native_clone_enabled,
+        native_control_service=native_control_service,
         native_max_active_jobs=settings.native_max_active_jobs,
         native_log_workspace=(
             settings.job_workspace_directory
@@ -297,6 +329,9 @@ class JobCatalog:
         metadata_repository: JobMetadataRepository | None = None,
         metadata_source: Literal["fixture", "native"] = "fixture",
         native_submission_service: NativeSubmissionService | None = None,
+        allow_native_submission: bool = False,
+        allow_native_clone: bool = False,
+        native_control_service: NativeJobControlService | None = None,
         native_max_active_jobs: int = 1,
         native_log_workspace: Path | None = None,
         clock: Callable[[], float] = monotonic,
@@ -316,6 +351,9 @@ class JobCatalog:
         self.metadata_repository = metadata_repository
         self.metadata_source = metadata_source
         self.native_submission_service = native_submission_service
+        self.allow_native_submission = allow_native_submission
+        self.allow_native_clone = allow_native_clone
+        self.native_control_service = native_control_service
         self.native_max_active_jobs = native_max_active_jobs
         self.native_log_workspace = native_log_workspace
         self._clock = clock
@@ -575,7 +613,7 @@ class JobCatalog:
     def submit_job(
         self, request: JobSubmitRequest, *, idempotency_key: str | None = None
     ) -> Job:
-        if self.native_submission_service is not None:
+        if self.native_submission_service is not None and self.allow_native_submission:
             return self._submit_native_job(request, idempotency_key)
         if not self.allow_fixture_submissions:
             raise JobSubmissionUnavailable("Job submission is unavailable")
@@ -605,7 +643,11 @@ class JobCatalog:
         return job
 
     def _submit_native_job(
-        self, request: JobSubmitRequest, idempotency_key: str | None
+        self,
+        request: JobSubmitRequest,
+        idempotency_key: str | None,
+        *,
+        idempotency_namespace: str = "",
     ) -> Job:
         service = self.native_submission_service
         if service is None:
@@ -617,6 +659,7 @@ class JobCatalog:
                 idempotency_key=idempotency_key,
                 active_job_count=self._native_active_job_count,
                 max_active_jobs=self.native_max_active_jobs,
+                idempotency_namespace=idempotency_namespace,
             )
         except NativeIdempotencyRequiredError as exc:
             raise JobIdempotencyRequired("A valid Idempotency-Key is required") from exc
@@ -654,12 +697,54 @@ class JobCatalog:
             if job.owner == self.owner and job.state in {JobState.PENDING, JobState.RUNNING}
         )
 
-    def cancel_job(self, dashboard_job_id: str) -> Job:
-        if not self.allow_fixture_submissions:
-            raise JobSubmissionUnavailable("Job control is unavailable")
+    def cancel_job(
+        self,
+        dashboard_job_id: str,
+        *,
+        idempotency_key: str | None = None,
+    ) -> Job:
         job = self.get_job(dashboard_job_id)
         if job is None:
             raise JobNotFound("Job was not found")
+
+        if self.native_control_service is not None:
+            if self.metadata_repository is None:
+                raise JobSubmissionUnavailable("Native job metadata is unavailable")
+            metadata = self.metadata_repository.get_by_slurm_job_id(
+                job.slurm_job_id,
+                owner=self.owner,
+            )
+            if metadata is None or metadata.source != "native":
+                raise JobNotFound("Job was not found")
+            try:
+                cancelled_metadata = self.native_control_service.cancel(
+                    metadata,
+                    observed_state=job.state.value,
+                    idempotency_key=idempotency_key,
+                )
+            except NativeControlIdempotencyRequired as exc:
+                raise JobIdempotencyRequired("A valid Idempotency-Key is required") from exc
+            except NativeControlIdempotencyConflict as exc:
+                raise JobIdempotencyConflict("Idempotency-Key conflicts with prior request") from exc
+            except NativeControlStateConflict as exc:
+                raise JobOperationConflict("Job cannot be cancelled in its current state") from exc
+            except (
+                SlurmCommandError,
+                SQLAlchemyError,
+                OSError,
+                PermissionError,
+                ValueError,
+            ) as exc:
+                raise JobSubmissionUnavailable("Native cancellation failed safely") from exc
+            cancelled = self._job_from_metadata(cancelled_metadata)
+            with self._cache_condition:
+                self._submitted_jobs[cancelled.id] = cancelled
+                self._cached_jobs = None
+                self._cache_expires_at = 0.0
+            return cancelled
+
+        if not self.allow_fixture_submissions:
+            raise JobSubmissionUnavailable("Job control is unavailable")
         if job.state not in {JobState.PENDING, JobState.RUNNING}:
             raise JobOperationConflict("Only pending or running jobs can be cancelled")
 
@@ -682,12 +767,51 @@ class JobCatalog:
                 self._fixture_state_overrides[dashboard_job_id] = cancelled
         return cancelled
 
-    def clone_job(self, dashboard_job_id: str) -> Job:
-        if not self.allow_fixture_submissions:
-            raise JobSubmissionUnavailable("Job cloning is unavailable")
+    def clone_job(
+        self,
+        dashboard_job_id: str,
+        *,
+        idempotency_key: str | None = None,
+    ) -> Job:
         job = self.get_job(dashboard_job_id)
         if job is None:
             raise JobNotFound("Job was not found")
+
+        if self.allow_native_clone and self.native_submission_service is not None:
+            if self.metadata_repository is None:
+                raise JobSubmissionUnavailable("Native job metadata is unavailable")
+            metadata = self.metadata_repository.get_by_slurm_job_id(
+                job.slurm_job_id,
+                owner=self.owner,
+            )
+            if metadata is None or metadata.source != "native":
+                raise JobOperationConflict("Trusted Native submission metadata is unavailable")
+            try:
+                submission = JobSubmitRequest.model_validate(
+                    {
+                        "name": metadata.name,
+                        "command": metadata.command,
+                        "partition": metadata.partition,
+                        "account": metadata.account,
+                        "qos": metadata.qos,
+                        "resources": {
+                            "cpus": metadata.cpus,
+                            "memory_mb": metadata.memory_mb,
+                            "gpus": metadata.gpus,
+                            "time_limit_minutes": metadata.time_limit_minutes,
+                        },
+                    }
+                )
+            except ValidationError as exc:
+                raise JobOperationConflict("Job metadata cannot be cloned safely") from exc
+            return self._submit_native_job(
+                submission,
+                idempotency_key,
+                idempotency_namespace=f"clone:{metadata.id}:",
+            )
+
+        if not self.allow_fixture_submissions:
+            raise JobSubmissionUnavailable("Job cloning is unavailable")
 
         try:
             submission = JobSubmitRequest.model_validate(

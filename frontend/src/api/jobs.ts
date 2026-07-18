@@ -70,12 +70,18 @@ export function submitJob(submission: JobSubmitRequest, idempotencyKey: string):
   });
 }
 
-export function cancelJob(jobId: string): Promise<Job> {
-  return request<Job>(`/jobs/${encodeURIComponent(jobId)}/cancel`, { method: "POST" });
+export function cancelJob(jobId: string, idempotencyKey: string): Promise<Job> {
+  return request<Job>(`/jobs/${encodeURIComponent(jobId)}/cancel`, {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
 }
 
-export function cloneJob(jobId: string): Promise<Job> {
-  return request<Job>(`/jobs/${encodeURIComponent(jobId)}/clone`, { method: "POST" });
+export function cloneJob(jobId: string, idempotencyKey: string): Promise<Job> {
+  return request<Job>(`/jobs/${encodeURIComponent(jobId)}/clone`, {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
 }
 
 export function fetchJobLog(

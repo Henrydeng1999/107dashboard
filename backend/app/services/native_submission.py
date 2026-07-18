@@ -83,6 +83,7 @@ class NativeSubmissionService:
         idempotency_key: str | None,
         active_job_count: Callable[[], int],
         max_active_jobs: int,
+        idempotency_namespace: str = "",
     ) -> JobMetadataRecord:
         if not authorization.confirmed:
             raise PermissionError("explicit Native submission authorization is required")
@@ -92,7 +93,9 @@ class NativeSubmissionService:
             raise ValueError("max_active_jobs must be between 1 and 100")
         parse_allowed_command(request.command)
 
-        key_digest = sha256(idempotency_key.encode("ascii")).hexdigest()
+        key_digest = sha256(
+            f"{idempotency_namespace}{idempotency_key}".encode("ascii")
+        ).hexdigest()
         request_digest = sha256(
             json.dumps(
                 request.model_dump(mode="json"),

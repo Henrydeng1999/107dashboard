@@ -69,3 +69,26 @@ class SubmissionIdempotency(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
+
+
+class JobOperationIdempotency(Base):
+    __tablename__ = "job_operation_idempotency"
+    __table_args__ = (
+        UniqueConstraint(
+            "owner",
+            "operation",
+            "key_digest",
+            name="uq_job_operation_owner_operation_key",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    owner: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    operation: Mapped[str] = mapped_column(String(16), nullable=False)
+    key_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    target_job_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )

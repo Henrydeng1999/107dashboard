@@ -8,7 +8,10 @@ from app.repositories.submission import (
 __all__ = [
     "JobMetadataRecord",
     "JobMetadataRepository",
+    "JobControlRepository",
+    "JobOperationRecord",
     "SubmissionAuditRecord",
     "SubmissionIdempotencyRecord",
     "SubmissionRepository",
 ]
+from app.repositories.job_control import JobControlRepository, JobOperationRecord
