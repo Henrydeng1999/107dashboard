@@ -23,12 +23,12 @@ const stateOptions: Array<{ value: JobState | "ALL"; label: string }> = [
 ];
 
 const defaultSubmission: JobSubmitRequest = {
-  name: "course-training",
-  command: "python train.py",
+  name: "python-env-check",
+  command: "python3 --version",
   partition: "Students",
   account: "stu",
   qos: "qos_stu_default",
-  resources: { cpus: 2, memory_mb: 4096, gpus: 1, time_limit_minutes: 60 },
+  resources: { cpus: 1, memory_mb: 512, gpus: 0, time_limit_minutes: 5 },
 };
 
 const jobTemplates: Array<{
@@ -49,25 +49,25 @@ const jobTemplates: Array<{
     },
   },
   {
-    id: "gpu-training",
-    label: "单卡训练",
-    description: "1 张 GPU、2 核、8 GiB，适合作为课程训练起点。",
+    id: "cancelable-cpu",
+    label: "可取消 CPU 任务",
+    description: "持续运行的受控 Python 任务，适合验证观察、取消和克隆。",
     submission: {
       ...defaultSubmission,
-      name: "gpu-training",
-      command: "python train.py",
-      resources: { cpus: 2, memory_mb: 8192, gpus: 1, time_limit_minutes: 60 },
+      name: "cancelable-cpu-task",
+      command: "python3 -m timeit -n 1000000000 pass",
+      resources: { cpus: 1, memory_mb: 512, gpus: 0, time_limit_minutes: 2 },
     },
   },
   {
-    id: "cpu-analysis",
-    label: "CPU 数据分析",
-    description: "4 核、无 GPU、16 GiB，适合内存型分析任务。",
+    id: "gpu-allocation",
+    label: "GPU 分配检查",
+    description: "申请 1 张 GPU 并运行 Python 环境检查；只验证分配，不宣称实际利用率。",
     submission: {
       ...defaultSubmission,
-      name: "cpu-analysis",
-      command: "python analysis.py",
-      resources: { cpus: 4, memory_mb: 16384, gpus: 0, time_limit_minutes: 120 },
+      name: "gpu-allocation-check",
+      command: "python3 --version",
+      resources: { cpus: 1, memory_mb: 1024, gpus: 1, time_limit_minutes: 5 },
     },
   },
 ];
@@ -590,7 +590,7 @@ function JobSubmitForm({
     <form className="submit-panel" onSubmit={(event) => void handleSubmit(event)}>
       <div className="submit-heading">
         <div>
-          <p className="section-kicker">{nativeMode ? "Native 受控提交" : "Fixture 提交"}</p>
+          <p className="section-kicker">{nativeMode ? "真实 Slurm 提交" : "Fixture 提交"}</p>
           <h2>配置一个排队作业</h2>
           <p>
             {nativeMode
@@ -814,7 +814,7 @@ export function JobDashboard() {
                 : runtime.read_only
                 ? "Native 只读"
                 : runtime.data_source === "native"
-                  ? "Native 受控提交"
+                  ? "Native 真实交互"
                   : "Fixture 已连接"}
         </div>
       </header>
@@ -827,12 +827,12 @@ export function JobDashboard() {
                 ? "Slurm 暂不可用 · 已进入只读演示回退"
                 : runtime.read_only
                   ? "Native 只读模式"
-                  : "Native 受控操作模式"}
+                  : "真实 Slurm 操作模式"}
             </strong>
             <span>
               {runtime.degraded
                 ? "当前展示脱敏 Fixture；提交、取消和克隆已强制关闭，系统将在冷却后自动探测 Native 恢复。"
-                : nativeCapabilitySummary(runtime)}
+                : `当前只展示真实 Slurm 作业；${nativeCapabilitySummary(runtime)}`}
             </span>
           </div>
         )}

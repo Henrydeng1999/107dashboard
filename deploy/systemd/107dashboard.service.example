@@ -6,11 +6,13 @@ After=network.target
 Type=simple
 WorkingDirectory=%h/107dashboard
 EnvironmentFile=%h/107dashboard/data/107dashboard.env
+ExecStartPre=%h/107dashboard/backend/.venv/bin/python %h/107dashboard/scripts/check-native-product.py
 ExecStart=%h/107dashboard/backend/.venv/bin/python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
 Restart=on-failure
 RestartSec=3
 NoNewPrivileges=true
 PrivateTmp=true
+UMask=0077
 
 [Install]
 WantedBy=default.target

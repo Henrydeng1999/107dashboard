@@ -280,6 +280,46 @@ backend/.venv/bin/python scripts/run-native-live-interaction.py \
 
 2026-07-19 已在 107 对提交 `85c9646` 完成本验收。完成作业 Job `24159` 使用 `1 CPU / 512 MiB / 0 GPU / 1 分钟`，状态为 `COMPLETED`、退出码 `0:0`，stdout/stderr 限量读取 14/0 字节且正文未输出；usage 返回 `elapsed_seconds=0.0`、`max_rss_kb=24`、`total_cpu_seconds=0.004`。控制 Job `24160` 与克隆 Job `24161` 均由 UID `68311` 取消。三个提交、两个取消的幂等记录全部为 `SUCCEEDED`，审计链完整，`squeue` 无活动作业，一次性回执权限为 `0600`，运行时证据保留在未跟踪的 `data/` 中。
 
+## 用户目录基础产品服务
+
+正式产品配置不启用 Fixture 回退。开发电脑先生成带 `native-basic-v1` 标识的统一导航前端并传输到 107：
+
+```bash
+cd frontend
+npm run build:navigation
+rsync -az --delete dist/ 107:~/107dashboard/frontend/dist/
+```
+
+然后在 107 用户目录拉取代码并启动：
+
+```bash
+cd ~/107dashboard
+git pull --ff-only
+bash scripts/107-dashboard-service.sh stop
+bash scripts/107-dashboard-service.sh configure
+bash scripts/107-dashboard-service.sh start
+bash scripts/107-dashboard-service.sh status
+```
+
+服务由名为 `107dashboard` 的 tmux session 承载，只监听 `127.0.0.1:8000`，单 worker 运行。`configure` 根据当前用户和仓库路径生成未跟踪的 `data/107dashboard.env`，权限为 `0600`，并在覆盖前备份已有配置。`start` 先执行无 Slurm 写入的产品检查；若前端构建过期、owner 不一致、`sbatch/scancel/squeue/sacct` 缺失、Fixture 回退开启、四项能力未全部开放或真实列表/摘要不一致，服务不会进入健康状态。失败的启动 session 会被清理，日志保留在 `data/107dashboard.log`。
+
+浏览器打开统一入口 `/107-dashboard/` 后，页首必须显示“Native 真实交互”和“当前只展示真实 Slurm 作业”。基础回归依次执行：
+
+1. 使用“CPU 快速检查”提交并等待完成，查看 stdout/stderr 和 usage；
+2. 使用“可取消 CPU 任务”提交，在排队或运行状态取消；
+3. 从该作业详情克隆为新 Job，再取消克隆；
+4. 确认页面 Job ID 均为真实 Slurm 数字 ID，`status` 输出 `fixture_influence=false`；
+5. 最后使用 `squeue -u "$USER"` 确认没有测试作业遗留。
+
+常用管理命令：
+
+```bash
+bash scripts/107-dashboard-service.sh status
+bash scripts/107-dashboard-service.sh logs
+bash scripts/107-dashboard-service.sh restart
+bash scripts/107-dashboard-service.sh stop
+```
+
 ## 演示发布集中验收
 
 本阶段不再创建或取消 Slurm 作业。它集中验证真实 Native 查询仍健康、作业与摘要数量一致、自动回退能在模拟故障下展示脱敏 Fixture，并证明回退期间 HTTP 写能力返回 503 且不会调用 `sbatch`。

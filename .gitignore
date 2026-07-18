@@ -21,6 +21,7 @@ id_rsa*
 id_ed25519*
 
 # Local data and logs
+data/
 *.sqlite3
 *.db
 logs/

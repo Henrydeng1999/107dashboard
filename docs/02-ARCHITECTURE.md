@@ -130,6 +130,8 @@ Native 全交互部署仍使用同一个 FastAPI 进程、有效 Unix owner 和 
 
 比赛演示可显式启用 `DEMO_FALLBACK_ENABLED`。该模式不在启动时伪装 Native 成功：正常状态继续读取真实 Slurm；只有受控查询抛出已脱敏的数据源不可用错误时，目录层才在冷却期内切换到脱敏 Fixture。`GET /api/runtime` 动态返回 `serving_source=fixture_fallback`、`degraded=true`，前端显示醒目标记。回退目录不允许 Fixture 提交，包装层同时拒绝提交、取消和克隆；恢复探测仅由列表刷新触发，成功后整体切回 Native，避免单次页面中混合真实和演示数据。
 
+真实基础产品部署与演示回退配置严格分离。`deploy/107-native-interactive.env.example` 固定 `SLURM_DATA_SOURCE=native` 与 `DEMO_FALLBACK_ENABLED=false`，启动检查要求所有可见 Job ID 使用 `slurm-` 前缀；Slurm 查询失败时产品显示 API 错误，不用模拟结果掩盖故障。Fixture 仅保留给本地自动化和单独的演示回退验收，不参与用户判断真实作业状态。
+
 ## 可靠性要求
 
 - Slurm 是作业状态的事实来源，数据库中的状态是缓存和展示数据。

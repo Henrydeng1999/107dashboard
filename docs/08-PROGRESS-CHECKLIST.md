@@ -8,9 +8,9 @@
 
 <div class="progress-summary" aria-label="当前项目摘要">
   <div class="progress-stat progress-stat-done"><strong>可用</strong><span>前后端最小骨架</span></div>
-  <div class="progress-stat progress-stat-done"><strong>210 / 210</strong><span>后端测试通过</span></div>
+  <div class="progress-stat progress-stat-done"><strong>212 / 212</strong><span>后端测试通过</span></div>
   <div class="progress-stat progress-stat-done"><strong>通过</strong><span>前端类型检查与构建</span></div>
-  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>真实 Web 与浏览器联调</span></div>
+  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>107 部署与浏览器验收</span></div>
 </div>
 
 > **状态说明：** <span class="status-badge status-done">✓ 已完成</span> 已实现并通过对应测试、构建、fixture 或平台证据验证；<span class="status-badge status-active">→ 进行中</span> 已有部分成果；<span class="status-badge status-pending">○ 待开始</span> 尚未实现；<span class="status-badge status-later">◇ 赛后</span> 不阻塞比赛 MVP。
@@ -90,17 +90,18 @@
 | <span class="status-badge status-done">✓</span> | 发布验收脚本 | 一条命令集中验证真实 Native 读取与模拟 Fixture 回退，真实查询降级时拒绝误报通过 | 提交 `b253ac0` 在 107 通过：Native 4 个作业、Fixture 5 个作业、写请求 503、`would_invoke_sbatch=false` |
 | <span class="status-badge status-done">✓</span> | 整页演示部署 | 固定统一导航构建、SSH 隧道恢复和桌面/移动端整页检查 | 提交 `0d2c1d7` 在 107 与本机统一入口通过；无资源、控制台、溢出或重叠错误 |
 | <span class="status-badge status-done">✓</span> | Native 全交互综合链 | 通过真实 HTTP 路由集中覆盖提交、终态、日志、usage、取消、克隆、再次取消、幂等与审计 | 提交 `85c9646` 在 107 通过；Job `24159` 完成，Job `24160/24161` 取消，5 条幂等记录及审计链完整，无活动作业遗留 |
-| <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 后端 210 个 pytest 通过（符号链接用例在 Windows 跳过），目标 Ruff 通过；0 个生产依赖漏洞 |
+| <span class="status-badge status-active">→</span> | 用户目录基础产品服务 | Native-only 配置、tmux 服务管理、产品启动检查、最新前端标识和真实可运行模板 | 本地配置/检查单测、Shell 语法、前端类型检查及构建通过；107 部署和浏览器基本操作待验收 |
+| <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 后端 212 个 pytest 通过（符号链接用例在 Windows 跳过），目标 Ruff 通过；0 个生产依赖漏洞 |
 | <span class="status-badge status-done">✓</span> | 文档 | 架构、环境、协作、部署、API 契约 | 文档站可直接访问 |
 | <span class="status-badge status-done">✓</span> | 文档体验 | 单章节按需加载、模糊过渡、URL 定位、前进后退和章节筛选 | 浏览器交互检查通过 |
 
 ## 当前待办与提示
 
 <div class="notice-grid">
-  <div class="notice notice-next"><strong>下一开发项</strong><span>将已验收的 Native 交互配置部署到 107 Web 服务，从浏览器完成提交、观察、日志、usage、取消和克隆的端到端回归，再扩展脚本与环境配置能力。</span></div>
-  <div class="notice notice-warning"><strong>暂时限制</strong><span>综合脚本已证明完整 HTTP 链可用，但真实 Web 服务尚未长期启用四项交互开关；当前命令策略仍仅允许 python/python3 与安全参数。</span></div>
+  <div class="notice notice-next"><strong>下一开发项</strong><span>传输带 `native-basic-v1` 标识的前端，在 107 用户目录启用 Native-only 服务，并从浏览器完成提交、日志、usage、取消与克隆验收。</span></div>
+  <div class="notice notice-warning"><strong>暂时限制</strong><span>用户目录服务和真实模板已完成本地实现，但尚未在 107 浏览器入口验收；当前命令策略仍仅允许 python/python3 与安全参数。</span></div>
   <div class="notice notice-safe"><strong>安全边界</strong><span>真实测试只能通过 Slurm 提交，禁止在登录节点直接运行学生计算任务。</span></div>
-  <div class="notice notice-info"><strong>验证方式</strong><span>Fixture 与注入式 Native 回归用于本地稳定验证，107 脚本用于平台真实验收：后端 pytest 210 passed、目标 Ruff、前端类型检查、普通构建与统一导航构建通过。</span></div>
+  <div class="notice notice-info"><strong>验证方式</strong><span>Fixture 与注入式 Native 回归用于本地稳定验证，107 脚本用于平台真实验收：后端 pytest 212 passed、目标 Ruff、Shell 语法、前端类型检查、普通构建与统一导航构建通过。</span></div>
 </div>
 
 ## MVP 必须功能
@@ -129,6 +130,7 @@
 - [x] Mock/Fixture 完整故事自动回归
 - [x] 预提交作业与真实平台演示回归
 - [x] Native HTTP 提交、状态、日志、usage、取消与克隆的单次真实平台综合验收
+- [ ] 用户目录 Native-only Web 服务与浏览器基础操作验收
 
 ## 可选创新功能
 
