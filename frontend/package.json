@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:navigation": "tsc -b && vite build --mode navigation --base=/107-dashboard/",
     "preview": "vite preview",
     "lint": "tsc --noEmit"
   },

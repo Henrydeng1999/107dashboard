@@ -175,6 +175,7 @@ button:disabled { opacity: .42; cursor: not-allowed; }
   .section-heading { align-items: stretch; flex-direction: column; }
   .section-actions { align-items: stretch; flex-direction: column; }
   .refresh-control { width: 100%; }
+  .refresh-control button { min-height: 44px; padding: 10px 12px; font-size: 12px; }
   .refresh-control span { text-align: left; }
   .summary-heading { align-items: stretch; flex-direction: column; }
   .summary-heading > span { text-align: left; }

@@ -95,7 +95,7 @@
 ## 当前待办与提示
 
 <div class="notice-grid">
-  <div class="notice notice-next"><strong>下一开发项</strong><span>把本地预构建的 frontend/dist 传输到 107，启用同源静态托管并完成列表、详情、资源、日志门禁和故障回退的整页演示排练。</span></div>
+  <div class="notice notice-next"><strong>下一开发项</strong><span>固化一键部署、远端服务启停、SSH 隧道重建和健康检查流程，并完成一次冷启动恢复排练；不再新增比赛业务功能。</span></div>
   <div class="notice notice-warning"><strong>暂时限制</strong><span>Native 提交、日志、取消和克隆长期部署开关均保持关闭；集中验收已通过，但长期开放仍需明确部署配置和演示操作边界。</span></div>
   <div class="notice notice-safe"><strong>安全边界</strong><span>真实测试只能通过 Slurm 提交，禁止在登录节点直接运行学生计算任务。</span></div>
   <div class="notice notice-info"><strong>验证方式</strong><span>Fixture 与注入式 Native 回归用于本地稳定验证，107 脚本用于平台门禁与真实验收：后端 pytest 208 passed、目标 Ruff、前端类型检查和生产构建通过。</span></div>
@@ -125,7 +125,7 @@
 - [x] 当前用户作业与资源字段摘要
 - [x] 真实统计平台验收
 - [x] Mock/Fixture 完整故事自动回归
-- [ ] 预提交作业与真实平台演示回归
+- [x] 预提交作业与真实平台演示回归
 
 ## 可选创新功能
 

@@ -276,7 +276,19 @@ backend/.venv/bin/python scripts/check-demo-release.py
 
 完整网页演示前，在开发电脑执行 `npm run build`，把未跟踪的 `frontend/dist/` 复制到 107 的仓库同一路径，再参考 `deploy/107-native.env.example` 设置 `SERVE_FRONTEND=true`。后端找不到 `index.html` 时会拒绝启动，防止出现 API 正常但网页空白的假部署。
 
+通过本机统一导航页部署时，使用固定字符路径构建，避免静态资源和 API 请求退回站点根路径：
+
+```bash
+cd frontend
+npm run build:navigation
+rsync -az --delete dist/ 107:~/107dashboard/frontend/dist/
+```
+
+统一入口为 `/107-dashboard/`，构建产物使用 `/107-dashboard/assets/`，API 使用 `/107-dashboard/api`。本机 Nginx 剥离该前缀后转发到 SSH 隧道；独立端口入口仅作为兼容和诊断路径。
+
 2026-07-18 已在 107 对提交 `b253ac0` 完成本验收。真实 Native 路径的 `visible_jobs=4`、`summary_jobs=4`，样例 Job ID 为 `24064`；模拟故障路径返回 `serving_source=fixture_fallback` 和 5 个脱敏作业，写请求状态为 503，`would_invoke_sbatch=false`。提交、取消、克隆和日志能力均保持关闭，没有调用 `sbatch` 或 `scancel`、没有读取真实日志，`squeue` 无活动作业，未跟踪的 `data/` 验收证据未修改或删除。
+
+2026-07-19 已完成整页演示排练：最新静态产物部署到 107，由 FastAPI 同源托管；本机 SSH ControlMaster 将远端 `127.0.0.1:8000` 转发至 `10780`，统一导航 Nginx 以 `/107-dashboard/` 提供页面与 API。桌面 `1440x1000`、移动端 `390x844` 以及 Tailscale 入口均加载成功，真实 Native 4 个作业、摘要和详情一致，无资源 404、控制台错误、横向溢出或元素重叠。移动端刷新按钮已提高到至少 44px 触控高度。演示长期配置继续保持提交、日志、取消和克隆关闭。
 
 ## 安全边界
 
