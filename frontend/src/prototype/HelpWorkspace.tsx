@@ -71,7 +71,7 @@ export function HelpWorkspace({ onNavigate }: { onNavigate: Navigate }) {
         <article id="help-ai" tabIndex={-1}>
           <span className="prototype-kicker">AI PROVIDERS</span>
           <h2>AI 工作台</h2>
-          <p>先在“接入设置”集中配置兼容 OpenAI Chat Completions 的 HTTPS Provider、模型与密钥，再在 Chat 内选择本次会话使用的模型。Chat 只接收您勾选作业的结构化证据，不具备提交、取消或克隆作业的权限。</p>
+          <p>先在“接入设置”集中配置兼容 OpenAI Chat Completions 的 HTTPS Provider、模型与密钥，再在 Chat 内选择本次会话使用的模型。支持工具调用的模型可按需查询运行状态、作业、资源用量、脱敏日志、诊断、评价项目、测试项目与 Git 只读数据；不支持工具调用的模型仍使用您勾选作业的结构化证据。Chat 不具备提交、取消、克隆或修改配置的权限。</p>
           <div className="prototype-help-actions">
             <button className="prototype-primary" type="button" onClick={() => onNavigate({ kind: "module", module: "ai", item: "接入设置" })}>配置 Provider</button>
             <button className="prototype-secondary" type="button" onClick={() => onNavigate({ kind: "module", module: "ai", item: "调用记录" })}>查看调用记录</button>

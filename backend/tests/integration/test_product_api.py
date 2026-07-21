@@ -69,7 +69,9 @@ def test_reports_projects_and_ai_workspace(tmp_path, monkeypatch) -> None:
         assert secret_path.stat().st_mode & 0o777 == 0o600
 
     monkeypatch.setattr(
-        ProductService, "_call_provider", lambda self, metadata, prompt: "基于结构化证据的测试回答"
+        ProductService,
+        "_call_provider",
+        lambda self, metadata, prompt, tools=None: ("基于结构化证据的测试回答", []),
     )
     chat = client.post(
         "/api/ai/chat",

@@ -121,6 +121,7 @@ class AiChatResponse(BaseModel):
     model: str
     answer: str
     evidence_job_ids: list[str]
+    tools_used: list[str] = Field(default_factory=list)
     created_at: datetime
 
 

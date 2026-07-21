@@ -25,6 +25,7 @@ from app.services.product import (
     ProductNotFound,
     ProductService,
 )
+from app.services.ai_tools import AiReadTools
 
 router = APIRouter(tags=["product"])
 
@@ -126,7 +127,14 @@ def ai_calls(product: Service):
 @router.post("/ai/chat", response_model=AiChatResponse)
 def ai_chat(payload: AiChatRequest, request: Request, product: Service, jobs: Catalog):
     try:
-        return product.chat(jobs, payload.provider_id, payload.message, payload.job_ids)
+        tools = AiReadTools(
+            runtime_info_provider=request.app.state.runtime_info_provider,
+            jobs=jobs,
+            product=product,
+            repositories=request.app.state.git_repository_browser,
+            test_projects=request.app.state.test_project_catalog,
+        )
+        return product.chat(jobs, payload.provider_id, payload.message, payload.job_ids, tools)
     except ProductNotFound:
         return error(request, 404, "JOB_NOT_FOUND", "One or more jobs were not found")
     except AiProviderNotConfigured:
