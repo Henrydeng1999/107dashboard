@@ -301,6 +301,15 @@ npm run build:navigation
 rsync -az --delete dist/ 107:~/107dashboard/frontend/dist/
 ```
 
+FastAPI 直接同源托管的独立端口入口必须使用服务器构建模式，避免本地 `.env` 中的开发地址进入生产包：
+
+```bash
+cd frontend
+npm run build:server
+```
+
+`scripts/107-dashboard-service.sh start` 会扫描静态产物；若其中包含 `localhost` 或 `127.0.0.1` API 地址，预检会拒绝启动。开发机专用地址应放在未跟踪的 `.env.development.local`，不得使用会影响全部 Vite mode 的 `frontend/.env`。
+
 然后在 107 用户目录拉取代码并启动：
 
 ```bash
@@ -356,7 +365,7 @@ backend/.venv/bin/python scripts/check-demo-release.py
 
 通过输出必须包含 `mode=demo-release-readiness-no-write`、`passed=true`、Native `serving_source=native`、回退 `serving_source=fixture_fallback`、`write_status=503` 和 `would_invoke_sbatch=false`。如果真实查询已进入回退，脚本会主动失败，不能把 Fixture 成功误记为 Native 平台通过。
 
-完整网页演示前，在开发电脑执行 `npm run build`，把未跟踪的 `frontend/dist/` 复制到 107 的仓库同一路径，再参考 `deploy/107-native.env.example` 设置 `SERVE_FRONTEND=true`。后端找不到 `index.html` 时会拒绝启动，防止出现 API 正常但网页空白的假部署。
+完整网页演示前，在开发电脑执行 `npm run build:server`，把未跟踪的 `frontend/dist/` 复制到 107 的仓库同一路径，再参考 `deploy/107-native.env.example` 设置 `SERVE_FRONTEND=true`。后端找不到 `index.html`、或静态包含开发 API 地址时会拒绝启动，防止出现 API 正常但网页空白或请求访问者 localhost 的假部署。
 
 通过本机统一导航页部署时，使用固定字符路径构建，避免静态资源和 API 请求退回站点根路径：
 

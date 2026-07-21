@@ -18,7 +18,7 @@ proxy/     可选的反向代理配置
 - `SERVE_FRONTEND=true` 时，后端会从 `FRONTEND_DIST_DIRECTORY` 提供静态页面；目录缺少 `index.html` 时启动会立即失败并提示先构建。
 - `DEMO_FALLBACK_ENABLED=true` 只允许 Native 读取失败后切换到脱敏 Fixture。回退期间提交、取消、克隆全部强制关闭，不能作为绕过 Slurm 或权限门禁的路径。
 
-107 没有 Node.js，因此先在开发电脑执行 `npm run build`，再把未跟踪的 `frontend/dist/` 复制到服务器同一路径。仅执行后端集中验收时可设置 `SERVE_FRONTEND=false`，不依赖静态产物。
+107 没有系统级 Node.js；可在开发电脑执行 `npm run build:server` 后复制未跟踪的 `frontend/dist/`，也可使用服务器用户目录下已配置的 Node 执行同一命令。该模式固定使用同源 `/api`，启动预检会拒绝包含 localhost API 地址的静态包。仅执行后端集中验收时可设置 `SERVE_FRONTEND=false`，不依赖静态产物。
 
 正式产品入口使用统一导航构建。在开发电脑执行 `npm run build:navigation` 并传输 `frontend/dist/` 后，在 107 执行：
 
