@@ -79,13 +79,13 @@
 | <span class="status-badge status-done">✓</span> | 身份设计 | 比赛原型采用后端进程有效 UID 对应的单 Unix 账号，HTTP 输入不能选择 Slurm 用户 | Native 创建前 UID/owner 精确匹配测试通过 |
 | <span class="status-badge status-done">✓</span> | 比赛范围决策 | 当前版本固定单 Unix 账号与作业、诊断报告、项目评价、AI 四个一级模块；多用户能力移至赛后 | README、计划、架构、AI 路线与 Agent 约束已统一 |
 | <span class="status-badge status-done">✓</span> | 前端布局规范 | 浏览器内容视口以 `1600×800` 为基准、`1440×720` 为最低桌面验收，主区优先 `68/32` 双栏；增长型页面允许纵向滚动，但禁止横向滚动和内容裁剪 | 107 正式页面在两个目标视口均无横向溢出；7 个真实分区全部位于容量卡内，主内容纵向滚动正常 |
-| <span class="status-badge status-done">✓</span> | 四模块统一工作台 | 可展开侧栏、作业提交管理、诊断报告、项目评价和 AI 工作台；旧版页面入口已移除 | 四个主模块统一使用 `LIVE API` 页面入口；前端类型检查与生产构建通过 |
+| <span class="status-badge status-done">✓</span> | 四模块统一工作台 | SVG 中心旋转的可展开侧栏、单一帮助/设置入口、作业管理、诊断报告、项目评价和 AI 工作台 | 四个主模块统一使用 `LIVE API` 页面入口；侧栏折叠中心、入口计数、前端类型检查与发布构建通过 |
 | <span class="status-badge status-done">✓</span> | 确定性诊断报告 | 基于 owner 可见作业的 Slurm 状态、退出码、原因、申请资源和 usage 生成版本化证据、分数、发现与建议 | 产品 API 集成测试、Ruff 与前端构建通过；不依赖外部 AI |
 | <span class="status-badge status-done">✓</span> | 多作业项目评价 | SQLite 持久化项目与作业关联，按规则返回综合分、等级、证据覆盖率和缺口建议 | 创建、查询、未知作业边界与前端构建通过 |
 | <span class="status-badge status-active">→</span> | 只读 AI 工作台 | HTTPS OpenAI 兼容 Provider、私有 API Key、Provider 多模型、可折叠证据上下文、持久化多轮会话、内置与自定义提示词、Chat 和调用记录已接线 | 107 SQLite 建表及自定义模板创建/查询/清理通过；会话重开、证据 ID、模板生命周期、密钥不回显和 Provider 错误映射测试通过；学校真实 Provider 尚待凭证验收 |
 | <span class="status-badge status-active">→</span> | 新版作业页完整迁移 | jobs、runtime、projects、summary、logs、usage API，以及提交、取消、克隆、幂等、轮询和能力门禁均迁入新版布局 | 本地 Fixture 已通过列表、筛选、活动页、详情、usage、stdout/stderr、提交、取消和克隆；等待 107 浏览器 Native 验收 |
 | <span class="status-badge status-done">✓</span> | 工作台资源概览 | Overview 与作业页使用真实资源汇总、状态分布和活动作业数据，四模块工作台补齐帮助、导航与紧凑桌面交互 | API 集成测试、前端 TypeScript、普通构建和统一导航构建通过 |
-| <span class="status-badge status-done">✓</span> | Slurm 分区容量可视化 | Overview 展示 `sinfo` 聚合的主分区 CPU 环图和全部分区分配/空闲条，卡片随分区数量自然增高 | 107 API 返回 7 个真实分区；前端取消内部裁剪并允许页面纵向滚动，不将账号申请量伪装为平台占用率 |
+| <span class="status-badge status-done">✓</span> | Slurm 分区容量可视化 | Overview 使用 128px 主分区 CPU 环图和每行 3-4 个独立分区块展示分配、空闲与占用率，字体和进度条同步放大 | 107 API 返回 7 个真实分区；深浅主题、两个桌面视口、无重复主分区和无横向溢出检查通过，不将账号申请量伪装为平台占用率 |
 | <span class="status-badge status-done">✓</span> | 身份与元数据链路 | SQLite source 隔离、旧表兼容升级、Slurm 状态优先去重合并和 owner 限定查询 | 恢复、跨 owner、来源隔离、旧表升级和合并测试通过 |
 | <span class="status-badge status-done">✓</span> | Native 能力界面 | `/api/runtime` 分别声明提交、日志等能力，前端展示当前 Native 模式并隐藏未开放操作 | TypeScript 检查和 Vite 生产构建通过 |
 | <span class="status-badge status-done">✓</span> | Native 平台验收 | 有效 UID、owner、真实列表、详情和 usage 在 107 运行通过 | 提交 `05a64a3`；用户 `pb24030760`；Job `21482`；`COMPLETED`；`0:0`；脚本退出 0 |

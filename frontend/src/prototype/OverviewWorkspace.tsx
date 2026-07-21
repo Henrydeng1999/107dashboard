@@ -148,26 +148,18 @@ export function OverviewWorkspace({ onNavigate }: { onNavigate: (destination: Ov
           ) : sourceFailed("集群资源") ? (
             <p className="prototype-repository-empty">集群资源暂时不可用。</p>
           ) : primaryPartition ? (
-            <div className="prototype-resource-layout">
-              <div className="prototype-cpu-donut-wrap">
-                <div
-                  className="prototype-cpu-donut"
-                  style={{ "--cpu-usage": `${primaryPartition.utilization_percent * 3.6}deg` } as CSSProperties}
-                  aria-label={`${primaryPartition.name} CPU 占用 ${primaryPartition.utilization_percent}%`}
-                >
-                  <span><strong>{primaryPartition.utilization_percent}%</strong><small>已分配</small></span>
-                </div>
-                <div><strong>{primaryPartition.name}</strong><small>{primaryPartition.allocated_cpus} / {primaryPartition.total_cpus} 核</small></div>
-              </div>
-              <div className="prototype-partition-list">
-                {data.resources?.partitions.map((partition) => (
-                  <div className="prototype-partition-row" key={partition.name}>
-                    <span><strong>{partition.name}</strong><small>{partition.allocated_cpus} 已分配 · {partition.idle_cpus} 空闲</small></span>
-                    <div><i style={{ width: `${partition.utilization_percent}%` }} /></div>
-                    <b>{partition.utilization_percent}%</b>
-                  </div>
-                ))}
-              </div>
+            <div className="prototype-resource-card-grid">
+              <article className="prototype-resource-card prototype-resource-card--primary">
+                <div className="prototype-resource-ring" style={{ "--resource-percent": `${primaryPartition.utilization_percent * 3.6}deg` } as CSSProperties}><span><b>{primaryPartition.utilization_percent}%</b><small>已分配</small></span></div>
+                <div className="prototype-resource-primary-copy"><span>主分区</span><strong>{primaryPartition.name}</strong><small>{primaryPartition.allocated_cpus} / {primaryPartition.total_cpus} 核</small></div>
+              </article>
+              {data.resources?.partitions.filter((partition) => partition.name !== primaryPartition.name).map((partition) => (
+                <article className="prototype-resource-card" key={partition.name}>
+                  <span>CPU 分区</span><strong>{partition.name}</strong><b>{partition.utilization_percent}%</b>
+                  <small>{partition.allocated_cpus} 已分配 · {partition.idle_cpus} 空闲</small>
+                  <div><i style={{ width: `${partition.utilization_percent}%` }} /></div>
+                </article>
+              ))}
             </div>
           ) : (
             <p className="prototype-repository-empty">当前没有可展示的 Slurm 分区。</p>
