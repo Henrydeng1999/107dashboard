@@ -35,6 +35,8 @@ Before changing code or documentation, read:
 
 Prioritize a complete and demonstrable competition workflow. Do not block the MVP on production concerns such as campus SSO, true multi-user Slurm delegation, PostgreSQL, Rootless Docker, or production HTTPS.
 
+This repository currently delivers a competition demonstration MVP, not a production client for long-term student use. Optimize for the single-account end-to-end workflow, demonstrability, UI completeness, and reproducible evidence. Do not proactively harden all runtime file permissions or introduce production IAM, tenant isolation, encryption at rest, secret rotation infrastructure, compliance controls, or service governance unless the user explicitly moves the project into production scope. Preserve the minimum non-negotiable boundaries required for a safe demo: never commit or expose secrets, never accept a Slurm username from HTTP input, validate structured Slurm parameters, enforce current-owner job access, avoid shell command construction, and keep product AI read-only.
+
 The default prototype deployment is:
 
 ```text
