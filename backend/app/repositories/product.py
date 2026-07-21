@@ -40,12 +40,23 @@ class ProductRepository:
                     created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
                     PRIMARY KEY(id, owner)
                 );
+                CREATE TABLE IF NOT EXISTS ai_provider_models (
+                    provider_id TEXT NOT NULL, owner TEXT NOT NULL, model TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY(provider_id, owner, model),
+                    FOREIGN KEY(provider_id, owner) REFERENCES ai_providers(id, owner)
+                        ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS ix_ai_provider_models_owner
+                    ON ai_provider_models(owner, provider_id, created_at);
                 CREATE TABLE IF NOT EXISTS ai_calls (
                     id TEXT PRIMARY KEY, owner TEXT NOT NULL, provider_id TEXT NOT NULL,
                     model TEXT NOT NULL, status TEXT NOT NULL, prompt_preview TEXT NOT NULL,
                     response_preview TEXT, created_at TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS ix_ai_calls_owner ON ai_calls(owner, created_at);
+                INSERT OR IGNORE INTO ai_provider_models(provider_id, owner, model, created_at)
+                    SELECT id, owner, model, created_at FROM ai_providers;
                 """
             )
 
@@ -91,6 +102,10 @@ class ProductRepository:
                 key_hint=COALESCE(excluded.key_hint, ai_providers.key_hint), updated_at=excluded.updated_at""",
                 (provider_id, owner, name, base_url, model, key_hint, now, now),
             )
+            self._connection.execute(
+                "INSERT OR IGNORE INTO ai_provider_models VALUES (?, ?, ?, ?)",
+                (provider_id, owner, model, now),
+            )
         return self.get_provider(owner, provider_id)  # type: ignore[return-value]
 
     def get_provider(self, owner: str, provider_id: str) -> dict | None:
@@ -106,6 +121,61 @@ class ProductRepository:
                 "SELECT * FROM ai_providers WHERE owner=? ORDER BY updated_at DESC", (owner,)
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def list_provider_models(self, owner: str, provider_id: str) -> list[str]:
+        with self._lock:
+            rows = self._connection.execute(
+                """SELECT model FROM ai_provider_models
+                WHERE owner=? AND provider_id=? ORDER BY created_at, model""",
+                (owner, provider_id),
+            ).fetchall()
+        return [str(row["model"]) for row in rows]
+
+    def add_provider_model(self, owner: str, provider_id: str, model: str) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                "INSERT OR IGNORE INTO ai_provider_models VALUES (?, ?, ?, ?)",
+                (provider_id, owner, model, _now()),
+            )
+
+    def set_default_provider_model(self, owner: str, provider_id: str, model: str) -> bool:
+        with self._lock, self._connection:
+            exists = self._connection.execute(
+                """SELECT 1 FROM ai_provider_models
+                WHERE owner=? AND provider_id=? AND model=?""",
+                (owner, provider_id, model),
+            ).fetchone()
+            if exists is None:
+                return False
+            self._connection.execute(
+                "UPDATE ai_providers SET model=?, updated_at=? WHERE owner=? AND id=?",
+                (model, _now(), owner, provider_id),
+            )
+        return True
+
+    def delete_provider_model(self, owner: str, provider_id: str, model: str) -> str | None:
+        with self._lock, self._connection:
+            provider = self._connection.execute(
+                "SELECT model FROM ai_providers WHERE owner=? AND id=?",
+                (owner, provider_id),
+            ).fetchone()
+            models = self.list_provider_models(owner, provider_id)
+            if provider is None or model not in models:
+                return None
+            if len(models) == 1:
+                raise ValueError("provider must keep at least one model")
+            self._connection.execute(
+                "DELETE FROM ai_provider_models WHERE owner=? AND provider_id=? AND model=?",
+                (owner, provider_id, model),
+            )
+            default_model = str(provider["model"])
+            if default_model == model:
+                default_model = next(item for item in models if item != model)
+                self._connection.execute(
+                    "UPDATE ai_providers SET model=?, updated_at=? WHERE owner=? AND id=?",
+                    (default_model, _now(), owner, provider_id),
+                )
+        return default_model
 
     def add_call(
         self,

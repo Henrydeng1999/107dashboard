@@ -1,5 +1,6 @@
 import type {
   ApiErrorResponse,
+  ClusterResourceOverview,
   Job,
   JobLogResponse,
   JobLogStream,
@@ -102,6 +103,10 @@ export function fetchJobUsage(jobId: string, signal?: AbortSignal): Promise<JobU
 
 export function fetchJobSummary(signal?: AbortSignal): Promise<UserJobSummary> {
   return request<UserJobSummary>("/jobs/summary", { signal });
+}
+
+export function fetchClusterResourceOverview(signal?: AbortSignal): Promise<ClusterResourceOverview> {
+  return request<ClusterResourceOverview>("/jobs/resources/overview", { signal });
 }
 
 export function fetchRuntimeInfo(signal?: AbortSignal): Promise<RuntimeInfo> {

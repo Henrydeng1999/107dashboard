@@ -25,8 +25,6 @@ import type {
 } from "../features/jobs/types";
 
 const PAGE_SIZE = 20;
-const ACTIVE_REFRESH_MS = 5_000;
-const IDLE_REFRESH_MS = 15_000;
 
 const safeCapabilities: RuntimeCapabilities = {
   list_jobs: true,
@@ -96,16 +94,8 @@ export function JobsWorkspace({
   const [actionPending, setActionPending] = useState<"cancel" | "clone" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const [pageVisible, setPageVisible] = useState(() => !document.hidden);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const operationIdempotency = useRef<Record<string, string>>({});
-
-  useEffect(() => {
-    const updateVisibility = () => setPageVisible(!document.hidden);
-    document.addEventListener("visibilitychange", updateVisibility);
-    return () => document.removeEventListener("visibilitychange", updateVisibility);
-  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -144,15 +134,6 @@ export function JobsWorkspace({
       });
     return () => controller.abort();
   }, [page, reloadKey, stateFilter, subpage]);
-
-  const hasActiveJobs = data?.items.some((job) => ["PENDING", "RUNNING"].includes(job.state)) ?? false;
-  const refreshDelay = hasActiveJobs ? ACTIVE_REFRESH_MS : IDLE_REFRESH_MS;
-
-  useEffect(() => {
-    if (!autoRefresh || !pageVisible) return;
-    const timer = window.setTimeout(() => setReloadKey((value) => value + 1), refreshDelay);
-    return () => window.clearTimeout(timer);
-  }, [autoRefresh, pageVisible, refreshDelay, reloadKey]);
 
   useEffect(() => {
     setSelectedJob(null);
@@ -264,8 +245,7 @@ export function JobsWorkspace({
           </label>
           <div className="prototype-live-sync">
             <span>{lastSyncedAt ? `同步于 ${lastSyncedAt.toLocaleTimeString("zh-CN", { hour12: false })}` : "等待首次同步"}</span>
-            <button type="button" className="prototype-secondary" onClick={() => setAutoRefresh((value) => !value)}>{autoRefresh ? "暂停轮询" : "开启轮询"}</button>
-            <button type="button" className="prototype-icon-button" aria-label="立即刷新" disabled={loading} onClick={() => setReloadKey((value) => value + 1)}>↻</button>
+            <button type="button" className="prototype-secondary" aria-label="手动刷新作业数据" disabled={loading} onClick={() => setReloadKey((value) => value + 1)}>{loading ? "刷新中…" : "刷新"}</button>
           </div>
         </div>
         {notice && <div className="prototype-live-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice(null)}>关闭</button></div>}

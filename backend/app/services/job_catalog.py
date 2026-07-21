@@ -22,6 +22,8 @@ from app.schemas.jobs import (
     JobLogStream,
     JobResources,
     JobResourceSummary,
+    ClusterResourceOverview,
+    PartitionCpuUsage,
     JobState,
     JobSubmitRequest,
     JobUsageResponse,
@@ -623,6 +625,68 @@ class JobCatalog:
             ),
             resource_basis="requested_or_allocated_snapshot",
             updated_at=observed_at,
+        )
+
+    def resource_overview(self) -> ClusterResourceOverview:
+        try:
+            partitions = self.adapter.list_partitions()
+        except (SlurmCommandError, SlurmParseError, OSError, ValueError) as exc:
+            raise JobCatalogUnavailable("Slurm partition data is unavailable") from exc
+
+        aggregate: dict[str, dict[str, int | str | None]] = {}
+        for partition in partitions:
+            if not partition.cpu_summary:
+                continue
+            try:
+                allocated, idle, other, total = (
+                    int(value) for value in partition.cpu_summary.split("/")
+                )
+            except (TypeError, ValueError) as exc:
+                raise JobCatalogUnavailable("Slurm CPU summary is invalid") from exc
+            if min(allocated, idle, other, total) < 0 or allocated + idle + other > total:
+                raise JobCatalogUnavailable("Slurm CPU summary is inconsistent")
+            current = aggregate.setdefault(
+                partition.name,
+                {
+                    "availability": partition.availability,
+                    "state": partition.state,
+                    "allocated": 0,
+                    "idle": 0,
+                    "other": 0,
+                    "total": 0,
+                },
+            )
+            current["allocated"] = int(current["allocated"] or 0) + allocated
+            current["idle"] = int(current["idle"] or 0) + idle
+            current["other"] = int(current["other"] or 0) + other
+            current["total"] = int(current["total"] or 0) + total
+            if current["state"] != partition.state:
+                current["state"] = "mixed"
+
+        usage: list[PartitionCpuUsage] = []
+        for name, values in aggregate.items():
+            allocated = int(values["allocated"] or 0)
+            idle = int(values["idle"] or 0)
+            other = int(values["other"] or 0)
+            total = int(values["total"] or 0)
+            usage.append(
+                PartitionCpuUsage(
+                    name=name,
+                    availability=str(values["availability"]) if values["availability"] else None,
+                    state=str(values["state"]) if values["state"] else None,
+                    allocated_cpus=allocated,
+                    idle_cpus=idle,
+                    other_cpus=other,
+                    total_cpus=total,
+                    utilization_percent=round(allocated / total * 100, 1) if total else 0,
+                )
+            )
+
+        primary = next((item.name for item in usage if item.name == "Students"), None)
+        return ClusterResourceOverview(
+            primary_partition=primary or (usage[0].name if usage else None),
+            partitions=usage,
+            updated_at=datetime.now(UTC),
         )
 
     def get_job(self, dashboard_job_id: str) -> Job | None:

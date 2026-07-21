@@ -8,7 +8,7 @@ from app.core.config import Settings
 from app.core.identity import TrustedIdentityError
 from app.main import create_app
 from app.services.job_catalog import JobCatalog, build_job_catalog
-from app.slurm import SlurmCommandFailed, SlurmJob, SlurmResources, SlurmUsageRecord
+from app.slurm import SlurmCommandFailed, SlurmJob, SlurmPartition, SlurmResources, SlurmUsageRecord
 from app.slurm.runner import CommandResult
 
 
@@ -73,7 +73,26 @@ class NativeReadOnlyAdapter:
         ]
 
     def list_partitions(self) -> list[object]:
-        return []
+        return [
+            SlurmPartition(
+                name="Students",
+                availability="up",
+                state="mix",
+                cpu_summary="220/164/0/384",
+            ),
+            SlurmPartition(
+                name="Students",
+                availability="up",
+                state="idle",
+                cpu_summary="0/1280/0/1280",
+            ),
+            SlurmPartition(
+                name="GPU-A100",
+                availability="up",
+                state="mix",
+                cpu_summary="100/156/0/256",
+            ),
+        ]
 
     def get_usage(self, job_id: str) -> list[SlurmUsageRecord]:
         self.requested_usage_ids.append(job_id)
@@ -172,6 +191,45 @@ def test_fixture_user_summary_updates_after_submission() -> None:
     assert summary["resources"]["cpus"] == 8
     assert summary["resources"]["memory_mb"] == 16384
     assert summary["resources"]["gpus"] == 3
+
+
+def test_cluster_resource_overview_parses_partition_cpu_capacity() -> None:
+    settings = Settings(_env_file=None)
+    catalog = JobCatalog(adapter=NativeReadOnlyAdapter(), owner="demo-user")
+    client = TestClient(create_app(settings=settings))
+    client.app.state.job_catalog = catalog
+
+    response = client.get("/api/jobs/resources/overview")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["primary_partition"] == "Students"
+    assert payload["partitions"][0] == {
+        "name": "Students",
+        "availability": "up",
+        "state": "mixed",
+        "allocated_cpus": 220,
+        "idle_cpus": 1444,
+        "other_cpus": 0,
+        "total_cpus": 1664,
+        "utilization_percent": 13.2,
+    }
+    assert [item["name"] for item in payload["partitions"]].count("Students") == 1
+
+
+def test_cluster_resource_overview_rejects_inconsistent_cpu_summary() -> None:
+    adapter = NativeReadOnlyAdapter()
+    adapter.list_partitions = lambda: [
+        SlurmPartition(name="Students", cpu_summary="90/20/0/100")
+    ]
+    settings = Settings(_env_file=None)
+    client = TestClient(create_app(settings=settings))
+    client.app.state.job_catalog = JobCatalog(adapter=adapter, owner="demo-user")
+
+    response = client.get("/api/jobs/resources/overview")
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "CLUSTER_RESOURCES_UNAVAILABLE"
 
 
 def test_fixture_owner_is_server_configuration_not_request_input() -> None:

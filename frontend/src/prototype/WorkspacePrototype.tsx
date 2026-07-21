@@ -102,6 +102,7 @@ export function WorkspacePrototype() {
   const [activeItems, setActiveItems] = useState<Record<ModuleId, string>>({ overview: "总览", jobs: "作业总览", reports: "报告总览", projects: "项目总览", repositories: "仓库浏览", ai: "Chat" });
   const [expandedModules, setExpandedModules] = useState<Set<ModuleId>>(() => new Set(modules.filter((module) => module.items.length > 0).map((module) => module.id)));
   const [runtimeState, setRuntimeState] = useState<"loading" | "connected" | "degraded" | "unavailable">("loading");
+  const [refreshKey, setRefreshKey] = useState(0);
   const active = useMemo(() => modules.find((item) => item.id === activeModule)!, [activeModule]);
   const meta = pageMeta[activeModule];
 
@@ -147,23 +148,15 @@ export function WorkspacePrototype() {
   }, [accountOpen]);
 
   useEffect(() => {
-    let controller = new AbortController();
-    const refresh = () => {
-      controller.abort();
-      controller = new AbortController();
-      fetchRuntimeInfo(controller.signal)
-        .then((runtime) => setRuntimeState(runtime.degraded ? "degraded" : "connected"))
-        .catch((reason: unknown) => {
-          if (!(reason instanceof DOMException && reason.name === "AbortError")) setRuntimeState("unavailable");
-        });
-    };
-    refresh();
-    const timer = window.setInterval(refresh, 30_000);
-    return () => {
-      window.clearInterval(timer);
-      controller.abort();
-    };
-  }, []);
+    const controller = new AbortController();
+    setRuntimeState("loading");
+    fetchRuntimeInfo(controller.signal)
+      .then((runtime) => setRuntimeState(runtime.degraded ? "degraded" : "connected"))
+      .catch((reason: unknown) => {
+        if (!(reason instanceof DOMException && reason.name === "AbortError")) setRuntimeState("unavailable");
+      });
+    return () => controller.abort();
+  }, [refreshKey]);
 
   const utilityMeta = utilityPage === "help"
     ? { eyebrow: "DOCUMENTATION", title: "帮助与文档", description: "了解真实能力、操作流程和安全边界。" }
@@ -187,7 +180,7 @@ export function WorkspacePrototype() {
         <div className="prototype-sidebar-bottom"><button type="button" className={utilityPage === "help" ? "is-active" : ""} onClick={() => navigate({ kind: "utility", page: "help" })}><span>?</span>帮助与文档</button><button type="button" className={utilityPage === "settings" ? "is-active" : ""} onClick={() => navigate({ kind: "utility", page: "settings" })}><span>⚙</span>系统设置</button><div className="prototype-platform"><StatusDot /><div><strong>单账号工作台</strong><small>数据源状态见作业页</small></div></div></div>
       </aside>
       <main className="prototype-main">
-        <header className="prototype-topbar"><div className="prototype-breadcrumb"><span>{utilityPage ? "工作台" : activeModule === "overview" ? "工作空间" : active.label}</span>{(utilityPage || activeModule !== "overview") && <><b>/</b><strong>{utilityPage === "help" ? "帮助与文档" : utilityPage === "settings" ? "系统设置" : activeItems[activeModule]}</strong></>}</div><div className="prototype-top-actions"><ThemeToggle /><span className={`prototype-runtime-state is-${runtimeState}`} role="status" aria-live="polite" aria-busy={runtimeState === "loading"}><StatusDot tone={runtimeState === "connected" ? "green" : runtimeState === "loading" ? "blue" : "orange"} />{runtimeState === "connected" ? "107 已连接" : runtimeState === "degraded" ? "数据已降级" : runtimeState === "unavailable" ? "状态不可用" : "正在连接"}</span></div></header>
+        <header className="prototype-topbar"><div className="prototype-breadcrumb"><span>{utilityPage ? "工作台" : activeModule === "overview" ? "工作空间" : active.label}</span>{(utilityPage || activeModule !== "overview") && <><b>/</b><strong>{utilityPage === "help" ? "帮助与文档" : utilityPage === "settings" ? "系统设置" : activeItems[activeModule]}</strong></>}</div><div className="prototype-top-actions"><ThemeToggle /><button className="prototype-global-refresh" type="button" disabled={runtimeState === "loading"} onClick={() => setRefreshKey((value) => value + 1)}><span aria-hidden="true">↻</span> 刷新数据</button><span className={`prototype-runtime-state is-${runtimeState}`} role="status" aria-live="polite" aria-busy={runtimeState === "loading"}><StatusDot tone={runtimeState === "connected" ? "green" : runtimeState === "loading" ? "blue" : "orange"} />{runtimeState === "connected" ? "107 已连接" : runtimeState === "degraded" ? "数据已降级" : runtimeState === "unavailable" ? "状态不可用" : "正在连接"}</span></div></header>
         <div className="prototype-content">
           <nav className={`prototype-mobile-navigation${activeModule === "overview" && !utilityPage ? " is-overview" : ""}`} aria-label="当前模块导航">
             {!utilityPage && active.items.map((item) => <button type="button" key={item} aria-current={activeItems[activeModule] === item ? "page" : undefined} className={activeItems[activeModule] === item ? "is-current" : ""} onClick={() => selectItem(active, item)}>{item}</button>)}
@@ -198,12 +191,12 @@ export function WorkspacePrototype() {
           <div className="prototype-workspace">
             {utilityPage === "help" && <HelpWorkspace onNavigate={navigate} />}
             {utilityPage === "settings" && <SettingsWorkspace onNavigate={navigate} />}
-            {!utilityPage && activeModule === "overview" && <OverviewWorkspace onNavigate={(destination) => navigate({ kind: "module", ...destination })} />}
-            {!utilityPage && activeModule === "jobs" && <JobsWorkspace subpage={activeItems.jobs} onNavigate={(subpage) => setActiveItems((current) => ({ ...current, jobs: subpage }))} />}
-            {!utilityPage && activeModule === "reports" && <ReportsWorkspace />}
-            {!utilityPage && activeModule === "projects" && <ProjectsWorkspace />}
-            {!utilityPage && activeModule === "repositories" && <RepositoriesWorkspace />}
-            {!utilityPage && activeModule === "ai" && <AiWorkspace subpage={activeItems.ai} />}
+            {!utilityPage && activeModule === "overview" && <OverviewWorkspace key={`overview-${refreshKey}`} onNavigate={(destination) => navigate({ kind: "module", ...destination })} />}
+            {!utilityPage && activeModule === "jobs" && <JobsWorkspace key={`jobs-${refreshKey}`} subpage={activeItems.jobs} onNavigate={(subpage) => setActiveItems((current) => ({ ...current, jobs: subpage }))} />}
+            {!utilityPage && activeModule === "reports" && <ReportsWorkspace key={`reports-${refreshKey}`} />}
+            {!utilityPage && activeModule === "projects" && <ProjectsWorkspace key={`projects-${refreshKey}`} />}
+            {!utilityPage && activeModule === "repositories" && <RepositoriesWorkspace key={`repositories-${refreshKey}`} />}
+            {!utilityPage && activeModule === "ai" && <AiWorkspace key={`ai-${refreshKey}`} subpage={activeItems.ai} />}
           </div>
         </div>
       </main>

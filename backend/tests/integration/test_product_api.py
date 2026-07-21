@@ -60,6 +60,7 @@ def test_reports_projects_and_ai_workspace(tmp_path, monkeypatch) -> None:
     )
     assert provider.status_code == 200
     assert provider.json()["configured"] is True
+    assert provider.json()["models"] == ["school-chat-pro"]
     assert provider.json()["key_hint"] == "••••alue"
     assert "test-secret-value" not in provider.text
     assert "test-secret-value" not in client.get("/api/ai/providers").text
@@ -79,6 +80,33 @@ def test_reports_projects_and_ai_workspace(tmp_path, monkeypatch) -> None:
     )
     assert chat.status_code == 200
     assert chat.json()["answer"] == "基于结构化证据的测试回答"
+    assert chat.json()["model"] == "school-chat-pro"
+
+    client.post(
+        "/api/ai/providers/school/models",
+        json={"model": "second-model"},
+    )
+    selected_chat = client.post(
+        "/api/ai/chat",
+        json={
+            "provider_id": "school",
+            "model": "second-model",
+            "message": "使用指定模型",
+            "job_ids": [],
+        },
+    )
+    assert selected_chat.status_code == 200
+    assert selected_chat.json()["model"] == "second-model"
+    unknown_model = client.post(
+        "/api/ai/chat",
+        json={
+            "provider_id": "school",
+            "model": "not-added",
+            "message": "不应调用",
+            "job_ids": [],
+        },
+    )
+    assert unknown_model.status_code == 409
     assert client.get("/api/ai/calls").json()["items"][0]["status"] == "SUCCEEDED"
     assert len(client.get("/api/ai/templates").json()["items"]) == 2
 

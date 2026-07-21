@@ -1,16 +1,23 @@
 import { type FormEvent, useEffect, useState } from "react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { fetchJobs } from "../api/jobs";
 import {
+  addAiProviderModel,
   createEvaluationProject,
+  deleteAiProviderModel,
   fetchAiCalls,
+  fetchAiProviderModels,
   fetchAiProviders,
   fetchEvaluationProjects,
   fetchPromptTemplates,
   fetchReports,
   saveAiProvider,
   sendAiChat,
+  setDefaultAiProviderModel,
   testAiProvider,
+  testAiProviderModel,
 } from "../api/product";
 import type { Job } from "../features/jobs/types";
 import type {
@@ -231,6 +238,13 @@ export function ProjectsWorkspace() {
 }
 
 export function AiWorkspace({ subpage }: { subpage: string }) {
+  const schoolPreset = {
+    id: "school",
+    name: "学校 AI 服务",
+    base_url: "https://api.llm.ustc.edu.cn",
+    model: "deepseek-v4-pro",
+    api_key: "",
+  };
   const [providers, setProviders] = useState<AiProvider[]>([]);
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   const [calls, setCalls] = useState<AiCallRecord[]>([]);
@@ -238,16 +252,14 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
+  const [lastQuestion, setLastQuestion] = useState("");
   const [busy, setBusy] = useState(false);
+  const [chatStartedAt, setChatStartedAt] = useState<number | null>(null);
+  const [chatWaitSeconds, setChatWaitSeconds] = useState(0);
   const [providerTest, setProviderTest] = useState<string | null>(null);
-  const [providerForm, setProviderForm] = useState({
-    id: "school",
-    name: "学校 AI 服务",
-    base_url: "",
-    model: "",
-    api_key: "",
-  });
-  const [chat, setChat] = useState({ provider_id: "school", message: "" });
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [providerForm, setProviderForm] = useState(schoolPreset);
+  const [chat, setChat] = useState({ provider_id: "school", model: "deepseek-v4-pro", message: "" });
   const suggestions = [
     "总结这个作业的异常发现",
     "对比这两个作业的资源效率",
@@ -264,8 +276,13 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
     setProviders(providerItems);
     setTemplates(templateItems);
     setCalls(callItems);
-    if (providerItems.length > 0 && !providerItems.some((item) => item.id === chat.provider_id)) {
-      setChat((current) => ({ ...current, provider_id: providerItems[0].id }));
+    const selected = providerItems.find((item) => item.id === chat.provider_id);
+    if (providerItems[0] && (!selected || !selected.models.includes(chat.model))) {
+      setChat((current) => ({
+        ...current,
+        provider_id: providerItems[0].id,
+        model: providerItems[0].model,
+      }));
     }
   };
 
@@ -283,7 +300,11 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
         setCalls(callItems);
         setJobs(jobPage.items);
         if (providerItems[0]) {
-          setChat((current) => ({ ...current, provider_id: providerItems[0].id }));
+          setChat((current) => ({
+            ...current,
+            provider_id: providerItems[0].id,
+            model: providerItems[0].model,
+          }));
           setProviderForm((current) => ({
             ...current,
             id: providerItems[0].id,
@@ -299,6 +320,17 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
       });
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    if (chatStartedAt === null) {
+      setChatWaitSeconds(0);
+      return;
+    }
+    const update = () => setChatWaitSeconds(Math.floor((Date.now() - chatStartedAt) / 1000));
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [chatStartedAt]);
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
@@ -322,17 +354,22 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
 
   const send = async (event: FormEvent) => {
     event.preventDefault();
+    const question = chat.message.trim();
+    if (!question) return;
     setError(null);
     setAnswer("");
+    setLastQuestion(question);
+    setChat((current) => ({ ...current, message: "" }));
     setBusy(true);
+    setChatStartedAt(Date.now());
     try {
-      const response = await sendAiChat({ ...chat, job_ids: selectedJobIds });
+      const response = await sendAiChat({ ...chat, message: question, job_ids: selectedJobIds });
       setAnswer(response.answer);
-      setChat((current) => ({ ...current, message: "" }));
       await reload();
     } catch (reason) {
       setError(message(reason));
     } finally {
+      setChatStartedAt(null);
       setBusy(false);
     }
   };
@@ -348,6 +385,89 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
       } else {
         setProviderTest(result.error ?? "连接测试未通过");
       }
+    } catch (reason) {
+      setError(message(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const discoverModels = async () => {
+    setError(null);
+    setProviderTest(null);
+    setBusy(true);
+    try {
+      const result = await fetchAiProviderModels(providerForm.id);
+      setAvailableModels(result.models);
+      setProviderTest(`已获取 ${result.count} 个模型 · 接口与密钥正常 · ${result.latency_ms} ms`);
+      if (!result.models.includes(providerForm.model) && result.models[0]) {
+        setProviderForm((current) => ({ ...current, model: result.models[0] }));
+      }
+    } catch (reason) {
+      setError(message(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const testSelectedModel = async () => {
+    setError(null);
+    setProviderTest(null);
+    setBusy(true);
+    try {
+      const result = await testAiProviderModel(providerForm.id, providerForm.model);
+      if (result.reachable && result.authenticated && !result.error) {
+        setProviderTest(`模型可用 · ${result.model ?? providerForm.model} · ${result.latency_ms ?? 0} ms`);
+      } else {
+        setProviderTest(result.error ?? "模型测试未通过");
+      }
+    } catch (reason) {
+      setError(message(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addModel = async (model: string) => {
+    setError(null);
+    setBusy(true);
+    try {
+      await addAiProviderModel(providerForm.id, model);
+      setProviderTest(`已添加模型 · ${model}`);
+      await reload();
+    } catch (reason) {
+      setError(message(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setDefaultModel = async (providerId: string, model: string) => {
+    setError(null);
+    setBusy(true);
+    try {
+      await setDefaultAiProviderModel(providerId, model);
+      setProviderTest(`已设为默认模型 · ${model}`);
+      setProviderForm((current) => current.id === providerId ? { ...current, model } : current);
+      await reload();
+    } catch (reason) {
+      setError(message(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeModel = async (provider: AiProvider, model: string) => {
+    if (!window.confirm(`从 ${provider.name} 中删除模型 ${model}？`)) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const updated = await deleteAiProviderModel(provider.id, model);
+      setProviderTest(`已删除模型 · ${model}`);
+      if (providerForm.id === provider.id) {
+        setProviderForm((current) => ({ ...current, model: updated.model }));
+      }
+      await reload();
     } catch (reason) {
       setError(message(reason));
     } finally {
@@ -395,6 +515,8 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
   }
 
   const loadProvider = (provider: AiProvider) => {
+    setAvailableModels([]);
+    setProviderTest(null);
     setProviderForm({
       id: provider.id,
       name: provider.name,
@@ -409,32 +531,67 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
       <div className="prototype-split">
         <section className="prototype-panel prototype-panel--scroll">
           {heading}
-          <p className="prototype-page-description">集中管理 Provider、模型与 API Key。模型切换在 Chat 会话中完成。</p>
+          <p className="prototype-page-description">学校服务已设为默认预设。API Key 仅保存在后端；获取模型会同时验证接口与密钥。</p>
           {error && <div className="prototype-live-error">{error}</div>}
           {providerTest && <div className="prototype-live-notice">{providerTest}</div>}
           <form className="prototype-form" onSubmit={(event) => void save(event)}>
             <label><span>Provider ID</span><input required readOnly={providers.some((provider) => provider.id === providerForm.id)} pattern="[A-Za-z0-9_-]+" maxLength={64} value={providerForm.id} onChange={(event) => setProviderForm({ ...providerForm, id: event.target.value })} /></label>
             <label><span>名称</span><input required maxLength={64} value={providerForm.name} onChange={(event) => setProviderForm({ ...providerForm, name: event.target.value })} /></label>
             <label className="prototype-form-wide"><span>Base URL（HTTPS）</span><input required type="url" value={providerForm.base_url} onChange={(event) => setProviderForm({ ...providerForm, base_url: event.target.value })} /></label>
-            <label><span>模型</span><input required value={providerForm.model} onChange={(event) => setProviderForm({ ...providerForm, model: event.target.value })} /></label>
+            <label><span>默认模型</span>
+              {availableModels.length > 0 ? (
+                <select required value={providerForm.model} onChange={(event) => setProviderForm({ ...providerForm, model: event.target.value })}>
+                  {availableModels.map((model) => <option key={model} value={model}>{model}</option>)}
+                </select>
+              ) : (
+                <input required value={providerForm.model} onChange={(event) => setProviderForm({ ...providerForm, model: event.target.value })} />
+              )}
+            </label>
             <label><span>API Key</span><input type="password" minLength={8} autoComplete="new-password" placeholder="保存后不可回读" value={providerForm.api_key} onChange={(event) => setProviderForm({ ...providerForm, api_key: event.target.value })} /></label>
             <div className="prototype-form-actions">
               <button className="prototype-primary" type="submit" disabled={busy}>{busy ? "处理中…" : "保存 Provider"}</button>
-              <button className="prototype-secondary" type="button" disabled={busy || !providers.some((provider) => provider.id === providerForm.id && provider.configured)} onClick={() => void testProvider()}>测试连接</button>
+              <button className="prototype-secondary" type="button" disabled={busy || !providers.some((provider) => provider.id === providerForm.id && provider.configured)} onClick={() => void discoverModels()}>获取模型</button>
+              <button className="prototype-secondary" type="button" disabled={busy || !providers.some((provider) => provider.id === providerForm.id && provider.configured)} onClick={() => void testSelectedModel()}>测试选中模型</button>
+              <button className="prototype-secondary" type="button" disabled={busy || !providers.some((provider) => provider.id === providerForm.id && provider.configured)} onClick={() => void testProvider()}>测试默认模型</button>
             </div>
             {!providers.some((provider) => provider.id === providerForm.id && provider.configured) && <p className="prototype-field-hint prototype-form-wide">先保存至少 8 位 API Key，随后即可测试连接。</p>}
           </form>
+          {availableModels.length > 0 && (
+            <div className="prototype-model-candidates">
+              <div className="prototype-section-title"><h3>接口可用模型</h3><span>{availableModels.length} 个</span></div>
+              {availableModels.map((model) => {
+                const added = providers.find((provider) => provider.id === providerForm.id)?.models.includes(model) ?? false;
+                return (
+                  <div className="prototype-model-row" key={model}>
+                    <code>{model}</code>
+                    <button className="prototype-secondary" type="button" disabled={busy || added} onClick={() => void addModel(model)}>{added ? "已添加" : "添加"}</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
         <aside className="prototype-panel prototype-panel--scroll">
           <span className="prototype-kicker">CONFIGURED</span><h2>已配置 Provider</h2>
-          <p className="prototype-panel-hint">点击卡片加载到表单编辑</p>
+          <p className="prototype-panel-hint">管理已添加模型，设置 Chat 默认项或删除不用的模型</p>
           {providers.map((provider) => (
-            <button className="prototype-key-card prototype-key-card--clickable" key={provider.id} type="button" onClick={() => loadProvider(provider)}>
-              <div className="prototype-provider-logo">AI</div>
-              <div><strong>{provider.name}</strong><span>{provider.model}</span></div>
-              <code>{provider.key_hint ?? "未配置密钥"}</code>
-              <span className={provider.configured ? "prototype-status-ok" : "prototype-status-missing"}>{provider.configured ? "可用" : "缺少密钥"}</span>
-            </button>
+            <article className="prototype-provider-models" key={provider.id}>
+              <button className="prototype-provider-heading" type="button" onClick={() => loadProvider(provider)}>
+                <div className="prototype-provider-logo">AI</div>
+                <div><strong>{provider.name}</strong><span>{provider.models.length} 个模型</span></div>
+                <code>{provider.key_hint ?? "未配置密钥"}</code>
+                <span className={provider.configured ? "prototype-status-ok" : "prototype-status-missing"}>{provider.configured ? "可用" : "缺少密钥"}</span>
+              </button>
+              <div className="prototype-provider-model-list">
+                {provider.models.map((model) => (
+                  <div className="prototype-model-row" key={model}>
+                    <code>{model}</code>
+                    {model === provider.model ? <span className="prototype-default-model">默认</span> : <button type="button" disabled={busy} onClick={() => void setDefaultModel(provider.id, model)}>设为默认</button>}
+                    <button className="prototype-model-delete" type="button" aria-label={`删除模型 ${model}`} title="删除模型" disabled={busy || provider.models.length === 1} onClick={() => void removeModel(provider, model)}>×</button>
+                  </div>
+                ))}
+              </div>
+            </article>
           ))}
         </aside>
       </div>
@@ -446,7 +603,25 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
       <section className="prototype-panel prototype-chat">
         {heading}
         <div className="prototype-chat-body">
-          {answer ? <div className="prototype-ai-answer">{answer}</div> : (
+          {lastQuestion ? (
+            <div className="prototype-chat-thread">
+              <div className="prototype-user-message">{lastQuestion}</div>
+              {answer && (
+                <div className="prototype-ai-answer">
+                  <Markdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      a: ({ children, ...props }) => (
+                        <a {...props} target="_blank" rel="noopener noreferrer">{children}</a>
+                      ),
+                    }}
+                  >
+                    {answer}
+                  </Markdown>
+                </div>
+              )}
+            </div>
+          ) : (
             <div className="prototype-chat-empty">
               <span>✦</span><h3>只读作业分析助手</h3>
               <p>回答来自配置的 OpenAI 兼容 Provider；AI 不具备作业控制权限。</p>
@@ -460,14 +635,26 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
             </div>
           )}
         </div>
+        {chatStartedAt !== null && (
+          <div className="prototype-chat-waiting" role="status" aria-live="polite">
+            <span className="prototype-chat-spinner" aria-hidden="true" />
+            <strong>正在等待 {chat.model}</strong>
+            <small>{chatWaitSeconds} 秒</small>
+          </div>
+        )}
         {error && <div className="prototype-live-error">{error}</div>}
         <form className="prototype-composer" onSubmit={(event) => void send(event)}>
-          <select aria-label="选择 AI Provider 与模型" value={chat.provider_id} onChange={(event) => setChat({ ...chat, provider_id: event.target.value })}>
+          <select aria-label="选择 AI 模型" value={JSON.stringify([chat.provider_id, chat.model])} onChange={(event) => {
+            const [provider_id, model] = JSON.parse(event.target.value) as [string, string];
+            setChat({ ...chat, provider_id, model });
+          }}>
             {!providers.some((provider) => provider.configured) && <option value="school">请先配置可用 Provider</option>}
-            {providers.filter((provider) => provider.configured).map((provider) => <option key={provider.id} value={provider.id}>{provider.name} · {provider.model}</option>)}
+            {providers.filter((provider) => provider.configured).flatMap((provider) => provider.models.map((model) => <option key={`${provider.id}:${model}`} value={JSON.stringify([provider.id, model])}>{model}</option>))}
           </select>
           <input required aria-label="分析问题" placeholder="输入问题…" value={chat.message} onChange={(event) => setChat({ ...chat, message: event.target.value })} />
-          <button type="submit" aria-label="发送分析请求" disabled={busy || !providers.some((provider) => provider.configured)}>{busy ? "…" : "↑"}</button>
+          <button className="prototype-send-button" type="submit" title="发送" aria-label="发送分析请求" disabled={busy || !chat.message.trim() || !providers.some((provider) => provider.configured)}>
+            <span aria-hidden="true">{busy ? "···" : "➤"}</span>
+          </button>
         </form>
       </section>
       <aside className="prototype-panel prototype-panel--scroll">

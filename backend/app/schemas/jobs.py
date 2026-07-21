@@ -135,6 +135,23 @@ class UserJobSummary(BaseModel):
     updated_at: datetime
 
 
+class PartitionCpuUsage(BaseModel):
+    name: str
+    availability: str | None = None
+    state: str | None = None
+    allocated_cpus: int = Field(ge=0)
+    idle_cpus: int = Field(ge=0)
+    other_cpus: int = Field(ge=0)
+    total_cpus: int = Field(ge=0)
+    utilization_percent: float = Field(ge=0, le=100)
+
+
+class ClusterResourceOverview(BaseModel):
+    primary_partition: str | None = None
+    partitions: list[PartitionCpuUsage]
+    updated_at: datetime
+
+
 class ErrorDetail(BaseModel):
     code: str
     message: str

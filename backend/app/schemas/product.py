@@ -100,6 +100,7 @@ class AiProvider(BaseModel):
     name: str
     base_url: str
     model: str
+    models: list[str]
     configured: bool
     key_hint: str | None
     updated_at: datetime
@@ -111,6 +112,9 @@ class AiProviderList(BaseModel):
 
 class AiChatRequest(BaseModel):
     provider_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    model: str | None = Field(
+        default=None, min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._:/-]+$"
+    )
     message: str = Field(min_length=1, max_length=8000)
     job_ids: list[str] = Field(default_factory=list, max_length=20)
 
@@ -147,6 +151,18 @@ class ProviderTestResult(BaseModel):
     model: str | None
     latency_ms: int | None
     error: str | None
+    key_hint: str | None
+
+
+class ProviderModelTestRequest(BaseModel):
+    model: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._:/-]+$")
+
+
+class ProviderModelList(BaseModel):
+    provider_id: str
+    models: list[str]
+    count: int = Field(ge=0)
+    latency_ms: int = Field(ge=0)
     key_hint: str | None
 
 

@@ -10,6 +10,7 @@ from app.core.config import Settings
 from app.main import create_app
 from app.services.ai_tools import AiReadTools, AiReadToolError
 from app.services.product import (
+    AiProviderTimeout,
     AiProviderUnavailable,
     AiToolsUnsupported,
     ProductService,
@@ -234,6 +235,22 @@ def test_explicit_unsupported_tools_falls_back_once(tmp_path, monkeypatch) -> No
     assert response.json()["tools_used"] == []
 
 
+def test_provider_completion_uses_sixty_second_timeout(tmp_path, monkeypatch) -> None:
+    service = _configured_client(tmp_path).app.state.product_service
+    provider = service.repository.get_provider(service.owner, "school")
+    assert provider is not None
+    observed: list[float] = []
+
+    def completion(_request, timeout=30):
+        observed.append(timeout)
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(urllib.request, "urlopen", completion)
+    with pytest.raises(AiProviderTimeout):
+        service._provider_completion(provider, [{"role": "user", "content": "hi"}], None)
+    assert observed == [60]
+
+
 @pytest.mark.parametrize(
     "tool_calls",
     [
@@ -247,7 +264,7 @@ def test_explicit_unsupported_tools_falls_back_once(tmp_path, monkeypatch) -> No
         [{"id": "call-1", "type": "function", "function": {"name": "", "arguments": "{}"}}],
     ],
 )
-def test_invalid_provider_tool_call_protocol_returns_503(
+def test_invalid_provider_tool_call_protocol_returns_502(
     tmp_path, monkeypatch, tool_calls
 ) -> None:
     client = _configured_client(tmp_path)
@@ -264,7 +281,7 @@ def test_invalid_provider_tool_call_protocol_returns_503(
         "/api/ai/chat",
         json={"provider_id": "school", "message": "检查状态", "job_ids": []},
     )
-    assert response.status_code == 503
+    assert response.status_code == 502
     assert response.json()["error"]["code"] == "AI_PROVIDER_UNAVAILABLE"
 
 

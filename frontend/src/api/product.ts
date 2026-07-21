@@ -1,5 +1,5 @@
 import { ApiError } from "./jobs";
-import type { AiCallRecord, AiChatResponse, AiProvider, AiProviderTestResult, DiagnosticReport, EvaluationProject, PromptTemplate } from "../features/product/types";
+import type { AiCallRecord, AiChatResponse, AiProvider, AiProviderModelList, AiProviderTestResult, DiagnosticReport, EvaluationProject, PromptTemplate } from "../features/product/types";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? "http://127.0.0.1:8000/api" : "/api");
 
@@ -19,6 +19,11 @@ export function createEvaluationProject(payload: { name: string; description: st
 export async function fetchAiProviders(signal?: AbortSignal): Promise<AiProvider[]> { return (await request<{ items: AiProvider[] }>("/ai/providers", { signal })).items; }
 export function saveAiProvider(id: string, payload: { name: string; base_url: string; model: string; api_key?: string }): Promise<AiProvider> { return request(`/ai/providers/${encodeURIComponent(id)}`, { ...json(payload), method: "PUT" }); }
 export function testAiProvider(id: string): Promise<AiProviderTestResult> { return request(`/ai/providers/${encodeURIComponent(id)}/test`, { method: "POST" }); }
-export function sendAiChat(payload: { provider_id: string; message: string; job_ids: string[] }): Promise<AiChatResponse> { return request("/ai/chat", json(payload)); }
+export function fetchAiProviderModels(id: string): Promise<AiProviderModelList> { return request(`/ai/providers/${encodeURIComponent(id)}/models`); }
+export function testAiProviderModel(id: string, model: string): Promise<AiProviderTestResult> { return request(`/ai/providers/${encodeURIComponent(id)}/models/test`, json({ model })); }
+export function addAiProviderModel(id: string, model: string): Promise<AiProvider> { return request(`/ai/providers/${encodeURIComponent(id)}/models`, json({ model })); }
+export function setDefaultAiProviderModel(id: string, model: string): Promise<AiProvider> { return request(`/ai/providers/${encodeURIComponent(id)}/models/default`, { ...json({ model }), method: "PUT" }); }
+export function deleteAiProviderModel(id: string, model: string): Promise<AiProvider> { return request(`/ai/providers/${encodeURIComponent(id)}/models?model=${encodeURIComponent(model)}`, { method: "DELETE" }); }
+export function sendAiChat(payload: { provider_id: string; model: string; message: string; job_ids: string[] }, signal?: AbortSignal): Promise<AiChatResponse> { return request("/ai/chat", { ...json(payload), signal }); }
 export async function fetchPromptTemplates(signal?: AbortSignal): Promise<PromptTemplate[]> { return (await request<{ items: PromptTemplate[] }>("/ai/templates", { signal })).items; }
 export async function fetchAiCalls(signal?: AbortSignal): Promise<AiCallRecord[]> { return (await request<{ items: AiCallRecord[] }>("/ai/calls", { signal })).items; }

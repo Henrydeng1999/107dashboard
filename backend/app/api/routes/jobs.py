@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.schemas.jobs import (
+    ClusterResourceOverview,
     ErrorResponse,
     Job,
     JobListResponse,
@@ -86,6 +87,21 @@ def job_summary(request: Request, catalog: CatalogDependency) -> UserJobSummary 
             503,
             "JOB_DATA_UNAVAILABLE",
             "Job data is temporarily unavailable",
+        )
+
+
+@router.get("/resources/overview", response_model=ClusterResourceOverview, responses=ERROR_RESPONSES)
+def resource_overview(
+    request: Request, catalog: CatalogDependency
+) -> ClusterResourceOverview | JSONResponse:
+    try:
+        return catalog.resource_overview()
+    except JobCatalogUnavailable:
+        return _error_response(
+            request,
+            503,
+            "CLUSTER_RESOURCES_UNAVAILABLE",
+            "Cluster resource data is temporarily unavailable",
         )
 
 

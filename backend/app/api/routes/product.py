@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.schemas.product import (
@@ -16,12 +16,18 @@ from app.schemas.product import (
     EvaluationProjectCreate,
     EvaluationProjectList,
     PromptTemplateList,
+    ProviderModelList,
+    ProviderModelTestRequest,
     ProviderTestResult,
 )
 from app.services.job_catalog import JobCatalog, JobCatalogUnavailable
 from app.services.product import (
     AiProviderNotConfigured,
+    AiProviderAuthenticationFailed,
+    AiProviderRateLimited,
+    AiProviderTimeout,
     AiProviderUnavailable,
+    AiProviderModelConflict,
     ProductNotFound,
     ProductService,
 )
@@ -43,6 +49,10 @@ Catalog = Annotated[JobCatalog, Depends(catalog)]
 ProviderId = Annotated[
     str,
     Path(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
+]
+ModelId = Annotated[
+    str,
+    Query(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._:/-]+$"),
 ]
 
 
@@ -114,6 +124,61 @@ def test_ai_provider(provider_id: ProviderId, request: Request, product: Service
         return error(request, 404, "AI_PROVIDER_NOT_FOUND", "AI provider was not found")
 
 
+@router.get("/ai/providers/{provider_id}/models", response_model=ProviderModelList)
+def ai_provider_models(provider_id: ProviderId, request: Request, product: Service):
+    try:
+        return product.provider_models(provider_id)
+    except AiProviderNotConfigured:
+        return error(request, 404, "AI_PROVIDER_NOT_FOUND", "AI provider was not configured")
+    except AiProviderUnavailable:
+        return error(request, 503, "AI_PROVIDER_UNAVAILABLE", "AI provider models are unavailable")
+
+
+@router.post("/ai/providers/{provider_id}/models/test", response_model=ProviderTestResult)
+def test_ai_provider_model(
+    provider_id: ProviderId,
+    payload: ProviderModelTestRequest,
+    request: Request,
+    product: Service,
+):
+    try:
+        return product.test_provider(provider_id, model=payload.model)
+    except AiProviderNotConfigured:
+        return error(request, 404, "AI_PROVIDER_NOT_FOUND", "AI provider was not found")
+
+
+@router.post("/ai/providers/{provider_id}/models", response_model=AiProvider)
+def add_ai_provider_model(
+    provider_id: ProviderId, payload: ProviderModelTestRequest, request: Request, product: Service
+):
+    try:
+        return product.add_provider_model(provider_id, payload.model)
+    except AiProviderNotConfigured:
+        return error(request, 404, "AI_PROVIDER_NOT_FOUND", "AI provider was not found")
+
+
+@router.put("/ai/providers/{provider_id}/models/default", response_model=AiProvider)
+def set_default_ai_provider_model(
+    provider_id: ProviderId, payload: ProviderModelTestRequest, request: Request, product: Service
+):
+    try:
+        return product.set_default_provider_model(provider_id, payload.model)
+    except AiProviderNotConfigured:
+        return error(request, 404, "AI_PROVIDER_MODEL_NOT_FOUND", "AI provider model was not found")
+
+
+@router.delete("/ai/providers/{provider_id}/models", response_model=AiProvider)
+def delete_ai_provider_model(
+    provider_id: ProviderId, model: ModelId, request: Request, product: Service
+):
+    try:
+        return product.delete_provider_model(provider_id, model)
+    except AiProviderNotConfigured:
+        return error(request, 404, "AI_PROVIDER_MODEL_NOT_FOUND", "AI provider model was not found")
+    except AiProviderModelConflict:
+        return error(request, 409, "AI_PROVIDER_MODEL_REQUIRED", "Provider must keep one model")
+
+
 @router.get("/ai/templates", response_model=PromptTemplateList)
 def ai_templates(product: Service):
     return PromptTemplateList(items=product.templates())
@@ -134,12 +199,25 @@ def ai_chat(payload: AiChatRequest, request: Request, product: Service, jobs: Ca
             repositories=request.app.state.git_repository_browser,
             test_projects=request.app.state.test_project_catalog,
         )
-        return product.chat(jobs, payload.provider_id, payload.message, payload.job_ids, tools)
+        return product.chat(
+            jobs, payload.provider_id, payload.model, payload.message, payload.job_ids, tools
+        )
     except ProductNotFound:
         return error(request, 404, "JOB_NOT_FOUND", "One or more jobs were not found")
     except AiProviderNotConfigured:
         return error(request, 409, "AI_PROVIDER_NOT_CONFIGURED", "AI provider is not configured")
+    except AiProviderTimeout:
+        return error(
+            request,
+            504,
+            "AI_PROVIDER_TIMEOUT",
+            "模型响应超时，请稍后重试或切换其他模型",
+        )
+    except AiProviderAuthenticationFailed:
+        return error(request, 502, "AI_PROVIDER_AUTH_FAILED", "Provider 密钥已失效或无权调用该模型")
+    except AiProviderRateLimited:
+        return error(request, 429, "AI_PROVIDER_RATE_LIMITED", "模型当前请求过多，请稍后重试")
     except AiProviderUnavailable:
         return error(
-            request, 503, "AI_PROVIDER_UNAVAILABLE", "AI provider is temporarily unavailable"
+            request, 502, "AI_PROVIDER_UNAVAILABLE", "模型服务暂时不可用，请稍后重试"
         )

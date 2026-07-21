@@ -114,6 +114,23 @@ export interface UserJobSummary {
   updated_at: string;
 }
 
+export interface PartitionCpuUsage {
+  name: string;
+  availability: string | null;
+  state: string | null;
+  allocated_cpus: number;
+  idle_cpus: number;
+  other_cpus: number;
+  total_cpus: number;
+  utilization_percent: number;
+}
+
+export interface ClusterResourceOverview {
+  primary_partition: string | null;
+  partitions: PartitionCpuUsage[];
+  updated_at: string;
+}
+
 export interface ApiErrorResponse {
   error?: {
     code?: string;

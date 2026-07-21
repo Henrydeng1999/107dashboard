@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 
-import { fetchJobs, fetchJobSummary, fetchRuntimeInfo } from "../api/jobs";
+import { fetchClusterResourceOverview, fetchJobs, fetchJobSummary, fetchRuntimeInfo } from "../api/jobs";
 import { fetchAiCalls, fetchAiProviders, fetchReports } from "../api/product";
 import { fetchRepositories } from "../api/repositories";
-import type { Job, RuntimeInfo, UserJobSummary } from "../features/jobs/types";
+import type { ClusterResourceOverview, Job, RuntimeInfo, UserJobSummary } from "../features/jobs/types";
 import type { AiCallRecord, AiProvider, DiagnosticReport } from "../features/product/types";
 import type { GitRepositorySummary } from "../features/repositories/types";
 
@@ -21,6 +21,7 @@ type OverviewData = {
   repositories: GitRepositorySummary[];
   providers: AiProvider[];
   calls: AiCallRecord[];
+  resources: ClusterResourceOverview | null;
 };
 
 const emptyData: OverviewData = {
@@ -31,6 +32,7 @@ const emptyData: OverviewData = {
   repositories: [],
   providers: [],
   calls: [],
+  resources: null,
 };
 
 function formatTime(value: string | null | undefined): string {
@@ -62,6 +64,7 @@ export function OverviewWorkspace({ onNavigate }: { onNavigate: (destination: Ov
       fetchRepositories(controller.signal),
       fetchAiProviders(controller.signal),
       fetchAiCalls(controller.signal),
+      fetchClusterResourceOverview(controller.signal),
     ] as const;
 
     Promise.allSettled(requests).then((results) => {
@@ -80,6 +83,7 @@ export function OverviewWorkspace({ onNavigate }: { onNavigate: (destination: Ov
       const repositories = value<Awaited<ReturnType<typeof fetchRepositories>>>(4, "Git 仓库");
       const providers = value<AiProvider[]>(5, "AI Provider");
       const calls = value<AiCallRecord[]>(6, "AI 调用记录");
+      const resources = value<ClusterResourceOverview>(7, "集群资源");
       setData({
         runtime,
         summary,
@@ -88,6 +92,7 @@ export function OverviewWorkspace({ onNavigate }: { onNavigate: (destination: Ov
         repositories: repositories?.items ?? [],
         providers: providers ?? [],
         calls: calls ?? [],
+        resources,
       });
       setFailedSources(failed);
       setLoading(false);
@@ -107,6 +112,9 @@ export function OverviewWorkspace({ onNavigate }: { onNavigate: (destination: Ov
   const configuredProviders = data.providers.filter((provider) => provider.configured);
   const degraded = data.runtime?.degraded || failedSources.length > 0;
   const sourceFailed = (label: string) => failedSources.includes(label);
+  const primaryPartition = data.resources?.partitions.find(
+    (partition) => partition.name === data.resources?.primary_partition,
+  ) ?? null;
 
   return (
     <div className={`prototype-overview${failedSources.length > 0 ? " has-warning" : ""}`}>
@@ -130,6 +138,42 @@ export function OverviewWorkspace({ onNavigate }: { onNavigate: (destination: Ov
       </section>
 
       <div className="prototype-overview-grid">
+        <section className="prototype-panel prototype-resource-overview">
+          <div className="prototype-panel-heading">
+            <div><span className="prototype-kicker">SLURM CAPACITY</span><h2>CPU 与分区占用</h2></div>
+            <span className="prototype-resource-time">{formatTime(data.resources?.updated_at)}</span>
+          </div>
+          {loading ? (
+            <div className="prototype-overview-placeholder">正在读取 Slurm 分区资源…</div>
+          ) : sourceFailed("集群资源") ? (
+            <p className="prototype-repository-empty">集群资源暂时不可用。</p>
+          ) : primaryPartition ? (
+            <div className="prototype-resource-layout">
+              <div className="prototype-cpu-donut-wrap">
+                <div
+                  className="prototype-cpu-donut"
+                  style={{ "--cpu-usage": `${primaryPartition.utilization_percent * 3.6}deg` } as CSSProperties}
+                  aria-label={`${primaryPartition.name} CPU 占用 ${primaryPartition.utilization_percent}%`}
+                >
+                  <span><strong>{primaryPartition.utilization_percent}%</strong><small>已分配</small></span>
+                </div>
+                <div><strong>{primaryPartition.name}</strong><small>{primaryPartition.allocated_cpus} / {primaryPartition.total_cpus} 核</small></div>
+              </div>
+              <div className="prototype-partition-list">
+                {data.resources?.partitions.map((partition) => (
+                  <div className="prototype-partition-row" key={partition.name}>
+                    <span><strong>{partition.name}</strong><small>{partition.allocated_cpus} 已分配 · {partition.idle_cpus} 空闲</small></span>
+                    <div><i style={{ width: `${partition.utilization_percent}%` }} /></div>
+                    <b>{partition.utilization_percent}%</b>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="prototype-repository-empty">当前没有可展示的 Slurm 分区。</p>
+          )}
+        </section>
+
         <section className="prototype-panel prototype-panel--scroll prototype-overview-primary">
           <div className="prototype-panel-heading"><div><span className="prototype-kicker">LIVE JOBS</span><h2>当前活动</h2></div><button className="prototype-overview-link" type="button" onClick={() => onNavigate({ module: "jobs", item: "活动作业" })}>查看全部</button></div>
           {activeJobs.map((job) => (

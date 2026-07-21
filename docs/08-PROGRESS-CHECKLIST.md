@@ -2,7 +2,7 @@
 
 <div class="progress-meta">
   <span class="status-badge status-done">● 本地回归通过 · 最近 107 验收通过</span>
-  <span>更新时间：2026-07-21</span>
+  <span>更新时间：2026-07-22</span>
   <span>平台验收提交：<code>85c9646</code></span>
 </div>
 
@@ -82,8 +82,9 @@
 | <span class="status-badge status-done">✓</span> | 四模块统一工作台 | 可展开侧栏、作业提交管理、诊断报告、项目评价和 AI 工作台；旧版页面入口已移除 | 四个主模块统一使用 `LIVE API` 页面入口；前端类型检查与生产构建通过 |
 | <span class="status-badge status-done">✓</span> | 确定性诊断报告 | 基于 owner 可见作业的 Slurm 状态、退出码、原因、申请资源和 usage 生成版本化证据、分数、发现与建议 | 产品 API 集成测试、Ruff 与前端构建通过；不依赖外部 AI |
 | <span class="status-badge status-done">✓</span> | 多作业项目评价 | SQLite 持久化项目与作业关联，按规则返回综合分、等级、证据覆盖率和缺口建议 | 创建、查询、未知作业边界与前端构建通过 |
-| <span class="status-badge status-active">→</span> | 只读 AI 工作台 | HTTPS OpenAI 兼容 Provider、私有 API Key、作业证据选择、Chat、提示词与调用记录已接线 | 本地未配置/模拟成功/密钥不回显测试通过；学校真实 Provider 尚待凭证验收 |
+| <span class="status-badge status-active">→</span> | 只读 AI 工作台 | HTTPS OpenAI 兼容 Provider、私有 API Key、Provider 多模型发现/测试/默认选择、作业证据选择、Chat、提示词与调用记录已接线 | 未配置、模拟成功、密钥不回显、模型增删与超时/认证/限流错误映射测试通过；学校真实 Provider 尚待凭证验收 |
 | <span class="status-badge status-active">→</span> | 新版作业页完整迁移 | jobs、runtime、projects、summary、logs、usage API，以及提交、取消、克隆、幂等、轮询和能力门禁均迁入新版布局 | 本地 Fixture 已通过列表、筛选、活动页、详情、usage、stdout/stderr、提交、取消和克隆；等待 107 浏览器 Native 验收 |
+| <span class="status-badge status-done">✓</span> | 工作台资源概览 | Overview 与作业页使用真实资源汇总、状态分布和活动作业数据，四模块工作台补齐帮助、导航与紧凑桌面交互 | API 集成测试、前端 TypeScript、普通构建和统一导航构建通过 |
 | <span class="status-badge status-done">✓</span> | 身份与元数据链路 | SQLite source 隔离、旧表兼容升级、Slurm 状态优先去重合并和 owner 限定查询 | 恢复、跨 owner、来源隔离、旧表升级和合并测试通过 |
 | <span class="status-badge status-done">✓</span> | Native 能力界面 | `/api/runtime` 分别声明提交、日志等能力，前端展示当前 Native 模式并隐藏未开放操作 | TypeScript 检查和 Vite 生产构建通过 |
 | <span class="status-badge status-done">✓</span> | Native 平台验收 | 有效 UID、owner、真实列表、详情和 usage 在 107 运行通过 | 提交 `05a64a3`；用户 `pb24030760`；Job `21482`；`COMPLETED`；`0:0`；脚本退出 0 |
@@ -104,7 +105,7 @@
 | <span class="status-badge status-done">✓</span> | Native 全交互综合链 | 通过真实 HTTP 路由集中覆盖提交、终态、日志、usage、取消、克隆、再次取消、幂等与审计 | 提交 `85c9646` 在 107 通过；Job `24159` 完成，Job `24160/24161` 取消，5 条幂等记录及审计链完整，无活动作业遗留 |
 | <span class="status-badge status-active">→</span> | 用户目录基础产品服务 | Native-only 配置、tmux 服务管理、产品启动检查、最新前端标识和真实可运行模板 | 本地配置/检查单测、Shell 语法、前端类型检查及构建通过；107 部署和浏览器基本操作待验收 |
 | <span class="status-badge status-done">✓</span> | 登记测试项目 | 独立项目根目录、只读清单 API、owner/权限/符号链接/大小校验、submission 私有快照和前端选择 | 候选代码在 107 环境完成项目 API、快照、未知项目与路径安全回归；真实 Job 留待浏览器验收 |
-| <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 后端 218 个 pytest 通过（符号链接用例在 Windows 跳过），目标 Ruff 通过；0 个生产依赖漏洞 |
+| <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 107 Python 3.12 环境后端 268 个 pytest 通过，Ruff 与 `pip check` 通过；npm 官方审计 0 个生产依赖漏洞 |
 | <span class="status-badge status-done">✓</span> | 文档 | 架构、环境、协作、部署、API 契约 | 文档站可直接访问 |
 | <span class="status-badge status-done">✓</span> | 文档体验 | 单章节按需加载、模糊过渡、URL 定位、前进后退和章节筛选 | 浏览器交互检查通过 |
 
@@ -114,7 +115,7 @@
   <div class="notice notice-next"><strong>下一开发项</strong><span>将当前构建部署到 107 用户目录，集中验收四模块浏览器流程；随后填写学校真实 AI Provider 地址与测试密钥，验证一次只读结构化证据问答。</span></div>
   <div class="notice notice-warning"><strong>暂时限制</strong><span>诊断与项目评价已可离线确定性运行；AI Chat 必须先配置真实 HTTPS Provider。默认学校地址只是模板，当前尚未完成外部 Provider 真实性验收。</span></div>
   <div class="notice notice-safe"><strong>安全边界</strong><span>真实测试只能通过 Slurm 提交，禁止在登录节点直接运行学生计算任务。</span></div>
-  <div class="notice notice-info"><strong>验证方式</strong><span>Fixture 与注入式 Native 回归用于本地稳定验证，107 脚本用于平台真实验收：后端 pytest 218 passed、目标 Ruff、Shell 语法、前端类型检查、普通构建与统一导航构建通过。</span></div>
+  <div class="notice notice-info"><strong>验证方式</strong><span>Fixture 与注入式 Native 回归用于稳定验证，107 脚本用于平台真实验收：目标 Python 3.12 后端 pytest 268 passed、Ruff、pip check、Shell 语法、前端类型检查、普通构建与统一导航构建通过，npm 官方审计 0 漏洞。</span></div>
 </div>
 
 ## MVP 必须功能

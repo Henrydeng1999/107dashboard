@@ -223,3 +223,176 @@ class TestAiProviderTestApi:
         resp = client.post("/api/ai/providers/secret-guard/test")
         assert resp.status_code == 200
         assert "super-secret-key-9999" not in resp.text
+
+
+class TestAiProviderModelsApi:
+    def test_discovers_sanitized_models(self, tmp_path, monkeypatch):
+        body = json.dumps(
+            {
+                "data": [
+                    {"id": "qwen3.5"},
+                    {"id": "deepseek-v4-pro"},
+                    {"id": "qwen3.5"},
+                    {"id": "invalid model"},
+                    {"unexpected": "ignored"},
+                ]
+            }
+        ).encode()
+        monkeypatch.setattr(
+            urllib.request,
+            "urlopen",
+            lambda _request, timeout=30: _StubResponse(200, body),
+        )
+        client = _make_client(tmp_path)
+        client.put(
+            "/api/ai/providers/school",
+            json={
+                "name": "School AI",
+                "base_url": "https://school.example/v1",
+                "model": "deepseek-v4-pro",
+                "api_key": "school-secret-key",
+            },
+        )
+
+        response = client.get("/api/ai/providers/school/models")
+
+        assert response.status_code == 200
+        assert response.json()["models"] == ["deepseek-v4-pro", "qwen3.5"]
+        assert response.json()["count"] == 2
+        assert response.json()["latency_ms"] >= 0
+        assert "school-secret-key" not in response.text
+
+    def test_model_discovery_requires_configured_provider(self, tmp_path):
+        client = _make_client(tmp_path)
+        response = client.get("/api/ai/providers/missing/models")
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "AI_PROVIDER_NOT_FOUND"
+
+    def test_model_discovery_hides_upstream_error(self, tmp_path, monkeypatch):
+        def _fail(request, timeout=30):
+            raise urllib.error.HTTPError(
+                url=request.full_url or "/stub",
+                code=502,
+                msg="upstream-secret-detail",
+                hdrs={},
+                fp=None,
+            )
+
+        monkeypatch.setattr(urllib.request, "urlopen", _fail)
+        client = _make_client(tmp_path)
+        client.put(
+            "/api/ai/providers/school",
+            json={
+                "name": "School AI",
+                "base_url": "https://school.example/v1",
+                "model": "deepseek-v4-pro",
+                "api_key": "school-secret-key",
+            },
+        )
+        response = client.get("/api/ai/providers/school/models")
+        assert response.status_code == 503
+        assert response.json()["error"]["code"] == "AI_PROVIDER_UNAVAILABLE"
+        assert "upstream-secret-detail" not in response.text
+        assert "school-secret-key" not in response.text
+
+    def test_selected_model_can_be_tested_without_saving(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            urllib.request,
+            "urlopen",
+            lambda _request, timeout=30: _StubResponse(200, VALID_COMPLETION),
+        )
+        client = _make_client(tmp_path)
+        client.put(
+            "/api/ai/providers/school",
+            json={
+                "name": "School AI",
+                "base_url": "https://school.example/v1",
+                "model": "deepseek-v4-pro",
+                "api_key": "school-secret-key",
+            },
+        )
+        response = client.post(
+            "/api/ai/providers/school/models/test",
+            json={"model": "qwen3.5"},
+        )
+        assert response.status_code == 200
+        assert response.json()["model"] == "qwen3.5"
+        provider = client.get("/api/ai/providers").json()["items"][0]
+        assert provider["model"] == "deepseek-v4-pro"
+        assert "school-secret-key" not in response.text
+
+    def test_add_set_default_and_delete_models(self, tmp_path):
+        client = _make_client(tmp_path)
+        created = client.put(
+            "/api/ai/providers/school",
+            json={
+                "name": "School AI",
+                "base_url": "https://school.example/v1",
+                "model": "deepseek-v4-pro",
+                "api_key": "school-secret-key",
+            },
+        )
+        assert created.json()["models"] == ["deepseek-v4-pro"]
+
+        added = client.post(
+            "/api/ai/providers/school/models",
+            json={"model": "qwen3.5"},
+        )
+        assert added.status_code == 200
+        assert added.json()["models"] == ["deepseek-v4-pro", "qwen3.5"]
+        assert added.json()["model"] == "deepseek-v4-pro"
+
+        selected = client.put(
+            "/api/ai/providers/school/models/default",
+            json={"model": "qwen3.5"},
+        )
+        assert selected.status_code == 200
+        assert selected.json()["model"] == "qwen3.5"
+
+        deleted = client.delete(
+            "/api/ai/providers/school/models",
+            params={"model": "qwen3.5"},
+        )
+        assert deleted.status_code == 200
+        assert deleted.json()["models"] == ["deepseek-v4-pro"]
+        assert deleted.json()["model"] == "deepseek-v4-pro"
+
+    def test_cannot_delete_last_model(self, tmp_path):
+        client = _make_client(tmp_path)
+        client.put(
+            "/api/ai/providers/school",
+            json={
+                "name": "School AI",
+                "base_url": "https://school.example/v1",
+                "model": "deepseek-v4-pro",
+                "api_key": "school-secret-key",
+            },
+        )
+        response = client.delete(
+            "/api/ai/providers/school/models",
+            params={"model": "deepseek-v4-pro"},
+        )
+        assert response.status_code == 409
+        assert response.json()["error"]["code"] == "AI_PROVIDER_MODEL_REQUIRED"
+
+    def test_rejects_unknown_default_and_invalid_delete_model(self, tmp_path):
+        client = _make_client(tmp_path)
+        client.put(
+            "/api/ai/providers/school",
+            json={
+                "name": "School AI",
+                "base_url": "https://school.example/v1",
+                "model": "deepseek-v4-pro",
+                "api_key": "school-secret-key",
+            },
+        )
+        unknown = client.put(
+            "/api/ai/providers/school/models/default",
+            json={"model": "not-added"},
+        )
+        invalid = client.delete(
+            "/api/ai/providers/school/models",
+            params={"model": "bad model"},
+        )
+        assert unknown.status_code == 404
+        assert invalid.status_code == 422

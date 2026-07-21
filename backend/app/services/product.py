@@ -19,6 +19,7 @@ from app.schemas.product import (
     EvaluationJob,
     EvaluationProject,
     PromptTemplate,
+    ProviderModelList,
     ProviderTestResult,
     ReportEvidence,
     ReportFinding,
@@ -41,7 +42,23 @@ class AiProviderUnavailable(RuntimeError):
     pass
 
 
+class AiProviderTimeout(AiProviderUnavailable):
+    pass
+
+
+class AiProviderAuthenticationFailed(AiProviderUnavailable):
+    pass
+
+
+class AiProviderRateLimited(AiProviderUnavailable):
+    pass
+
+
 class AiToolsUnsupported(RuntimeError):
+    pass
+
+
+class AiProviderModelConflict(RuntimeError):
     pass
 
 
@@ -281,6 +298,7 @@ class ProductService:
         self,
         catalog: JobCatalog,
         provider_id: str,
+        model: str | None,
         message: str,
         job_ids: list[str],
         tools: "AiReadTools | None" = None,
@@ -288,6 +306,10 @@ class ProductService:
         provider = self.repository.get_provider(self.owner, provider_id)
         if provider is None or not self._secret_exists(provider_id):
             raise AiProviderNotConfigured("provider is not configured")
+        selected_model = model or provider["model"]
+        if selected_model not in self.repository.list_provider_models(self.owner, provider_id):
+            raise AiProviderNotConfigured("provider model is not configured")
+        provider = {**provider, "model": selected_model}
         context = []
         for job_id in job_ids:
             context.append(self.report(catalog, job_id).model_dump(mode="json"))
@@ -315,7 +337,7 @@ class ProductService:
     def calls(self) -> list[AiCallRecord]:
         return [AiCallRecord(**item) for item in self.repository.list_calls(self.owner)]
 
-    def test_provider(self, provider_id: str) -> ProviderTestResult:
+    def test_provider(self, provider_id: str, model: str | None = None) -> ProviderTestResult:
         provider = self.repository.get_provider(self.owner, provider_id)
         if provider is None:
             raise AiProviderNotConfigured("provider not found")
@@ -331,12 +353,83 @@ class ProductService:
                 error="API key not configured",
                 key_hint=provider.get("key_hint"),
             )
-        return self._test_connection(provider)
+        return self._test_connection(provider, model=model)
 
-    def _test_connection(self, provider: dict) -> ProviderTestResult:
+    def provider_models(self, provider_id: str) -> ProviderModelList:
+        provider = self.repository.get_provider(self.owner, provider_id)
+        if provider is None or not self._secret_exists(provider_id):
+            raise AiProviderNotConfigured("provider is not configured")
+        request = urllib.request.Request(
+            f"{provider['base_url']}/models",
+            headers={
+                "Authorization": f"Bearer {self._read_secret(provider_id)}",
+                "Accept": "application/json",
+            },
+        )
+        start = datetime.now(UTC)
+        try:
+            with urllib.request.urlopen(request, timeout=15) as response:
+                result = json.loads(response.read(2_000_000))
+            raw_models = (
+                result.get("data", result.get("models", []))
+                if isinstance(result, dict)
+                else result
+            )
+            if not isinstance(raw_models, list):
+                raise ValueError("model list is missing")
+            model_ids = {
+                item.get("id") if isinstance(item, dict) else item
+                for item in raw_models[:1000]
+                if isinstance(item, (dict, str))
+            }
+            models = sorted(
+                item
+                for item in model_ids
+                if isinstance(item, str)
+                and len(item) <= 128
+                and re.fullmatch(r"[A-Za-z0-9._:/-]+", item)
+            )
+            if not models:
+                raise ValueError("no valid model IDs returned")
+            latency = int((datetime.now(UTC) - start).total_seconds() * 1000)
+            return ProviderModelList(
+                provider_id=provider_id,
+                models=models,
+                count=len(models),
+                latency_ms=latency,
+                key_hint=provider.get("key_hint"),
+            )
+        except (urllib.error.HTTPError, OSError, urllib.error.URLError, ValueError, TypeError) as exc:
+            raise AiProviderUnavailable("provider model discovery failed") from exc
+
+    def add_provider_model(self, provider_id: str, model: str) -> AiProvider:
+        provider = self.repository.get_provider(self.owner, provider_id)
+        if provider is None:
+            raise AiProviderNotConfigured("provider not found")
+        self.repository.add_provider_model(self.owner, provider_id, model)
+        return self._provider(provider)
+
+    def set_default_provider_model(self, provider_id: str, model: str) -> AiProvider:
+        if not self.repository.set_default_provider_model(self.owner, provider_id, model):
+            raise AiProviderNotConfigured("provider model not found")
+        provider = self.repository.get_provider(self.owner, provider_id)
+        return self._provider(provider)  # type: ignore[arg-type]
+
+    def delete_provider_model(self, provider_id: str, model: str) -> AiProvider:
+        try:
+            default_model = self.repository.delete_provider_model(self.owner, provider_id, model)
+        except ValueError as exc:
+            raise AiProviderModelConflict("provider must keep at least one model") from exc
+        if default_model is None:
+            raise AiProviderNotConfigured("provider model not found")
+        provider = self.repository.get_provider(self.owner, provider_id)
+        return self._provider(provider)  # type: ignore[arg-type]
+
+    def _test_connection(self, provider: dict, model: str | None = None) -> ProviderTestResult:
+        selected_model = model or provider["model"]
         payload = json.dumps(
             {
-                "model": provider["model"],
+                "model": selected_model,
                 "messages": [{"role": "user", "content": "Hi"}],
                 "max_tokens": 5,
                 "temperature": 0.0,
@@ -362,7 +455,7 @@ class ProductService:
                 configured=True,
                 reachable=True,
                 authenticated=True,
-                model=provider["model"],
+                model=selected_model,
                 latency_ms=latency,
                 error=None,
                 key_hint=provider.get("key_hint"),
@@ -375,7 +468,7 @@ class ProductService:
                 configured=True,
                 reachable=True,
                 authenticated=not auth_failed,
-                model=provider["model"],
+                model=selected_model,
                 latency_ms=latency,
                 error=f"HTTP {exc.code}: {exc.reason}",
                 key_hint=provider.get("key_hint"),
@@ -427,6 +520,7 @@ class ProductService:
             name=record["name"],
             base_url=record["base_url"],
             model=record["model"],
+            models=self.repository.list_provider_models(self.owner, record["id"]),
             configured=self._secret_exists(record["id"]),
             key_hint=record["key_hint"],
             updated_at=record["updated_at"],
@@ -590,7 +684,7 @@ class ProductService:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=30) as response:
+            with urllib.request.urlopen(request, timeout=60) as response:
                 result = json.loads(response.read(2_000_000))
             message = result["choices"][0]["message"]
             if not isinstance(message, dict):
@@ -640,6 +734,12 @@ class ProductService:
                 )
             ):
                 raise AiToolsUnsupported("provider does not support tool calling") from exc
+            if exc.code in {401, 403}:
+                raise AiProviderAuthenticationFailed("AI provider authentication failed") from exc
+            if exc.code == 429:
+                raise AiProviderRateLimited("AI provider rate limit exceeded") from exc
             raise AiProviderUnavailable("AI provider request failed") from exc
+        except TimeoutError as exc:
+            raise AiProviderTimeout("AI provider request timed out") from exc
         except (OSError, ValueError, KeyError, IndexError, urllib.error.URLError) as exc:
             raise AiProviderUnavailable("AI provider request failed") from exc

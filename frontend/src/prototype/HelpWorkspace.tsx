@@ -102,7 +102,7 @@ export function HelpWorkspace({ onNavigate }: { onNavigate: Navigate }) {
           <span className="prototype-kicker">TROUBLESHOOTING</span>
           <h2>故障排查</h2>
           <dl className="prototype-help-faq">
-            <div><dt>列表没有更新</dt><dd>确认轮询已开启，点击刷新按钮；仍失败时查看页面内错误信息并重试。</dd></div>
+            <div><dt>列表没有更新</dt><dd>页面不会自动轮询；请点击作业页的“刷新”按钮。仍失败时查看页面内错误信息并重试。</dd></div>
             <div><dt>提交按钮不可用</dt><dd>查看作业页的运行时状态。只读、Fixture 回退或能力探测失败都会关闭提交。</dd></div>
             <div><dt>AI 连接失败</dt><dd>核对 HTTPS Base URL、模型名和密钥，然后在“接入设置”执行连接测试。</dd></div>
             <div><dt>页面颜色不合适</dt><dd>在顶栏或系统设置中选择跟随系统、浅色或深色主题。</dd></div>
