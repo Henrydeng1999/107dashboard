@@ -404,12 +404,12 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
     });
   };
 
-  if (subpage === "模型接入") {
+  if (subpage === "接入设置") {
     return (
       <div className="prototype-split">
         <section className="prototype-panel prototype-panel--scroll">
           {heading}
-          <p className="prototype-page-description">管理 AI Provider 连接：配置或编辑端点与模型。点击下方卡片可加载到表单编辑。</p>
+          <p className="prototype-page-description">集中管理 Provider、模型与 API Key。模型切换在 Chat 会话中完成。</p>
           {error && <div className="prototype-live-error">{error}</div>}
           {providerTest && <div className="prototype-live-notice">{providerTest}</div>}
           <form className="prototype-form" onSubmit={(event) => void save(event)}>
@@ -441,44 +441,6 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
     );
   }
 
-  if (subpage === "API Keys") {
-    return (
-      <div className="prototype-split">
-        <section className="prototype-panel prototype-panel--scroll">
-          {heading}
-          <p className="prototype-page-description">安全管理各 Provider 的 API 密钥。密钥仅保存在后端受限文件中，保存后无法通过 API 回读。</p>
-          {error && <div className="prototype-live-error">{error}</div>}
-          <form className="prototype-form" onSubmit={(event) => void save(event)}>
-            <label><span>Provider</span>
-              <select disabled={providers.length === 0} value={providerForm.id} onChange={(event) => {
-                const selected = providers.find((p) => p.id === event.target.value);
-                if (selected) loadProvider(selected);
-              }}>
-                {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </label>
-            <label className="prototype-form-wide"><span>新 API Key</span><input type="password" minLength={8} autoComplete="new-password" placeholder="输入新密钥以更新" value={providerForm.api_key} onChange={(event) => setProviderForm({ ...providerForm, api_key: event.target.value })} /></label>
-            <button className="prototype-primary" type="submit" disabled={busy || providers.length === 0 || !providers.some((provider) => provider.id === providerForm.id) || providerForm.api_key.length < 8}>{busy ? "保存中…" : "更新密钥"}</button>
-          </form>
-          <div className="prototype-key-list-note">
-            <span>✦</span><span>浏览器只显示密钥末四位提示。若 Provider 信息需变更，请前往「模型接入」页面。</span>
-          </div>
-        </section>
-        <aside className="prototype-panel prototype-panel--scroll">
-          <span className="prototype-kicker">KEY STATUS</span><h2>密钥状态</h2>
-          {providers.map((provider) => (
-            <div className="prototype-key-card" key={provider.id}>
-              <div className="prototype-provider-logo">AI</div>
-              <div><strong>{provider.name}</strong><span>{provider.model}</span></div>
-              <code>{provider.key_hint ?? "未配置密钥"}</code>
-              <span className={provider.configured ? "prototype-status-ok" : "prototype-status-missing"}>{provider.configured ? "已配置" : "未配置"}</span>
-            </div>
-          ))}
-        </aside>
-      </div>
-    );
-  }
-
   return (
     <div className="prototype-split">
       <section className="prototype-panel prototype-chat">
@@ -500,9 +462,9 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
         </div>
         {error && <div className="prototype-live-error">{error}</div>}
         <form className="prototype-composer" onSubmit={(event) => void send(event)}>
-          <select aria-label="AI Provider" value={chat.provider_id} onChange={(event) => setChat({ ...chat, provider_id: event.target.value })}>
+          <select aria-label="选择 AI Provider 与模型" value={chat.provider_id} onChange={(event) => setChat({ ...chat, provider_id: event.target.value })}>
             {!providers.some((provider) => provider.configured) && <option value="school">请先配置可用 Provider</option>}
-            {providers.filter((provider) => provider.configured).map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
+            {providers.filter((provider) => provider.configured).map((provider) => <option key={provider.id} value={provider.id}>{provider.name} · {provider.model}</option>)}
           </select>
           <input required aria-label="分析问题" placeholder="输入问题…" value={chat.message} onChange={(event) => setChat({ ...chat, message: event.target.value })} />
           <button type="submit" aria-label="发送分析请求" disabled={busy || !providers.some((provider) => provider.configured)}>{busy ? "…" : "↑"}</button>

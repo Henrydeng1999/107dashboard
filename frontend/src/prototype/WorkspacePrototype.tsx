@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { fetchRuntimeInfo } from "../api/jobs";
 import { JobsWorkspace } from "./JobsWorkspace";
 import { AiWorkspace, ProjectsWorkspace, ReportsWorkspace } from "./ProductWorkspaces";
 import { ThemeProvider } from "./useTheme";
 import { ThemeToggle } from "./ThemeToggle";
 import { HelpWorkspace, SettingsWorkspace, type WorkspaceDestination } from "./HelpWorkspace";
 import { RepositoriesWorkspace } from "./RepositoriesWorkspace";
+import { OverviewWorkspace } from "./OverviewWorkspace";
 
-type ModuleId = "jobs" | "reports" | "projects" | "repositories" | "ai";
+type ModuleId = "overview" | "jobs" | "reports" | "projects" | "repositories" | "ai";
 
 type NavModule = {
   id: ModuleId;
@@ -17,6 +19,12 @@ type NavModule = {
 };
 
 const modules: NavModule[] = [
+  {
+    id: "overview",
+    label: "总览",
+    icon: "⌂",
+    items: [],
+  },
   {
     id: "repositories",
     label: "Git 仓库",
@@ -45,11 +53,16 @@ const modules: NavModule[] = [
     id: "ai",
     label: "AI 工作台",
     icon: "✦",
-    items: ["Chat", "模型接入", "API Keys", "内置提示词", "调用记录"],
+    items: ["Chat", "接入设置", "内置提示词", "调用记录"],
   },
 ];
 
 const pageMeta: Record<ModuleId, { eyebrow: string; title: string; description: string }> = {
+  overview: {
+    eyebrow: "WORKSPACE OVERVIEW",
+    title: "总览",
+    description: "一眼查看当前账户最重要的运行状态、异常与近期活动。",
+  },
   jobs: {
     eyebrow: "SLURM WORKSPACE",
     title: "作业提交管理",
@@ -73,7 +86,7 @@ const pageMeta: Record<ModuleId, { eyebrow: string; title: string; description: 
   ai: {
     eyebrow: "AI WORKSPACE",
     title: "AI 工作台",
-    description: "管理模型接入、提示词与辅助分析会话。",
+    description: "在会话中选择模型，并管理接入配置、提示词与调用记录。",
   },
 };
 
@@ -82,11 +95,13 @@ function StatusDot({ tone = "green" }: { tone?: "green" | "orange" | "blue" }) {
 }
 
 export function WorkspacePrototype() {
-  const [activeModule, setActiveModule] = useState<ModuleId>("jobs");
+  const [activeModule, setActiveModule] = useState<ModuleId>("overview");
   const [utilityPage, setUtilityPage] = useState<"help" | "settings" | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
-  const [activeItems, setActiveItems] = useState<Record<ModuleId, string>>({ jobs: "作业总览", reports: "报告总览", projects: "项目总览", repositories: "仓库浏览", ai: "Chat" });
+  const [activeItems, setActiveItems] = useState<Record<ModuleId, string>>({ overview: "总览", jobs: "作业总览", reports: "报告总览", projects: "项目总览", repositories: "仓库浏览", ai: "Chat" });
+  const [expandedModules, setExpandedModules] = useState<Set<ModuleId>>(() => new Set(modules.filter((module) => module.items.length > 0).map((module) => module.id)));
+  const [runtimeState, setRuntimeState] = useState<"loading" | "connected" | "degraded" | "unavailable">("loading");
   const active = useMemo(() => modules.find((item) => item.id === activeModule)!, [activeModule]);
   const meta = pageMeta[activeModule];
 
@@ -94,6 +109,14 @@ export function WorkspacePrototype() {
     setUtilityPage(null);
     setAccountOpen(false);
     setActiveModule(module.id);
+    if (module.items.length > 0) {
+      setExpandedModules((current) => {
+        const next = new Set(current);
+        if (activeModule === module.id && next.has(module.id)) next.delete(module.id);
+        else next.add(module.id);
+        return next;
+      });
+    }
   }
 
   function selectItem(module: NavModule, item: string) {
@@ -123,6 +146,25 @@ export function WorkspacePrototype() {
     return () => document.removeEventListener("mousedown", close);
   }, [accountOpen]);
 
+  useEffect(() => {
+    let controller = new AbortController();
+    const refresh = () => {
+      controller.abort();
+      controller = new AbortController();
+      fetchRuntimeInfo(controller.signal)
+        .then((runtime) => setRuntimeState(runtime.degraded ? "degraded" : "connected"))
+        .catch((reason: unknown) => {
+          if (!(reason instanceof DOMException && reason.name === "AbortError")) setRuntimeState("unavailable");
+        });
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 30_000);
+    return () => {
+      window.clearInterval(timer);
+      controller.abort();
+    };
+  }, []);
+
   const utilityMeta = utilityPage === "help"
     ? { eyebrow: "DOCUMENTATION", title: "帮助与文档", description: "了解真实能力、操作流程和安全边界。" }
     : { eyebrow: "PREFERENCES", title: "系统设置", description: "管理当前浏览器的外观与功能入口。" };
@@ -131,23 +173,23 @@ export function WorkspacePrototype() {
     <ThemeProvider>
     <div className="prototype-shell">
       <aside className="prototype-sidebar">
-        <div className="prototype-brand"><span>107</span><div><strong>Dashboard</strong><small>Student Workspace</small></div></div>
+        <button className="prototype-brand" type="button" onClick={() => { setUtilityPage(null); setActiveModule("overview"); }} aria-label="返回总览"><span>107</span><div><strong>Dashboard</strong><small>Student Workspace</small></div></button>
         <div className="prototype-account" ref={accountRef}><span>PB</span><div><strong>当前 Unix 账号</strong><small>Students · stu</small></div><button type="button" aria-label="打开账号菜单" aria-expanded={accountOpen} onClick={() => setAccountOpen((value) => !value)}>⌄</button>{accountOpen && <div className="prototype-account-menu"><strong>当前会话</strong><span>身份由后端 Unix UID 确认</span><button type="button" onClick={() => navigate({ kind: "utility", page: "settings" })}>系统设置</button><button type="button" onClick={() => navigate({ kind: "utility", page: "help" })}>帮助与文档</button></div>}</div>
         <nav className="prototype-nav" aria-label="产品主导航">
           <span className="prototype-nav-label">工作空间</span>
           {modules.map((module) => (
             <div className="prototype-nav-group" key={module.id}>
-              <button type="button" className={activeModule === module.id ? "is-active" : ""} onClick={() => selectModule(module)} aria-expanded={activeModule === module.id}><span>{module.icon}</span>{module.label}<span aria-hidden="true">⌄</span></button>
-              {activeModule === module.id && <div className="prototype-subnav">{module.items.map((item) => <button type="button" key={item} aria-current={!utilityPage && activeItems[module.id] === item ? "page" : undefined} className={activeItems[module.id] === item ? "is-current" : ""} onClick={() => selectItem(module, item)}>{item}</button>)}</div>}
+              <button type="button" className={activeModule === module.id ? "is-active" : ""} onClick={() => selectModule(module)} aria-expanded={module.items.length > 0 ? expandedModules.has(module.id) : undefined}><span>{module.icon}</span>{module.label}{module.items.length > 0 && <b aria-hidden="true">{expandedModules.has(module.id) ? "⌃" : "⌄"}</b>}</button>
+              {module.items.length > 0 && expandedModules.has(module.id) && <div className="prototype-subnav">{module.items.map((item) => <button type="button" key={item} aria-current={!utilityPage && activeModule === module.id && activeItems[module.id] === item ? "page" : undefined} className={!utilityPage && activeModule === module.id && activeItems[module.id] === item ? "is-current" : ""} onClick={() => selectItem(module, item)}>{item}</button>)}</div>}
             </div>
           ))}
         </nav>
         <div className="prototype-sidebar-bottom"><button type="button" className={utilityPage === "help" ? "is-active" : ""} onClick={() => navigate({ kind: "utility", page: "help" })}><span>?</span>帮助与文档</button><button type="button" className={utilityPage === "settings" ? "is-active" : ""} onClick={() => navigate({ kind: "utility", page: "settings" })}><span>⚙</span>系统设置</button><div className="prototype-platform"><StatusDot /><div><strong>单账号工作台</strong><small>数据源状态见作业页</small></div></div></div>
       </aside>
       <main className="prototype-main">
-        <header className="prototype-topbar"><div className="prototype-breadcrumb"><span>{utilityPage ? "工作台" : active.label}</span><b>/</b><strong>{utilityPage === "help" ? "帮助与文档" : utilityPage === "settings" ? "系统设置" : activeItems[activeModule]}</strong></div><div className="prototype-top-actions"><ThemeToggle /><span className="prototype-design-pill is-live">API 数据</span><button className="prototype-avatar" type="button" aria-label="打开系统设置" onClick={() => navigate({ kind: "utility", page: "settings" })}>PB</button></div></header>
+        <header className="prototype-topbar"><div className="prototype-breadcrumb"><span>{utilityPage ? "工作台" : activeModule === "overview" ? "工作空间" : active.label}</span>{(utilityPage || activeModule !== "overview") && <><b>/</b><strong>{utilityPage === "help" ? "帮助与文档" : utilityPage === "settings" ? "系统设置" : activeItems[activeModule]}</strong></>}</div><div className="prototype-top-actions"><ThemeToggle /><span className={`prototype-runtime-state is-${runtimeState}`} role="status" aria-live="polite" aria-busy={runtimeState === "loading"}><StatusDot tone={runtimeState === "connected" ? "green" : runtimeState === "loading" ? "blue" : "orange"} />{runtimeState === "connected" ? "107 已连接" : runtimeState === "degraded" ? "数据已降级" : runtimeState === "unavailable" ? "状态不可用" : "正在连接"}</span></div></header>
         <div className="prototype-content">
-          <nav className="prototype-mobile-navigation" aria-label="当前模块导航">
+          <nav className={`prototype-mobile-navigation${activeModule === "overview" && !utilityPage ? " is-overview" : ""}`} aria-label="当前模块导航">
             {!utilityPage && active.items.map((item) => <button type="button" key={item} aria-current={activeItems[activeModule] === item ? "page" : undefined} className={activeItems[activeModule] === item ? "is-current" : ""} onClick={() => selectItem(active, item)}>{item}</button>)}
             <button type="button" aria-current={utilityPage === "help" ? "page" : undefined} className={utilityPage === "help" ? "is-current" : ""} onClick={() => navigate({ kind: "utility", page: "help" })}>帮助</button>
             <button type="button" aria-current={utilityPage === "settings" ? "page" : undefined} className={utilityPage === "settings" ? "is-current" : ""} onClick={() => navigate({ kind: "utility", page: "settings" })}>设置</button>
@@ -156,6 +198,7 @@ export function WorkspacePrototype() {
           <div className="prototype-workspace">
             {utilityPage === "help" && <HelpWorkspace onNavigate={navigate} />}
             {utilityPage === "settings" && <SettingsWorkspace onNavigate={navigate} />}
+            {!utilityPage && activeModule === "overview" && <OverviewWorkspace onNavigate={(destination) => navigate({ kind: "module", ...destination })} />}
             {!utilityPage && activeModule === "jobs" && <JobsWorkspace subpage={activeItems.jobs} onNavigate={(subpage) => setActiveItems((current) => ({ ...current, jobs: subpage }))} />}
             {!utilityPage && activeModule === "reports" && <ReportsWorkspace />}
             {!utilityPage && activeModule === "projects" && <ProjectsWorkspace />}

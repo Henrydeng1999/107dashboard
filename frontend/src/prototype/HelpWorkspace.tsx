@@ -2,7 +2,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { useTheme } from "./useTheme";
 
 export type WorkspaceDestination =
-  | { kind: "module"; module: "jobs" | "reports" | "projects" | "repositories" | "ai"; item: string }
+  | { kind: "module"; module: "overview" | "jobs" | "reports" | "projects" | "repositories" | "ai"; item: string }
   | { kind: "utility"; page: "help" | "settings" };
 
 type Navigate = (destination: WorkspaceDestination) => void;
@@ -71,9 +71,9 @@ export function HelpWorkspace({ onNavigate }: { onNavigate: Navigate }) {
         <article id="help-ai" tabIndex={-1}>
           <span className="prototype-kicker">AI PROVIDERS</span>
           <h2>AI 工作台</h2>
-          <p>先在“模型接入”配置兼容 OpenAI Chat Completions 的 HTTPS Provider，再在“API Keys”写入密钥并测试连接。Chat 只接收您勾选作业的结构化证据，不具备提交、取消或克隆作业的权限。</p>
+          <p>先在“接入设置”集中配置兼容 OpenAI Chat Completions 的 HTTPS Provider、模型与密钥，再在 Chat 内选择本次会话使用的模型。Chat 只接收您勾选作业的结构化证据，不具备提交、取消或克隆作业的权限。</p>
           <div className="prototype-help-actions">
-            <button className="prototype-primary" type="button" onClick={() => onNavigate({ kind: "module", module: "ai", item: "模型接入" })}>配置 Provider</button>
+            <button className="prototype-primary" type="button" onClick={() => onNavigate({ kind: "module", module: "ai", item: "接入设置" })}>配置 Provider</button>
             <button className="prototype-secondary" type="button" onClick={() => onNavigate({ kind: "module", module: "ai", item: "调用记录" })}>查看调用记录</button>
           </div>
         </article>
@@ -104,7 +104,7 @@ export function HelpWorkspace({ onNavigate }: { onNavigate: Navigate }) {
           <dl className="prototype-help-faq">
             <div><dt>列表没有更新</dt><dd>确认轮询已开启，点击刷新按钮；仍失败时查看页面内错误信息并重试。</dd></div>
             <div><dt>提交按钮不可用</dt><dd>查看作业页的运行时状态。只读、Fixture 回退或能力探测失败都会关闭提交。</dd></div>
-            <div><dt>AI 连接失败</dt><dd>核对 HTTPS Base URL、模型名和密钥，然后在“模型接入”执行连接测试。</dd></div>
+            <div><dt>AI 连接失败</dt><dd>核对 HTTPS Base URL、模型名和密钥，然后在“接入设置”执行连接测试。</dd></div>
             <div><dt>页面颜色不合适</dt><dd>在顶栏或系统设置中选择跟随系统、浅色或深色主题。</dd></div>
           </dl>
         </article>
@@ -131,8 +131,7 @@ export function SettingsWorkspace({ onNavigate }: { onNavigate: Navigate }) {
         <span className="prototype-kicker">CONFIGURATION</span>
         <h2>功能配置入口</h2>
         <div className="prototype-settings-links">
-          <button type="button" onClick={() => onNavigate({ kind: "module", module: "ai", item: "模型接入" })}><strong>AI Provider</strong><span>配置端点、模型并测试连接</span></button>
-          <button type="button" onClick={() => onNavigate({ kind: "module", module: "ai", item: "API Keys" })}><strong>API Keys</strong><span>更新 Provider 密钥并查看配置状态</span></button>
+          <button type="button" onClick={() => onNavigate({ kind: "module", module: "ai", item: "接入设置" })}><strong>AI 接入设置</strong><span>集中配置端点、模型、密钥并测试连接</span></button>
           <button type="button" onClick={() => onNavigate({ kind: "utility", page: "help" })}><strong>帮助中心</strong><span>查看作业、报告和 AI 使用说明</span></button>
         </div>
       </aside>
