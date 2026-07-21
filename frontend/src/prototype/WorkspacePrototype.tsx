@@ -95,7 +95,7 @@ function StatusDot({ tone = "green" }: { tone?: "green" | "orange" | "blue" }) {
 }
 
 function ChevronIcon({ expanded }: { expanded: boolean }) {
-  return <svg className={expanded ? "is-expanded" : ""} viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>;
+  return <svg className={expanded ? "is-expanded" : ""} viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>;
 }
 
 export function WorkspacePrototype() {
@@ -103,10 +103,21 @@ export function WorkspacePrototype() {
   const [utilityPage, setUtilityPage] = useState<"help" | "settings" | null>(null);
   const [activeItems, setActiveItems] = useState<Record<ModuleId, string>>({ overview: "总览", jobs: "作业总览", reports: "报告总览", projects: "项目总览", repositories: "仓库浏览", ai: "Chat" });
   const [expandedModules, setExpandedModules] = useState<Set<ModuleId>>(() => new Set(modules.filter((module) => module.items.length > 0).map((module) => module.id)));
+  const [navQuery, setNavQuery] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [runtimeState, setRuntimeState] = useState<"loading" | "connected" | "degraded" | "unavailable">("loading");
   const [refreshKey, setRefreshKey] = useState(0);
   const active = useMemo(() => modules.find((item) => item.id === activeModule)!, [activeModule]);
   const meta = pageMeta[activeModule];
+  const filteredModules = useMemo(() => {
+    const query = navQuery.trim().toLocaleLowerCase();
+    if (!query) return modules;
+    return modules.flatMap((module) => {
+      const moduleMatches = module.label.toLocaleLowerCase().includes(query);
+      const items = moduleMatches ? module.items : module.items.filter((item) => item.toLocaleLowerCase().includes(query));
+      return moduleMatches || items.length > 0 ? [{ ...module, items }] : [];
+    });
+  }, [navQuery]);
 
   function selectModule(module: NavModule) {
     setUtilityPage(null);
@@ -149,26 +160,42 @@ export function WorkspacePrototype() {
     return () => controller.abort();
   }, [refreshKey]);
 
+  useEffect(() => {
+    const focusSearch = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "k") {
+        event.preventDefault();
+        setSidebarCollapsed(false);
+        window.requestAnimationFrame(() => document.querySelector<HTMLInputElement>(".prototype-nav-search input")?.focus());
+      }
+    };
+    window.addEventListener("keydown", focusSearch);
+    return () => window.removeEventListener("keydown", focusSearch);
+  }, []);
+
   const utilityMeta = utilityPage === "help"
     ? { eyebrow: "DOCUMENTATION", title: "帮助与文档", description: "了解真实能力、操作流程和安全边界。" }
     : { eyebrow: "PREFERENCES", title: "系统设置", description: "管理当前浏览器的外观与功能入口。" };
 
   return (
     <ThemeProvider>
-    <div className="prototype-shell">
+    <div className={`prototype-shell${sidebarCollapsed ? " is-sidebar-collapsed" : ""}`}>
       <aside className="prototype-sidebar">
         <button className="prototype-brand" type="button" onClick={() => { setUtilityPage(null); setActiveModule("overview"); }} aria-label="返回总览"><span>107</span><div><strong>Dashboard</strong><small>Student Workspace</small></div></button>
         <div className="prototype-account"><span>PB</span><div><strong>当前 Unix 账号</strong><small>Students · stu</small></div></div>
+        <label className="prototype-nav-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m16 16 4 4" /></svg><input type="search" value={navQuery} onChange={(event) => setNavQuery(event.target.value)} placeholder="快速搜索…" aria-label="搜索模块和页面" /><kbd>Ctrl K</kbd></label>
         <nav className="prototype-nav" aria-label="产品主导航">
           <span className="prototype-nav-label">工作空间</span>
-          {modules.map((module) => (
+          {filteredModules.map((module) => {
+            const expanded = navQuery.trim().length > 0 || expandedModules.has(module.id);
+            return (
             <div className="prototype-nav-group" key={module.id}>
-              <div className="prototype-nav-row"><button type="button" className={activeModule === module.id ? "is-active" : ""} onClick={() => selectModule(module)}><span>{module.icon}</span>{module.label}</button>{module.items.length > 0 && <button type="button" className="prototype-nav-toggle" aria-label={`${expandedModules.has(module.id) ? "折叠" : "展开"}${module.label}`} aria-expanded={expandedModules.has(module.id)} onClick={() => toggleModule(module)}><ChevronIcon expanded={expandedModules.has(module.id)} /></button>}</div>
-              {module.items.length > 0 && expandedModules.has(module.id) && <div className="prototype-subnav">{module.items.map((item) => <button type="button" key={item} aria-current={!utilityPage && activeModule === module.id && activeItems[module.id] === item ? "page" : undefined} className={!utilityPage && activeModule === module.id && activeItems[module.id] === item ? "is-current" : ""} onClick={() => selectItem(module, item)}>{item}</button>)}</div>}
+              <div className="prototype-nav-row"><button type="button" className={activeModule === module.id ? "is-active" : ""} onClick={() => selectModule(module)} title={sidebarCollapsed ? module.label : undefined}><span>{module.icon}</span><em>{module.label}</em></button>{module.items.length > 0 && !sidebarCollapsed && <button type="button" className="prototype-nav-toggle" aria-label={`${expanded ? "折叠" : "展开"}${module.label}`} aria-expanded={expanded} onClick={() => toggleModule(module)}><ChevronIcon expanded={expanded} /></button>}</div>
+              <div className={`prototype-subnav-shell${expanded && !sidebarCollapsed ? " is-open" : ""}`} aria-hidden={!expanded || sidebarCollapsed}><div className="prototype-subnav">{module.items.map((item) => <button type="button" key={item} aria-current={!utilityPage && activeModule === module.id && activeItems[module.id] === item ? "page" : undefined} className={!utilityPage && activeModule === module.id && activeItems[module.id] === item ? "is-current" : ""} onClick={() => selectItem(module, item)}>{item}</button>)}</div></div>
             </div>
-          ))}
+          )})}
+          {filteredModules.length === 0 && <p className="prototype-nav-empty">没有匹配页面</p>}
         </nav>
-        <div className="prototype-sidebar-bottom"><button type="button" className={utilityPage === "help" ? "is-active" : ""} onClick={() => navigate({ kind: "utility", page: "help" })}><span>?</span>帮助与文档</button><button type="button" className={utilityPage === "settings" ? "is-active" : ""} onClick={() => navigate({ kind: "utility", page: "settings" })}><span>⚙</span>系统设置</button><div className="prototype-platform"><StatusDot /><div><strong>单账号工作台</strong><small>数据源状态见作业页</small></div></div></div>
+        <div className="prototype-sidebar-bottom"><button className="prototype-sidebar-collapse" type="button" aria-label={sidebarCollapsed ? "展开侧栏" : "收起侧栏"} title={sidebarCollapsed ? "展开侧栏" : "收起侧栏"} onClick={() => setSidebarCollapsed((value) => !value)}><svg className={sidebarCollapsed ? "is-collapsed" : ""} viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16m7-11-3 3 3 3" /></svg><span>{sidebarCollapsed ? "展开侧栏" : "收起侧栏"}</span></button></div>
       </aside>
       <main className="prototype-main">
         <header className="prototype-topbar"><div className="prototype-breadcrumb"><span>{utilityPage ? "工作台" : activeModule === "overview" ? "工作空间" : active.label}</span>{(utilityPage || activeModule !== "overview") && <><b>/</b><strong>{utilityPage === "help" ? "帮助与文档" : utilityPage === "settings" ? "系统设置" : activeItems[activeModule]}</strong></>}</div><div className="prototype-top-actions"><ThemeToggle /><button className="prototype-global-refresh" type="button" disabled={runtimeState === "loading"} onClick={() => setRefreshKey((value) => value + 1)}><span aria-hidden="true">↻</span> 刷新数据</button><span className={`prototype-runtime-state is-${runtimeState}`} role="status" aria-live="polite" aria-busy={runtimeState === "loading"}><StatusDot tone={runtimeState === "connected" ? "green" : runtimeState === "loading" ? "blue" : "orange"} />{runtimeState === "connected" ? "107 已连接" : runtimeState === "degraded" ? "数据已降级" : runtimeState === "unavailable" ? "状态不可用" : "正在连接"}</span></div></header>
@@ -189,6 +216,7 @@ export function WorkspacePrototype() {
             {!utilityPage && activeModule === "repositories" && <RepositoriesWorkspace key={`repositories-${refreshKey}`} />}
             {!utilityPage && activeModule === "ai" && <AiWorkspace key={`ai-${refreshKey}`} subpage={activeItems.ai} />}
           </div>
+          <footer className="prototype-footer"><nav aria-label="辅助导航"><button type="button" onClick={() => navigate({ kind: "utility", page: "help" })}>帮助与文档</button><button type="button" onClick={() => navigate({ kind: "utility", page: "settings" })}>系统设置</button><button type="button" onClick={() => navigate({ kind: "module", module: "repositories", item: "仓库浏览" })}>项目仓库</button><span className={`is-${runtimeState}`}><StatusDot tone={runtimeState === "connected" ? "green" : runtimeState === "loading" ? "blue" : "orange"} />系统状态</span></nav><div><span>单 Unix 账号比赛工作台</span><small>© 2026 107 Dashboard</small></div></footer>
         </div>
       </main>
     </div>
