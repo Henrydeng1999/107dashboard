@@ -15,7 +15,7 @@ configure job
   -> view basic resource usage
 ```
 
-The competition product is fixed to one trusted Unix account and three primary surfaces: job submission management, automatic job diagnosis/reporting, and project-level AI result evaluation. Do not add login, account switching, multi-user delegation, or cross-owner analysis to the competition scope.
+The competition product is fixed to one trusted Unix account and four primary modules: job management, diagnosis/reporting, project evaluation, and a separate AI workspace. Modules may use focused subpages instead of one long screen. Desktop layouts target a 1600x800 browser content viewport, must remain usable at 1440x720 without page-level vertical scrolling, and should prefer a roughly 68/32 primary/secondary pane split. Do not add login, account switching, multi-user delegation, or cross-owner analysis to the competition scope.
 
 AI assists development and may also power optional read-only explanation and project evaluation. It must never control Slurm jobs, override deterministic evidence, or make the core workflow depend on model availability.
 
