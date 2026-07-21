@@ -16,6 +16,7 @@ from app.schemas.product import (
     EvaluationProjectCreate,
     EvaluationProjectList,
     PromptTemplateList,
+    ProviderTestResult,
 )
 from app.services.job_catalog import JobCatalog, JobCatalogUnavailable
 from app.services.product import (
@@ -102,6 +103,14 @@ def upsert_ai_provider(provider_id: ProviderId, payload: AiProviderUpsert, produ
     return product.upsert_provider(
         provider_id, payload.name, str(payload.base_url), payload.model, payload.api_key
     )
+
+
+@router.post("/ai/providers/{provider_id}/test", response_model=ProviderTestResult)
+def test_ai_provider(provider_id: ProviderId, request: Request, product: Service):
+    try:
+        return product.test_provider(provider_id)
+    except AiProviderNotConfigured:
+        return error(request, 404, "AI_PROVIDER_NOT_FOUND", "AI provider was not found")
 
 
 @router.get("/ai/templates", response_model=PromptTemplateList)

@@ -138,6 +138,17 @@ class AiCallRecordList(BaseModel):
     items: list[AiCallRecord]
 
 
+class ProviderTestResult(BaseModel):
+    provider_id: str
+    configured: bool
+    reachable: bool
+    authenticated: bool
+    model: str | None
+    latency_ms: int | None
+    error: str | None
+    key_hint: str | None
+
+
 class PromptTemplate(BaseModel):
     id: str
     name: str

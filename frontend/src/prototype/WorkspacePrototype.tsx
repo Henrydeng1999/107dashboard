@@ -95,12 +95,12 @@ export function WorkspacePrototype() {
             </div>
           ))}
         </nav>
-        <div className="prototype-sidebar-bottom"><button type="button"><span>?</span>帮助与文档</button><button type="button"><span>⚙</span>系统设置</button><div className="prototype-platform"><StatusDot /><div><strong>单账号工作台</strong><small>数据源状态见作业页</small></div></div></div>
+        <div className="prototype-sidebar-bottom"><div className="prototype-sidebar-static-item"><span>?</span><span>帮助与文档</span></div><div className="prototype-sidebar-static-item"><span>⚙</span><span>系统设置</span></div><div className="prototype-platform"><StatusDot /><div><strong>单账号工作台</strong><small>数据源状态见作业页</small></div></div></div>
       </aside>
       <main className="prototype-main">
-        <header className="prototype-topbar"><div className="prototype-breadcrumb"><span>{active.label}</span><b>/</b><strong>{activeItems[activeModule]}</strong></div><div className="prototype-top-actions"><span className="prototype-design-pill is-live">LIVE API</span><button type="button" aria-label="通知">◌</button><button type="button">文档</button><span className="prototype-avatar">PB</span></div></header>
+        <header className="prototype-topbar"><div className="prototype-breadcrumb"><span>{active.label}</span><b>/</b><strong>{activeItems[activeModule]}</strong></div><div className="prototype-top-actions"><span className="prototype-design-pill is-live">LIVE API</span><span className="prototype-avatar">PB</span></div></header>
         <div className="prototype-content">
-          <div className="prototype-page-header"><div><span>{meta.eyebrow}</span><h1>{meta.title}</h1><p>{meta.description}</p></div><div className="prototype-page-actions"><button className="prototype-secondary" type="button" disabled={activeModule !== "jobs"}>导出</button><button className="prototype-primary" type="button" disabled={activeModule !== "jobs"} onClick={() => { if (activeModule === "jobs") setActiveItems((current) => ({ ...current, jobs: "新建作业" })); }}>{activeModule === "jobs" ? "＋ 新建作业" : activeModule === "reports" ? "生成报告" : activeModule === "projects" ? "＋ 新建项目" : "＋ 新建会话"}</button></div></div>
+          <div className="prototype-page-header"><div><span>{meta.eyebrow}</span><h1>{meta.title}</h1><p>{meta.description}</p></div><div className="prototype-page-actions">{activeModule === "jobs" && <button className="prototype-primary" type="button" onClick={() => setActiveItems((current) => ({ ...current, jobs: "新建作业" }))}>＋ 新建作业</button>}</div></div>
           <div className="prototype-workspace">
             {activeModule === "jobs" && <JobsWorkspace subpage={activeItems.jobs} onNavigate={(subpage) => setActiveItems((current) => ({ ...current, jobs: subpage }))} />}
             {activeModule === "reports" && <ReportsWorkspace />}

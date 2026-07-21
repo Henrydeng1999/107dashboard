@@ -10,6 +10,7 @@ import {
   fetchReports,
   saveAiProvider,
   sendAiChat,
+  testAiProvider,
 } from "../api/product";
 import type { Job } from "../features/jobs/types";
 import type {
@@ -237,6 +238,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
   const [error, setError] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
   const [busy, setBusy] = useState(false);
+  const [providerTest, setProviderTest] = useState<string | null>(null);
   const [providerForm, setProviderForm] = useState({
     id: "school",
     name: "学校 AI 服务",
@@ -245,6 +247,12 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
     api_key: "",
   });
   const [chat, setChat] = useState({ provider_id: "school", message: "" });
+  const suggestions = [
+    "总结这个作业的异常发现",
+    "对比这两个作业的资源效率",
+    "分析作业失败的可能原因",
+    "提取作业中的关键指标",
+  ];
 
   const reload = async () => {
     const [providerItems, templateItems, callItems] = await Promise.all([
@@ -275,6 +283,14 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
         setJobs(jobPage.items);
         if (providerItems[0]) {
           setChat((current) => ({ ...current, provider_id: providerItems[0].id }));
+          setProviderForm((current) => ({
+            ...current,
+            id: providerItems[0].id,
+            name: providerItems[0].name,
+            base_url: providerItems[0].base_url,
+            model: providerItems[0].model,
+            api_key: "",
+          }));
         }
       })
       .catch((reason) => {
@@ -313,6 +329,24 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
       setAnswer(response.answer);
       setChat((current) => ({ ...current, message: "" }));
       await reload();
+    } catch (reason) {
+      setError(message(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const testProvider = async () => {
+    setError(null);
+    setProviderTest(null);
+    setBusy(true);
+    try {
+      const result = await testAiProvider(providerForm.id);
+      if (result.reachable && result.authenticated && !result.error) {
+        setProviderTest(`连接成功 · ${result.model ?? providerForm.model} · ${result.latency_ms ?? 0} ms`);
+      } else {
+        setProviderTest(result.error ?? "连接测试未通过");
+      }
     } catch (reason) {
       setError(message(reason));
     } finally {
@@ -359,29 +393,83 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
     );
   }
 
-  if (subpage === "模型接入" || subpage === "API Keys") {
+  const loadProvider = (provider: AiProvider) => {
+    setProviderForm({
+      id: provider.id,
+      name: provider.name,
+      base_url: provider.base_url,
+      model: provider.model,
+      api_key: "",
+    });
+  };
+
+  if (subpage === "模型接入") {
     return (
       <div className="prototype-split">
         <section className="prototype-panel prototype-panel--scroll">
           {heading}
+          <p className="prototype-page-description">管理 AI Provider 连接：配置或编辑端点与模型。点击下方卡片可加载到表单编辑。</p>
           {error && <div className="prototype-live-error">{error}</div>}
+          {providerTest && <div className="prototype-live-notice">{providerTest}</div>}
           <form className="prototype-form" onSubmit={(event) => void save(event)}>
             <label><span>Provider ID</span><input required pattern="[A-Za-z0-9_-]+" maxLength={64} value={providerForm.id} onChange={(event) => setProviderForm({ ...providerForm, id: event.target.value })} /></label>
             <label><span>名称</span><input required maxLength={64} value={providerForm.name} onChange={(event) => setProviderForm({ ...providerForm, name: event.target.value })} /></label>
             <label className="prototype-form-wide"><span>Base URL（HTTPS）</span><input required type="url" value={providerForm.base_url} onChange={(event) => setProviderForm({ ...providerForm, base_url: event.target.value })} /></label>
             <label><span>模型</span><input required value={providerForm.model} onChange={(event) => setProviderForm({ ...providerForm, model: event.target.value })} /></label>
             <label><span>API Key</span><input type="password" minLength={8} autoComplete="new-password" placeholder="保存后不可回读" value={providerForm.api_key} onChange={(event) => setProviderForm({ ...providerForm, api_key: event.target.value })} /></label>
-            <button className="prototype-primary" type="submit" disabled={busy}>{busy ? "保存中…" : "安全保存"}</button>
+            <div className="prototype-form-actions">
+              <button className="prototype-primary" type="submit" disabled={busy}>{busy ? "处理中…" : "保存 Provider"}</button>
+              <button className="prototype-secondary" type="button" disabled={busy || !providers.some((provider) => provider.id === providerForm.id && provider.configured)} onClick={() => void testProvider()}>测试连接</button>
+            </div>
           </form>
         </section>
         <aside className="prototype-panel prototype-panel--scroll">
           <span className="prototype-kicker">CONFIGURED</span><h2>已配置 Provider</h2>
+          <p className="prototype-panel-hint">点击卡片加载到表单编辑</p>
+          {providers.map((provider) => (
+            <button className="prototype-key-card prototype-key-card--clickable" key={provider.id} type="button" onClick={() => loadProvider(provider)}>
+              <div className="prototype-provider-logo">AI</div>
+              <div><strong>{provider.name}</strong><span>{provider.model}</span></div>
+              <code>{provider.key_hint ?? "未配置密钥"}</code>
+              <span className={provider.configured ? "prototype-status-ok" : "prototype-status-missing"}>{provider.configured ? "可用" : "缺少密钥"}</span>
+            </button>
+          ))}
+        </aside>
+      </div>
+    );
+  }
+
+  if (subpage === "API Keys") {
+    return (
+      <div className="prototype-split">
+        <section className="prototype-panel prototype-panel--scroll">
+          {heading}
+          <p className="prototype-page-description">安全管理各 Provider 的 API 密钥。密钥仅保存在后端受限文件中，保存后无法通过 API 回读。</p>
+          {error && <div className="prototype-live-error">{error}</div>}
+          <form className="prototype-form" onSubmit={(event) => void save(event)}>
+            <label><span>Provider</span>
+              <select value={providerForm.id} onChange={(event) => {
+                const selected = providers.find((p) => p.id === event.target.value);
+                if (selected) loadProvider(selected);
+              }}>
+                {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </label>
+            <label className="prototype-form-wide"><span>新 API Key</span><input type="password" minLength={8} autoComplete="new-password" placeholder="输入新密钥以更新" value={providerForm.api_key} onChange={(event) => setProviderForm({ ...providerForm, api_key: event.target.value })} /></label>
+            <button className="prototype-primary" type="submit" disabled={busy || providerForm.api_key.length < 8}>{busy ? "保存中…" : "更新密钥"}</button>
+          </form>
+          <div className="prototype-key-list-note">
+            <span>✦</span><span>浏览器只显示密钥末四位提示。若 Provider 信息需变更，请前往「模型接入」页面。</span>
+          </div>
+        </section>
+        <aside className="prototype-panel prototype-panel--scroll">
+          <span className="prototype-kicker">KEY STATUS</span><h2>密钥状态</h2>
           {providers.map((provider) => (
             <div className="prototype-key-card" key={provider.id}>
               <div className="prototype-provider-logo">AI</div>
               <div><strong>{provider.name}</strong><span>{provider.model}</span></div>
               <code>{provider.key_hint ?? "未配置密钥"}</code>
-              <span>{provider.configured ? "可用" : "缺少密钥"}</span>
+              <span className={provider.configured ? "prototype-status-ok" : "prototype-status-missing"}>{provider.configured ? "已配置" : "未配置"}</span>
             </div>
           ))}
         </aside>
@@ -398,6 +486,13 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
             <div className="prototype-chat-empty">
               <span>✦</span><h3>只读作业分析助手</h3>
               <p>回答来自配置的 OpenAI 兼容 Provider；AI 不具备作业控制权限。</p>
+              <div>
+                {suggestions.map((text) => (
+                  <button key={text} type="button" onClick={() => setChat({ ...chat, message: text })}>
+                    {text}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>

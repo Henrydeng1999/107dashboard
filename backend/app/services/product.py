@@ -17,6 +17,7 @@ from app.schemas.product import (
     EvaluationJob,
     EvaluationProject,
     PromptTemplate,
+    ProviderTestResult,
     ReportEvidence,
     ReportFinding,
 )
@@ -298,6 +299,95 @@ class ProductService:
 
     def calls(self) -> list[AiCallRecord]:
         return [AiCallRecord(**item) for item in self.repository.list_calls(self.owner)]
+
+    def test_provider(self, provider_id: str) -> ProviderTestResult:
+        provider = self.repository.get_provider(self.owner, provider_id)
+        if provider is None:
+            raise AiProviderNotConfigured("provider not found")
+        configured = self._secret_exists(provider_id)
+        if not configured:
+            return ProviderTestResult(
+                provider_id=provider_id,
+                configured=False,
+                reachable=False,
+                authenticated=False,
+                model=None,
+                latency_ms=None,
+                error="API key not configured",
+                key_hint=provider.get("key_hint"),
+            )
+        return self._test_connection(provider)
+
+    def _test_connection(self, provider: dict) -> ProviderTestResult:
+        payload = json.dumps(
+            {
+                "model": provider["model"],
+                "messages": [{"role": "user", "content": "Hi"}],
+                "max_tokens": 5,
+                "temperature": 0.0,
+            }
+        ).encode()
+        request = urllib.request.Request(
+            f"{provider['base_url']}/chat/completions",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {self._read_secret(provider['id'])}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        start = datetime.now(UTC)
+        try:
+            with urllib.request.urlopen(request, timeout=15) as response:
+                result = json.loads(response.read(200_000))
+            latency = int((datetime.now(UTC) - start).total_seconds() * 1000)
+            str(result["choices"][0]["message"]["content"])
+            return ProviderTestResult(
+                provider_id=provider["id"],
+                configured=True,
+                reachable=True,
+                authenticated=True,
+                model=provider["model"],
+                latency_ms=latency,
+                error=None,
+                key_hint=provider.get("key_hint"),
+            )
+        except urllib.error.HTTPError as exc:
+            latency = int((datetime.now(UTC) - start).total_seconds() * 1000)
+            auth_failed = exc.code == 401 or exc.code == 403
+            return ProviderTestResult(
+                provider_id=provider["id"],
+                configured=True,
+                reachable=True,
+                authenticated=not auth_failed,
+                model=provider["model"],
+                latency_ms=latency,
+                error=f"HTTP {exc.code}: {exc.reason}",
+                key_hint=provider.get("key_hint"),
+            )
+        except (OSError, urllib.error.URLError) as exc:
+            latency = int((datetime.now(UTC) - start).total_seconds() * 1000)
+            return ProviderTestResult(
+                provider_id=provider["id"],
+                configured=True,
+                reachable=False,
+                authenticated=False,
+                model=None,
+                latency_ms=latency,
+                error=f"Connection failed: {exc.reason if isinstance(exc, urllib.error.URLError) else str(exc)}",
+                key_hint=provider.get("key_hint"),
+            )
+        except (ValueError, KeyError, IndexError) as exc:
+            return ProviderTestResult(
+                provider_id=provider["id"],
+                configured=True,
+                reachable=True,
+                authenticated=True,
+                model=None,
+                latency_ms=None,
+                error=f"Unexpected response format: {exc}",
+                key_hint=provider.get("key_hint"),
+            )
 
     @staticmethod
     def templates() -> list[PromptTemplate]:
