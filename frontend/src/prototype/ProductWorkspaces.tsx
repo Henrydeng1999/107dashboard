@@ -7,10 +7,14 @@ import { fetchRepositories } from "../api/repositories";
 import {
   addAiProviderModel,
   createEvaluationProject,
+  createPromptTemplate,
+  deletePromptTemplate,
   deleteAiProviderModel,
   fetchAiCalls,
   fetchAiProviderModels,
   fetchAiProviders,
+  fetchAiSession,
+  fetchAiSessions,
   fetchEvaluationProjects,
   fetchPromptTemplates,
   fetchReports,
@@ -26,6 +30,8 @@ import type { Job } from "../features/jobs/types";
 import type { GitRepositorySummary } from "../features/repositories/types";
 import type {
   AiCallRecord,
+  AiChatMessage,
+  AiChatSession,
   AiProvider,
   DiagnosticReport,
   EvaluationProject,
@@ -252,14 +258,15 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
   const [providers, setProviders] = useState<AiProvider[]>([]);
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   const [calls, setCalls] = useState<AiCallRecord[]>([]);
+  const [sessions, setSessions] = useState<AiChatSession[]>([]);
+  const [messages, setMessages] = useState<AiChatMessage[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [repositories, setRepositories] = useState<GitRepositorySummary[]>([]);
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
   const [selectedRepositoryIds, setSelectedRepositoryIds] = useState<string[]>([]);
   const [templateDrafts, setTemplateDrafts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
-  const [answer, setAnswer] = useState("");
-  const [lastQuestion, setLastQuestion] = useState("");
   const [busy, setBusy] = useState(false);
   const [chatStartedAt, setChatStartedAt] = useState<number | null>(null);
   const [chatWaitSeconds, setChatWaitSeconds] = useState(0);
@@ -267,6 +274,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [providerForm, setProviderForm] = useState(schoolPreset);
   const [chat, setChat] = useState({ provider_id: "school", model: "deepseek-v4-pro", message: "", template_id: "job-diagnosis" as string | null });
+  const [newTemplate, setNewTemplate] = useState({ id: "", name: "", description: "", system_prompt: "" });
   const suggestions = [
     "总结这个作业的异常发现",
     "对比这两个作业的资源效率",
@@ -275,15 +283,17 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
   ];
 
   const reload = async () => {
-    const [providerItems, templateItems, callItems] = await Promise.all([
+    const [providerItems, templateItems, callItems, sessionItems] = await Promise.all([
       fetchAiProviders(),
       fetchPromptTemplates(),
       fetchAiCalls(),
+      fetchAiSessions(),
     ]);
     setProviders(providerItems);
     setTemplates(templateItems);
     setTemplateDrafts(Object.fromEntries(templateItems.map((item) => [item.id, item.system_prompt])));
     setCalls(callItems);
+    setSessions(sessionItems);
     const selected = providerItems.find((item) => item.id === chat.provider_id);
     if (providerItems[0] && (!selected || !selected.models.includes(chat.model))) {
       setChat((current) => ({
@@ -302,13 +312,15 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
       fetchAiCalls(controller.signal),
       fetchJobs(1, 20, "ALL", controller.signal),
       fetchRepositories(controller.signal),
+      fetchAiSessions(controller.signal),
     ])
-      .then(([providerItems, templateItems, callItems, jobPage, repositoryPage]) => {
+      .then(([providerItems, templateItems, callItems, jobPage, repositoryPage, sessionItems]) => {
         setProviders(providerItems);
         setTemplates(templateItems);
         setCalls(callItems);
         setJobs(jobPage.items);
         setRepositories(repositoryPage.items);
+        setSessions(sessionItems);
         setTemplateDrafts(Object.fromEntries(templateItems.map((item) => [item.id, item.system_prompt])));
         if (providerItems[0]) {
           setChat((current) => ({
@@ -368,22 +380,37 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
     const question = chat.message.trim();
     if (!question) return;
     setError(null);
-    setAnswer("");
-    setLastQuestion(question);
+    const optimisticUser: AiChatMessage = { id: `pending-${Date.now()}`, role: "USER", content: question, evidence_job_ids: selectedJobIds, evidence_repository_ids: selectedRepositoryIds, template_id: chat.template_id, created_at: new Date().toISOString() };
+    setMessages((current) => [...current, optimisticUser]);
     setChat((current) => ({ ...current, message: "" }));
     setBusy(true);
     setChatStartedAt(Date.now());
     try {
-      const response = await sendAiChat({ ...chat, message: question, job_ids: selectedJobIds, repository_ids: selectedRepositoryIds });
-      setAnswer(response.answer);
+      const response = await sendAiChat({ ...chat, message: question, job_ids: selectedJobIds, repository_ids: selectedRepositoryIds, session_id: sessionId });
+      setSessionId(response.session_id);
+      const stored = await fetchAiSession(response.session_id);
+      setMessages(stored.messages);
       await reload();
     } catch (reason) {
+      setMessages((current) => current.filter((item) => item.id !== optimisticUser.id));
       setError(message(reason));
     } finally {
       setChatStartedAt(null);
       setBusy(false);
     }
   };
+
+  const openSession = async (id: string) => {
+    setError(null);
+    try {
+      const selected = await fetchAiSession(id);
+      setSessionId(id);
+      setMessages(selected.messages);
+      setChat((current) => ({ ...current, provider_id: selected.provider_id, model: selected.model }));
+    } catch (reason) { setError(message(reason)); }
+  };
+
+  const startSession = () => { setSessionId(null); setMessages([]); setError(null); };
 
   const testProvider = async () => {
     setError(null);
@@ -522,15 +549,36 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
       try { const restored = await resetPromptTemplate(template.id); setTemplateDrafts((current) => ({ ...current, [template.id]: restored.system_prompt })); await reload(); }
       catch (reason) { setError(message(reason)); } finally { setBusy(false); }
     };
+    const addTemplate = async (event: FormEvent) => {
+      event.preventDefault(); setBusy(true); setError(null);
+      try { await createPromptTemplate(newTemplate); setNewTemplate({ id: "", name: "", description: "", system_prompt: "" }); await reload(); }
+      catch (reason) { setError(message(reason)); } finally { setBusy(false); }
+    };
+    const removeTemplate = async (template: PromptTemplate) => {
+      if (!window.confirm(`删除自定义提示词“${template.name}”？`)) return;
+      setBusy(true); setError(null);
+      try { await deletePromptTemplate(template.id); await reload(); }
+      catch (reason) { setError(message(reason)); } finally { setBusy(false); }
+    };
     return (
       <section className="prototype-panel prototype-panel--scroll">
         {heading}
         {error && <div className="prototype-live-error">{error}</div>}
+        <details className="prototype-collapsible" open>
+          <summary><span>新增自定义提示词</span><small>只调整分析侧重点</small></summary>
+          <form className="prototype-custom-template-form" onSubmit={(event) => void addTemplate(event)}>
+            <label><span>ID</span><input required pattern="[A-Za-z0-9_-]+" maxLength={64} value={newTemplate.id} onChange={(event) => setNewTemplate({ ...newTemplate, id: event.target.value })} /></label>
+            <label><span>名称</span><input required maxLength={64} value={newTemplate.name} onChange={(event) => setNewTemplate({ ...newTemplate, name: event.target.value })} /></label>
+            <label className="prototype-form-wide"><span>说明</span><input maxLength={240} value={newTemplate.description} onChange={(event) => setNewTemplate({ ...newTemplate, description: event.target.value })} /></label>
+            <label className="prototype-form-wide"><span>提示词</span><textarea required maxLength={4000} value={newTemplate.system_prompt} onChange={(event) => setNewTemplate({ ...newTemplate, system_prompt: event.target.value })} /></label>
+            <button className="prototype-primary" type="submit" disabled={busy}>新增提示词</button>
+          </form>
+        </details>
         <div className="prototype-template-grid">{templates.map((item) => (
           <article key={item.id}>
-            <span>{item.customized ? "CUSTOM" : "SYSTEM"}</span><h3>{item.name}</h3><p>{item.description}</p>
+            <span>{item.builtin ? (item.customized ? "OVERRIDE" : "SYSTEM") : "CUSTOM"}</span><h3>{item.name}</h3><p>{item.description}</p>
             <textarea value={templateDrafts[item.id] ?? item.system_prompt} maxLength={4000} onChange={(event) => setTemplateDrafts((current) => ({ ...current, [item.id]: event.target.value }))} />
-            <div><button type="button" disabled={busy || !(templateDrafts[item.id] ?? "").trim()} onClick={() => void saveTemplate(item)}>保存</button><button type="button" disabled={busy || !item.customized} onClick={() => void restoreTemplate(item)}>恢复默认</button></div>
+            <div><button type="button" disabled={busy || !(templateDrafts[item.id] ?? "").trim()} onClick={() => void saveTemplate(item)}>保存</button>{item.builtin ? <button type="button" disabled={busy || !item.customized} onClick={() => void restoreTemplate(item)}>恢复默认</button> : <button type="button" disabled={busy} onClick={() => void removeTemplate(item)}>删除</button>}</div>
           </article>
         ))}</div>
       </section>
@@ -626,11 +674,10 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
       <section className="prototype-panel prototype-chat">
         {heading}
         <div className="prototype-chat-body">
-          {lastQuestion ? (
+          {messages.length > 0 ? (
             <div className="prototype-chat-thread">
-              <div className="prototype-user-message">{lastQuestion}</div>
-              {answer && (
-                <div className="prototype-ai-answer">
+              {messages.map((item) => item.role === "USER" ? <div className="prototype-user-message" key={item.id}>{item.content}</div> : (
+                <div className="prototype-ai-answer" key={item.id}>
                   <Markdown
                     remarkPlugins={[remarkGfm]}
                     components={{
@@ -639,10 +686,10 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
                       ),
                     }}
                   >
-                    {answer}
+                    {item.content}
                   </Markdown>
                 </div>
-              )}
+              ))}
             </div>
           ) : (
             <div className="prototype-chat-empty">
@@ -682,8 +729,9 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
         </form>
       </section>
       <aside className="prototype-panel prototype-panel--scroll">
-        <span className="prototype-kicker">EVIDENCE CONTEXT</span><h2>历史作业证据</h2>
-        <div className="prototype-ai-job-list">
+        <div className="prototype-aside-heading"><div><span className="prototype-kicker">EVIDENCE CONTEXT</span><h2>分析上下文</h2></div><button type="button" className="prototype-secondary" onClick={startSession}>新对话</button></div>
+        <details className="prototype-collapsible" open><summary><span>对话历史</span><small>{sessions.length} 个会话</small></summary><div className="prototype-session-list">{sessions.map((session) => <button type="button" className={session.id === sessionId ? "is-active" : ""} key={session.id} onClick={() => void openSession(session.id)}><span>{session.title}</span><small>{session.message_count} 条 · {new Date(session.updated_at).toLocaleString()}</small></button>)}{sessions.length === 0 && <p>还没有历史对话。</p>}</div></details>
+        <details className="prototype-collapsible" open><summary><span>历史作业证据</span><small>{selectedJobIds.length} 个已选</small></summary><div className="prototype-ai-job-list">
           {jobs.map((job) => (
             <label key={job.id}>
               <input
@@ -698,19 +746,17 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
               <span>{job.name}</span><small>#{job.slurm_job_id} · {job.state}</small>
             </label>
           ))}
-        </div>
-        <h3>引用 Git 项目</h3>
-        <div className="prototype-ai-repository-list">
+        </div></details>
+        <details className="prototype-collapsible" open><summary><span>引用 Git 项目</span><small>{selectedRepositoryIds.length} 个已选</small></summary><div className="prototype-ai-repository-list">
           {repositories.map((repository) => <label key={repository.id}><input type="checkbox" checked={selectedRepositoryIds.includes(repository.id)} onChange={() => setSelectedRepositoryIds((current) => current.includes(repository.id) ? current.filter((id) => id !== repository.id) : [...current, repository.id])} /><span>{repository.name}</span><small>{repository.branch} · {repository.dirty ? `${repository.changed_files} 个未提交文件` : "工作区干净"}</small></label>)}
           {repositories.length === 0 && <p>当前没有可引用的 Git 项目。</p>}
-        </div>
-        <h3>只读边界</h3>
-        <ul className="prototype-check-list">
+        </div></details>
+        <details className="prototype-collapsible"><summary><span>只读边界</span><small>固定安全约束</small></summary><ul className="prototype-check-list">
           <li>AI 仅接收勾选作业与 Git 项目的结构化证据</li>
           <li>无法提交、取消或克隆作业</li>
           <li>密钥原文不会返回浏览器</li>
           <li>调用成功或失败均进入审计记录</li>
-        </ul>
+        </ul></details>
       </aside>
     </div>
   );

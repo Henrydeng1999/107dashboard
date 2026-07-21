@@ -1,5 +1,5 @@
 import { ApiError } from "./jobs";
-import type { AiCallRecord, AiChatResponse, AiProvider, AiProviderModelList, AiProviderTestResult, DiagnosticReport, EvaluationProject, PromptTemplate } from "../features/product/types";
+import type { AiCallRecord, AiChatResponse, AiChatSession, AiProvider, AiProviderModelList, AiProviderTestResult, DiagnosticReport, EvaluationProject, PromptTemplate } from "../features/product/types";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? "http://127.0.0.1:8000/api" : "/api");
 
@@ -24,8 +24,12 @@ export function testAiProviderModel(id: string, model: string): Promise<AiProvid
 export function addAiProviderModel(id: string, model: string): Promise<AiProvider> { return request(`/ai/providers/${encodeURIComponent(id)}/models`, json({ model })); }
 export function setDefaultAiProviderModel(id: string, model: string): Promise<AiProvider> { return request(`/ai/providers/${encodeURIComponent(id)}/models/default`, { ...json({ model }), method: "PUT" }); }
 export function deleteAiProviderModel(id: string, model: string): Promise<AiProvider> { return request(`/ai/providers/${encodeURIComponent(id)}/models?model=${encodeURIComponent(model)}`, { method: "DELETE" }); }
-export function sendAiChat(payload: { provider_id: string; model: string; message: string; job_ids: string[]; repository_ids: string[]; template_id: string | null }, signal?: AbortSignal): Promise<AiChatResponse> { return request("/ai/chat", { ...json(payload), signal }); }
+export function sendAiChat(payload: { provider_id: string; model: string; message: string; job_ids: string[]; repository_ids: string[]; template_id: string | null; session_id: string | null }, signal?: AbortSignal): Promise<AiChatResponse> { return request("/ai/chat", { ...json(payload), signal }); }
 export async function fetchPromptTemplates(signal?: AbortSignal): Promise<PromptTemplate[]> { return (await request<{ items: PromptTemplate[] }>("/ai/templates", { signal })).items; }
+export function createPromptTemplate(payload: { id: string; name: string; description: string; system_prompt: string }): Promise<PromptTemplate> { return request("/ai/templates", json(payload)); }
 export function updatePromptTemplate(id: string, system_prompt: string): Promise<PromptTemplate> { return request(`/ai/templates/${encodeURIComponent(id)}`, { ...json({ system_prompt }), method: "PUT" }); }
 export function resetPromptTemplate(id: string): Promise<PromptTemplate> { return request(`/ai/templates/${encodeURIComponent(id)}`, { method: "DELETE" }); }
+export async function deletePromptTemplate(id: string): Promise<void> { const response = await fetch(`${apiBaseUrl}/ai/templates/${encodeURIComponent(id)}/custom`, { method: "DELETE" }); if (!response.ok) throw new ApiError("删除提示词失败", response.status); }
+export async function fetchAiSessions(signal?: AbortSignal): Promise<AiChatSession[]> { return (await request<{ items: AiChatSession[] }>("/ai/sessions", { signal })).items; }
+export function fetchAiSession(id: string, signal?: AbortSignal): Promise<AiChatSession> { return request(`/ai/sessions/${encodeURIComponent(id)}`, { signal }); }
 export async function fetchAiCalls(signal?: AbortSignal): Promise<AiCallRecord[]> { return (await request<{ items: AiCallRecord[] }>("/ai/calls", { signal })).items; }

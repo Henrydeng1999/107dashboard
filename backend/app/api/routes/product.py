@@ -7,6 +7,8 @@ from app.schemas.product import (
     AiCallRecordList,
     AiChatRequest,
     AiChatResponse,
+    AiChatSession,
+    AiChatSessionList,
     AiProvider,
     AiProviderList,
     AiProviderUpsert,
@@ -17,6 +19,7 @@ from app.schemas.product import (
     EvaluationProjectList,
     PromptTemplateList,
     PromptTemplate,
+    PromptTemplateCreate,
     PromptTemplateUpdate,
     ProviderModelList,
     ProviderModelTestRequest,
@@ -187,6 +190,14 @@ def ai_templates(product: Service):
     return PromptTemplateList(items=product.templates())
 
 
+@router.post("/ai/templates", response_model=PromptTemplate, status_code=201)
+def create_ai_template(payload: PromptTemplateCreate, request: Request, product: Service):
+    try:
+        return product.create_template(payload)
+    except AiProviderModelConflict:
+        return error(request, 409, "AI_TEMPLATE_EXISTS", "Prompt template already exists")
+
+
 @router.put("/ai/templates/{template_id}", response_model=PromptTemplate)
 def update_ai_template(
     template_id: ProviderId, payload: PromptTemplateUpdate, request: Request, product: Service
@@ -203,6 +214,27 @@ def reset_ai_template(template_id: ProviderId, request: Request, product: Servic
         return product.reset_template(template_id)
     except ProductNotFound:
         return error(request, 404, "AI_TEMPLATE_NOT_FOUND", "Prompt template was not found")
+
+
+@router.delete("/ai/templates/{template_id}/custom", status_code=204)
+def delete_custom_ai_template(template_id: ProviderId, request: Request, product: Service):
+    try:
+        product.delete_template(template_id)
+    except ProductNotFound:
+        return error(request, 404, "AI_TEMPLATE_NOT_FOUND", "Custom prompt template was not found")
+
+
+@router.get("/ai/sessions", response_model=AiChatSessionList)
+def ai_sessions(product: Service):
+    return AiChatSessionList(items=product.chat_sessions())
+
+
+@router.get("/ai/sessions/{session_id}", response_model=AiChatSession)
+def ai_session(session_id: str, request: Request, product: Service):
+    try:
+        return product.chat_session(session_id)
+    except ProductNotFound:
+        return error(request, 404, "AI_SESSION_NOT_FOUND", "Chat session was not found")
 
 
 @router.get("/ai/calls", response_model=AiCallRecordList)
@@ -250,9 +282,10 @@ def ai_chat(payload: AiChatRequest, request: Request, product: Service, jobs: Ca
             repository_context,
             payload.template_id,
             tools,
+            payload.session_id,
         )
     except ProductNotFound:
-        return error(request, 404, "JOB_NOT_FOUND", "One or more jobs were not found")
+        return error(request, 404, "AI_CONTEXT_NOT_FOUND", "A selected job, template, or session was not found")
     except GitRepositoryNotFound:
         return error(request, 404, "REPOSITORY_NOT_FOUND", "Repository was not found")
     except AiProviderNotConfigured:

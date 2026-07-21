@@ -13,12 +13,15 @@ from app.repositories.product import ProductRepository
 from app.schemas.jobs import Job, JobState, JobUsageResponse
 from app.schemas.product import (
     AiCallRecord,
+    AiChatMessage,
     AiChatResponse,
+    AiChatSession,
     AiProvider,
     DiagnosticReport,
     EvaluationJob,
     EvaluationProject,
     PromptTemplate,
+    PromptTemplateCreate,
     ProviderModelList,
     ProviderTestResult,
     ReportEvidence,
@@ -305,6 +308,7 @@ class ProductService:
         repository_context: list[dict] | None = None,
         template_id: str | None = None,
         tools: "AiReadTools | None" = None,
+        session_id: str | None = None,
     ) -> AiChatResponse:
         provider = self.repository.get_provider(self.owner, provider_id)
         if provider is None or not self._secret_exists(provider_id):
@@ -313,12 +317,21 @@ class ProductService:
         if selected_model not in self.repository.list_provider_models(self.owner, provider_id):
             raise AiProviderNotConfigured("provider model is not configured")
         provider = {**provider, "model": selected_model}
+        conversation_context: list[dict[str, str]] = []
+        if session_id is not None:
+            if self.repository.get_chat_session(self.owner, session_id) is None:
+                raise ProductNotFound("chat session was not found")
+            conversation_context = [
+                {"role": item["role"], "content": item["content"]}
+                for item in self.repository.list_chat_messages(self.owner, session_id)[-20:]
+            ]
         context = []
         for job_id in job_ids:
             context.append(self.report(catalog, job_id).model_dump(mode="json"))
         template = self.template(template_id) if template_id is not None else None
         prompt = (
             f"分析侧重点：{template.system_prompt if template else '按用户问题分析'}\n"
+            f"当前会话历史：{json.dumps(conversation_context, ensure_ascii=False)}\n"
             f"用户问题：{message}\n"
             f"结构化作业证据：{json.dumps(context, ensure_ascii=False)}\n"
             f"显式选择的 Git 项目证据：{json.dumps(repository_context or [], ensure_ascii=False)}"
@@ -333,6 +346,17 @@ class ProductService:
                 self.owner, provider_id, provider["model"], "FAILED", message[:200], None
             )
             raise
+        if session_id is None:
+            title = re.sub(r"\s+", " ", message).strip()[:48]
+            session_id = self.repository.create_chat_session(
+                self.owner, title or "新对话", provider_id, provider["model"]
+            )["id"]
+        self.repository.add_chat_message(
+            self.owner, session_id, "USER", message, job_ids, repository_ids or [], template_id
+        )
+        self.repository.add_chat_message(
+            self.owner, session_id, "ASSISTANT", answer, job_ids, repository_ids or [], template_id
+        )
         return AiChatResponse(
             id=call["id"],
             provider_id=provider_id,
@@ -341,6 +365,7 @@ class ProductService:
             evidence_job_ids=job_ids,
             evidence_repository_ids=repository_ids or [],
             template_id=template_id,
+            session_id=session_id,
             tools_used=tools_used,
             created_at=call["created_at"],
         )
@@ -510,10 +535,15 @@ class ProductService:
 
     def templates(self) -> list[PromptTemplate]:
         customized = self.repository.list_prompt_templates(self.owner)
-        return [template.model_copy(update={
+        builtins = [template.model_copy(update={
             "system_prompt": customized.get(template.id, template.system_prompt),
             "customized": template.id in customized,
         }) for template in self._default_templates()]
+        custom = [PromptTemplate(
+            id=item["id"], name=item["name"], description=item["description"],
+            system_prompt=item["system_prompt"], customized=True, builtin=False,
+        ) for item in self.repository.list_custom_prompt_templates(self.owner)]
+        return builtins + custom
 
     def template(self, template_id: str) -> PromptTemplate:
         template = next((item for item in self.templates() if item.id == template_id), None)
@@ -522,14 +552,42 @@ class ProductService:
         return template
 
     def update_template(self, template_id: str, system_prompt: str) -> PromptTemplate:
-        self.template(template_id)
-        self.repository.upsert_prompt_template(self.owner, template_id, system_prompt)
+        template = self.template(template_id)
+        if template.builtin:
+            self.repository.upsert_prompt_template(self.owner, template_id, system_prompt)
+        else:
+            self.repository.update_custom_prompt_template(self.owner, template_id, system_prompt)
         return self.template(template_id)
 
     def reset_template(self, template_id: str) -> PromptTemplate:
-        self.template(template_id)
+        template = self.template(template_id)
+        if not template.builtin:
+            raise ProductNotFound("custom prompt templates cannot be reset")
         self.repository.delete_prompt_template(self.owner, template_id)
         return self.template(template_id)
+
+    def create_template(self, payload: PromptTemplateCreate) -> PromptTemplate:
+        if any(item.id == payload.id for item in self.templates()):
+            raise AiProviderModelConflict("prompt template already exists")
+        self.repository.create_custom_prompt_template(
+            self.owner, payload.id, payload.name, payload.description, payload.system_prompt
+        )
+        return self.template(payload.id)
+
+    def delete_template(self, template_id: str) -> None:
+        template = self.template(template_id)
+        if template.builtin or not self.repository.delete_custom_prompt_template(self.owner, template_id):
+            raise ProductNotFound("custom prompt template was not found")
+
+    def chat_sessions(self) -> list[AiChatSession]:
+        return [AiChatSession(**item) for item in self.repository.list_chat_sessions(self.owner)]
+
+    def chat_session(self, session_id: str) -> AiChatSession:
+        item = self.repository.get_chat_session(self.owner, session_id)
+        if item is None:
+            raise ProductNotFound("chat session was not found")
+        messages = [AiChatMessage(**message) for message in self.repository.list_chat_messages(self.owner, session_id)]
+        return AiChatSession(**item, message_count=len(messages), messages=messages)
 
     @staticmethod
     def _default_templates() -> list[PromptTemplate]:

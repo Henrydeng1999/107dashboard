@@ -59,6 +59,29 @@ class ProductRepository:
                     id TEXT NOT NULL, owner TEXT NOT NULL, system_prompt TEXT NOT NULL,
                     updated_at TEXT NOT NULL, PRIMARY KEY(id, owner)
                 );
+                CREATE TABLE IF NOT EXISTS ai_custom_prompt_templates (
+                    id TEXT NOT NULL, owner TEXT NOT NULL, name TEXT NOT NULL,
+                    description TEXT NOT NULL, system_prompt TEXT NOT NULL,
+                    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                    PRIMARY KEY(id, owner)
+                );
+                CREATE TABLE IF NOT EXISTS ai_chat_sessions (
+                    id TEXT PRIMARY KEY, owner TEXT NOT NULL, title TEXT NOT NULL,
+                    provider_id TEXT NOT NULL, model TEXT NOT NULL,
+                    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS ix_ai_chat_sessions_owner
+                    ON ai_chat_sessions(owner, updated_at);
+                CREATE TABLE IF NOT EXISTS ai_chat_messages (
+                    id TEXT PRIMARY KEY, session_id TEXT NOT NULL, owner TEXT NOT NULL,
+                    role TEXT NOT NULL, content TEXT NOT NULL,
+                    evidence_job_ids_json TEXT NOT NULL,
+                    evidence_repository_ids_json TEXT NOT NULL,
+                    template_id TEXT, created_at TEXT NOT NULL,
+                    FOREIGN KEY(session_id) REFERENCES ai_chat_sessions(id) ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS ix_ai_chat_messages_session
+                    ON ai_chat_messages(owner, session_id, created_at);
                 INSERT OR IGNORE INTO ai_provider_models(provider_id, owner, model, created_at)
                     SELECT id, owner, model, created_at FROM ai_providers;
                 """
@@ -85,6 +108,94 @@ class ProductRepository:
             self._connection.execute(
                 "DELETE FROM ai_prompt_templates WHERE owner=? AND id=?", (owner, template_id)
             )
+
+    def list_custom_prompt_templates(self, owner: str) -> list[dict]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM ai_custom_prompt_templates WHERE owner=? ORDER BY updated_at DESC",
+                (owner,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_custom_prompt_template(self, owner: str, template_id: str) -> dict | None:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT * FROM ai_custom_prompt_templates WHERE owner=? AND id=?",
+                (owner, template_id),
+            ).fetchone()
+        return None if row is None else dict(row)
+
+    def create_custom_prompt_template(self, owner: str, template_id: str, name: str, description: str, system_prompt: str) -> dict:
+        now = _now()
+        with self._lock, self._connection:
+            self._connection.execute(
+                "INSERT INTO ai_custom_prompt_templates VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (template_id, owner, name, description, system_prompt, now, now),
+            )
+        return self.get_custom_prompt_template(owner, template_id)  # type: ignore[return-value]
+
+    def update_custom_prompt_template(self, owner: str, template_id: str, system_prompt: str) -> bool:
+        with self._lock, self._connection:
+            cursor = self._connection.execute(
+                "UPDATE ai_custom_prompt_templates SET system_prompt=?, updated_at=? WHERE owner=? AND id=?",
+                (system_prompt, _now(), owner, template_id),
+            )
+        return cursor.rowcount == 1
+
+    def delete_custom_prompt_template(self, owner: str, template_id: str) -> bool:
+        with self._lock, self._connection:
+            cursor = self._connection.execute(
+                "DELETE FROM ai_custom_prompt_templates WHERE owner=? AND id=?", (owner, template_id)
+            )
+        return cursor.rowcount == 1
+
+    def create_chat_session(self, owner: str, title: str, provider_id: str, model: str) -> dict:
+        session_id = f"session-{uuid4().hex[:24]}"
+        now = _now()
+        with self._lock, self._connection:
+            self._connection.execute(
+                "INSERT INTO ai_chat_sessions VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (session_id, owner, title, provider_id, model, now, now),
+            )
+        return self.get_chat_session(owner, session_id)  # type: ignore[return-value]
+
+    def get_chat_session(self, owner: str, session_id: str) -> dict | None:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT * FROM ai_chat_sessions WHERE owner=? AND id=?", (owner, session_id)
+            ).fetchone()
+        return None if row is None else dict(row)
+
+    def list_chat_sessions(self, owner: str) -> list[dict]:
+        with self._lock:
+            rows = self._connection.execute(
+                """SELECT s.*, COUNT(m.id) AS message_count FROM ai_chat_sessions s
+                LEFT JOIN ai_chat_messages m ON m.session_id=s.id AND m.owner=s.owner
+                WHERE s.owner=? GROUP BY s.id ORDER BY s.updated_at DESC""", (owner,)
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def add_chat_message(self, owner: str, session_id: str, role: str, content: str, job_ids: list[str], repository_ids: list[str], template_id: str | None) -> dict:
+        message_id = f"message-{uuid4().hex[:24]}"
+        now = _now()
+        with self._lock, self._connection:
+            self._connection.execute(
+                "INSERT INTO ai_chat_messages VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (message_id, session_id, owner, role, content, json.dumps(job_ids), json.dumps(repository_ids), template_id, now),
+            )
+            self._connection.execute(
+                "UPDATE ai_chat_sessions SET updated_at=? WHERE owner=? AND id=?",
+                (now, owner, session_id),
+            )
+        return self.list_chat_messages(owner, session_id)[-1]
+
+    def list_chat_messages(self, owner: str, session_id: str) -> list[dict]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM ai_chat_messages WHERE owner=? AND session_id=? ORDER BY created_at, id",
+                (owner, session_id),
+            ).fetchall()
+        return [{**dict(row), "evidence_job_ids": json.loads(row["evidence_job_ids_json"]), "evidence_repository_ids": json.loads(row["evidence_repository_ids_json"])} for row in rows]
 
     def create_project(self, owner: str, name: str, description: str, job_ids: list[str]) -> dict:
         project_id = f"project-{uuid4().hex[:12]}"

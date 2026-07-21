@@ -122,6 +122,9 @@ class AiChatRequest(BaseModel):
     template_id: str | None = Field(
         default=None, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"
     )
+    session_id: str | None = Field(
+        default=None, min_length=1, max_length=64, pattern=r"^session-[a-f0-9]{24}$"
+    )
 
     @field_validator("job_ids", "repository_ids")
     @classmethod
@@ -146,6 +149,7 @@ class AiChatResponse(BaseModel):
     evidence_job_ids: list[str]
     evidence_repository_ids: list[str] = Field(default_factory=list)
     template_id: str | None = None
+    session_id: str
     tools_used: list[str] = Field(default_factory=list)
     created_at: datetime
 
@@ -193,6 +197,14 @@ class PromptTemplate(BaseModel):
     description: str
     system_prompt: str
     customized: bool = False
+    builtin: bool = True
+
+
+class PromptTemplateCreate(BaseModel):
+    id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    name: str = Field(min_length=1, max_length=64)
+    description: str = Field(default="", max_length=240)
+    system_prompt: str = Field(min_length=1, max_length=4000)
 
 
 class PromptTemplateUpdate(BaseModel):
@@ -201,3 +213,28 @@ class PromptTemplateUpdate(BaseModel):
 
 class PromptTemplateList(BaseModel):
     items: list[PromptTemplate]
+
+
+class AiChatMessage(BaseModel):
+    id: str
+    role: Literal["USER", "ASSISTANT"]
+    content: str
+    evidence_job_ids: list[str] = Field(default_factory=list)
+    evidence_repository_ids: list[str] = Field(default_factory=list)
+    template_id: str | None = None
+    created_at: datetime
+
+
+class AiChatSession(BaseModel):
+    id: str
+    title: str
+    provider_id: str
+    model: str
+    message_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+    messages: list[AiChatMessage] = Field(default_factory=list)
+
+
+class AiChatSessionList(BaseModel):
+    items: list[AiChatSession]

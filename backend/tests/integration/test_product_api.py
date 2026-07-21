@@ -6,7 +6,30 @@ from fastapi.testclient import TestClient
 
 from app.core.config import Settings
 from app.main import create_app
+from app.repositories.product import ProductRepository
 from app.services.product import ProductService
+
+
+def test_ai_history_survives_sqlite_reopen(tmp_path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'history.sqlite3'}"
+    repository = ProductRepository(database_url)
+    repository.initialize()
+    session = repository.create_chat_session("owner-a", "持久化检查", "school", "test-model")
+    repository.add_chat_message(
+        "owner-a", session["id"], "USER", "检查历史", ["job-1"], ["a" * 16], "job-diagnosis"
+    )
+    repository.add_chat_message(
+        "owner-a", session["id"], "ASSISTANT", "历史已保存", ["job-1"], ["a" * 16], "job-diagnosis"
+    )
+
+    reopened = ProductRepository(database_url)
+    reopened.initialize()
+    assert reopened.get_chat_session("owner-a", session["id"])["title"] == "持久化检查"
+    assert [item["content"] for item in reopened.list_chat_messages("owner-a", session["id"])] == [
+        "检查历史", "历史已保存"
+    ]
+    assert reopened.list_chat_sessions("owner-b") == []
+    assert reopened.list_chat_messages("owner-b", session["id"]) == []
 
 
 def test_reports_projects_and_ai_workspace(tmp_path, monkeypatch) -> None:
@@ -127,10 +150,68 @@ def test_reports_projects_and_ai_workspace(tmp_path, monkeypatch) -> None:
     assert contextual.json()["evidence_repository_ids"] == [repository_id]
     assert contextual.json()["template_id"] == "job-diagnosis"
     assert "优先比较退出码和资源效率" in prompts[-1]
+    session_id = contextual.json()["session_id"]
+    continued = client.post(
+        "/api/ai/chat",
+        json={
+            "provider_id": "school",
+            "message": "继续分析资源效率",
+            "job_ids": [jobs[1]["id"]],
+            "repository_ids": [repository_id],
+            "session_id": session_id,
+        },
+    )
+    assert continued.status_code == 200
+    assert continued.json()["session_id"] == session_id
+    sessions = client.get("/api/ai/sessions")
+    assert sessions.status_code == 200
+    assert next(item for item in sessions.json()["items"] if item["id"] == session_id)["message_count"] == 4
+    history = client.get(f"/api/ai/sessions/{session_id}")
+    assert history.status_code == 200
+    assert [item["role"] for item in history.json()["messages"]] == [
+        "USER", "ASSISTANT", "USER", "ASSISTANT"
+    ]
+    assert history.json()["messages"][0]["evidence_repository_ids"] == [repository_id]
+    assert history.json()["messages"][2]["evidence_job_ids"] == [jobs[1]["id"]]
+    missing_session = client.post(
+        "/api/ai/chat",
+        json={
+            "provider_id": "school",
+            "message": "不能写入不存在的会话",
+            "job_ids": [],
+            "session_id": "session-000000000000000000000000",
+        },
+    )
+    assert missing_session.status_code == 404
+    assert "结合仓库分析作业" in prompts[-1]
     assert "demo-repository" in prompts[-1]
     restored = client.delete("/api/ai/templates/job-diagnosis")
     assert restored.status_code == 200
     assert restored.json()["customized"] is False
+
+    custom = client.post(
+        "/api/ai/templates",
+        json={
+            "id": "resource-efficiency",
+            "name": "资源效率检查",
+            "description": "聚焦 CPU 和内存使用证据。",
+            "system_prompt": "比较申请资源与实际用量，并明确数据缺口。",
+        },
+    )
+    assert custom.status_code == 201
+    assert custom.json()["builtin"] is False
+    assert custom.json()["customized"] is True
+    custom_edited = client.put(
+        "/api/ai/templates/resource-efficiency",
+        json={"system_prompt": "优先检查 CPU、内存和运行时长。"},
+    )
+    assert custom_edited.status_code == 200
+    assert custom_edited.json()["system_prompt"] == "优先检查 CPU、内存和运行时长。"
+    assert client.post("/api/ai/templates", json={
+        "id": "resource-efficiency", "name": "重复", "description": "", "system_prompt": "重复"
+    }).status_code == 409
+    assert client.delete("/api/ai/templates/resource-efficiency/custom").status_code == 204
+    assert all(item["id"] != "resource-efficiency" for item in client.get("/api/ai/templates").json()["items"])
 
     client.post(
         "/api/ai/providers/school/models",

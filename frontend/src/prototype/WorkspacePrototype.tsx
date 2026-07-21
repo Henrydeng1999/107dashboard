@@ -110,14 +110,15 @@ export function WorkspacePrototype() {
     setUtilityPage(null);
     setAccountOpen(false);
     setActiveModule(module.id);
-    if (module.items.length > 0) {
-      setExpandedModules((current) => {
-        const next = new Set(current);
-        if (activeModule === module.id && next.has(module.id)) next.delete(module.id);
-        else next.add(module.id);
-        return next;
-      });
-    }
+  }
+
+  function toggleModule(module: NavModule) {
+    setExpandedModules((current) => {
+      const next = new Set(current);
+      if (next.has(module.id)) next.delete(module.id);
+      else next.add(module.id);
+      return next;
+    });
   }
 
   function selectItem(module: NavModule, item: string) {
@@ -172,7 +173,7 @@ export function WorkspacePrototype() {
           <span className="prototype-nav-label">工作空间</span>
           {modules.map((module) => (
             <div className="prototype-nav-group" key={module.id}>
-              <button type="button" className={activeModule === module.id ? "is-active" : ""} onClick={() => selectModule(module)} aria-expanded={module.items.length > 0 ? expandedModules.has(module.id) : undefined}><span>{module.icon}</span>{module.label}{module.items.length > 0 && <b aria-hidden="true">{expandedModules.has(module.id) ? "⌃" : "⌄"}</b>}</button>
+              <div className="prototype-nav-row"><button type="button" className={activeModule === module.id ? "is-active" : ""} onClick={() => selectModule(module)}><span>{module.icon}</span>{module.label}</button>{module.items.length > 0 && <button type="button" className="prototype-nav-toggle" aria-label={`${expandedModules.has(module.id) ? "折叠" : "展开"}${module.label}`} aria-expanded={expandedModules.has(module.id)} onClick={() => toggleModule(module)}><span aria-hidden="true">{expandedModules.has(module.id) ? "⌃" : "⌄"}</span></button>}</div>
               {module.items.length > 0 && expandedModules.has(module.id) && <div className="prototype-subnav">{module.items.map((item) => <button type="button" key={item} aria-current={!utilityPage && activeModule === module.id && activeItems[module.id] === item ? "page" : undefined} className={!utilityPage && activeModule === module.id && activeItems[module.id] === item ? "is-current" : ""} onClick={() => selectItem(module, item)}>{item}</button>)}</div>}
             </div>
           ))}
