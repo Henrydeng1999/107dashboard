@@ -44,6 +44,15 @@ npm/pnpm/yarn：未安装
 uv：未安装
 ```
 
+2026-07-22 复查时，平台用户目录已提供独立 Node 工具链：
+
+```text
+Node.js：v24.18.0（~/.local/node/bin/node）
+npm：11.16.0（~/.local/node/bin/npm）
+```
+
+该工具链不是最初环境检查中的系统级安装，但已在提交 `6ba4939` 上完成 `npm ci`、TypeScript 检查、统一导航构建和 npm 官方审计。前端仍以预构建静态产物部署，不把服务器 Node 作为服务运行依赖。
+
 系统 Python 中未预装以下项目依赖：
 
 ```text

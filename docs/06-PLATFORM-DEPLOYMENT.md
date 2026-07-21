@@ -282,6 +282,8 @@ backend/.venv/bin/python scripts/run-native-live-interaction.py \
 
 ## 用户目录基础产品服务
 
+2026-07-22，提交 `6ba4939` 已在 107 从干净 `master` 完成部署。目标 Python 3.12 环境执行后端 `268 passed`、Ruff 和 `pip check`；用户目录 Node 24.18/npm 11.16 执行 `npm ci`、TypeScript 检查、`build:navigation` 与 npm 官方审计，0 漏洞。服务器构建与开发机统一导航构建逐文件 SHA-256 一致。服务重启后 Native-only 产品检查通过，9 个作业的列表/摘要一致，四项交互能力开启，四模块 API、SQLite 完整性、AI 密钥权限和 Slurm 控制器状态正常，队列无活动作业。该检查没有提交、取消或克隆 Slurm 作业，浏览器视口与交互验收仍单独执行。
+
 单账号验收项目部署在源码仓库之外：
 
 ```bash

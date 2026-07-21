@@ -3,7 +3,7 @@
 <div class="progress-meta">
   <span class="status-badge status-done">● 本地回归通过 · 最近 107 验收通过</span>
   <span>更新时间：2026-07-22</span>
-  <span>平台验收提交：<code>85c9646</code></span>
+  <span>平台部署检查提交：<code>6ba4939</code></span>
 </div>
 
 <div class="progress-summary" aria-label="当前项目摘要">
@@ -104,6 +104,7 @@
 | <span class="status-badge status-done">✓</span> | 整页演示部署 | 固定统一导航构建、SSH 隧道恢复和桌面/移动端整页检查 | 提交 `0d2c1d7` 在 107 与本机统一入口通过；无资源、控制台、溢出或重叠错误 |
 | <span class="status-badge status-done">✓</span> | Native 全交互综合链 | 通过真实 HTTP 路由集中覆盖提交、终态、日志、usage、取消、克隆、再次取消、幂等与审计 | 提交 `85c9646` 在 107 通过；Job `24159` 完成，Job `24160/24161` 取消，5 条幂等记录及审计链完整，无活动作业遗留 |
 | <span class="status-badge status-active">→</span> | 用户目录基础产品服务 | Native-only 配置、tmux 服务管理、产品启动检查、最新前端标识和真实可运行模板 | 本地配置/检查单测、Shell 语法、前端类型检查及构建通过；107 部署和浏览器基本操作待验收 |
+| <span class="status-badge status-done">✓</span> | 107 干净提交部署 | 提交、Gitee 与服务器 `master` 对齐，服务器侧统一导航构建、Native-only 启动检查和四模块 API 技术检查 | 提交 `6ba4939`；后端 268 passed；本地/服务器构建哈希一致；SQLite `ok`、Slurmctld `UP`、无活动作业；浏览器交互另行验收 |
 | <span class="status-badge status-done">✓</span> | 登记测试项目 | 独立项目根目录、只读清单 API、owner/权限/符号链接/大小校验、submission 私有快照和前端选择 | 候选代码在 107 环境完成项目 API、快照、未知项目与路径安全回归；真实 Job 留待浏览器验收 |
 | <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 107 Python 3.12 环境后端 268 个 pytest 通过，Ruff 与 `pip check` 通过；npm 官方审计 0 个生产依赖漏洞 |
 | <span class="status-badge status-done">✓</span> | 文档 | 架构、环境、协作、部署、API 契约 | 文档站可直接访问 |
