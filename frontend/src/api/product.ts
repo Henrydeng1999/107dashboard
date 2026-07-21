@@ -24,6 +24,8 @@ export function testAiProviderModel(id: string, model: string): Promise<AiProvid
 export function addAiProviderModel(id: string, model: string): Promise<AiProvider> { return request(`/ai/providers/${encodeURIComponent(id)}/models`, json({ model })); }
 export function setDefaultAiProviderModel(id: string, model: string): Promise<AiProvider> { return request(`/ai/providers/${encodeURIComponent(id)}/models/default`, { ...json({ model }), method: "PUT" }); }
 export function deleteAiProviderModel(id: string, model: string): Promise<AiProvider> { return request(`/ai/providers/${encodeURIComponent(id)}/models?model=${encodeURIComponent(model)}`, { method: "DELETE" }); }
-export function sendAiChat(payload: { provider_id: string; model: string; message: string; job_ids: string[] }, signal?: AbortSignal): Promise<AiChatResponse> { return request("/ai/chat", { ...json(payload), signal }); }
+export function sendAiChat(payload: { provider_id: string; model: string; message: string; job_ids: string[]; repository_ids: string[]; template_id: string | null }, signal?: AbortSignal): Promise<AiChatResponse> { return request("/ai/chat", { ...json(payload), signal }); }
 export async function fetchPromptTemplates(signal?: AbortSignal): Promise<PromptTemplate[]> { return (await request<{ items: PromptTemplate[] }>("/ai/templates", { signal })).items; }
+export function updatePromptTemplate(id: string, system_prompt: string): Promise<PromptTemplate> { return request(`/ai/templates/${encodeURIComponent(id)}`, { ...json({ system_prompt }), method: "PUT" }); }
+export function resetPromptTemplate(id: string): Promise<PromptTemplate> { return request(`/ai/templates/${encodeURIComponent(id)}`, { method: "DELETE" }); }
 export async function fetchAiCalls(signal?: AbortSignal): Promise<AiCallRecord[]> { return (await request<{ items: AiCallRecord[] }>("/ai/calls", { signal })).items; }

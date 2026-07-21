@@ -301,6 +301,9 @@ class ProductService:
         model: str | None,
         message: str,
         job_ids: list[str],
+        repository_ids: list[str] | None = None,
+        repository_context: list[dict] | None = None,
+        template_id: str | None = None,
         tools: "AiReadTools | None" = None,
     ) -> AiChatResponse:
         provider = self.repository.get_provider(self.owner, provider_id)
@@ -313,7 +316,13 @@ class ProductService:
         context = []
         for job_id in job_ids:
             context.append(self.report(catalog, job_id).model_dump(mode="json"))
-        prompt = f"用户问题：{message}\n结构化作业证据：{json.dumps(context, ensure_ascii=False)}"
+        template = self.template(template_id) if template_id is not None else None
+        prompt = (
+            f"分析侧重点：{template.system_prompt if template else '按用户问题分析'}\n"
+            f"用户问题：{message}\n"
+            f"结构化作业证据：{json.dumps(context, ensure_ascii=False)}\n"
+            f"显式选择的 Git 项目证据：{json.dumps(repository_context or [], ensure_ascii=False)}"
+        )
         try:
             answer, tools_used = self._call_provider(provider, prompt, tools)
             call = self.repository.add_call(
@@ -330,6 +339,8 @@ class ProductService:
             model=provider["model"],
             answer=answer,
             evidence_job_ids=job_ids,
+            evidence_repository_ids=repository_ids or [],
+            template_id=template_id,
             tools_used=tools_used,
             created_at=call["created_at"],
         )
@@ -497,8 +508,31 @@ class ProductService:
                 key_hint=provider.get("key_hint"),
             )
 
+    def templates(self) -> list[PromptTemplate]:
+        customized = self.repository.list_prompt_templates(self.owner)
+        return [template.model_copy(update={
+            "system_prompt": customized.get(template.id, template.system_prompt),
+            "customized": template.id in customized,
+        }) for template in self._default_templates()]
+
+    def template(self, template_id: str) -> PromptTemplate:
+        template = next((item for item in self.templates() if item.id == template_id), None)
+        if template is None:
+            raise ProductNotFound("prompt template was not found")
+        return template
+
+    def update_template(self, template_id: str, system_prompt: str) -> PromptTemplate:
+        self.template(template_id)
+        self.repository.upsert_prompt_template(self.owner, template_id, system_prompt)
+        return self.template(template_id)
+
+    def reset_template(self, template_id: str) -> PromptTemplate:
+        self.template(template_id)
+        self.repository.delete_prompt_template(self.owner, template_id)
+        return self.template(template_id)
+
     @staticmethod
-    def templates() -> list[PromptTemplate]:
+    def _default_templates() -> list[PromptTemplate]:
         return [
             PromptTemplate(
                 id="job-diagnosis",

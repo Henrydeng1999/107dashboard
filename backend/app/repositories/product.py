@@ -55,9 +55,35 @@ class ProductRepository:
                     response_preview TEXT, created_at TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS ix_ai_calls_owner ON ai_calls(owner, created_at);
+                CREATE TABLE IF NOT EXISTS ai_prompt_templates (
+                    id TEXT NOT NULL, owner TEXT NOT NULL, system_prompt TEXT NOT NULL,
+                    updated_at TEXT NOT NULL, PRIMARY KEY(id, owner)
+                );
                 INSERT OR IGNORE INTO ai_provider_models(provider_id, owner, model, created_at)
                     SELECT id, owner, model, created_at FROM ai_providers;
                 """
+            )
+
+    def list_prompt_templates(self, owner: str) -> dict[str, str]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT id, system_prompt FROM ai_prompt_templates WHERE owner=?", (owner,)
+            ).fetchall()
+        return {str(row["id"]): str(row["system_prompt"]) for row in rows}
+
+    def upsert_prompt_template(self, owner: str, template_id: str, system_prompt: str) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                """INSERT INTO ai_prompt_templates VALUES (?, ?, ?, ?)
+                ON CONFLICT(id, owner) DO UPDATE SET
+                system_prompt=excluded.system_prompt, updated_at=excluded.updated_at""",
+                (template_id, owner, system_prompt, _now()),
+            )
+
+    def delete_prompt_template(self, owner: str, template_id: str) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                "DELETE FROM ai_prompt_templates WHERE owner=? AND id=?", (owner, template_id)
             )
 
     def create_project(self, owner: str, name: str, description: str, job_ids: list[str]) -> dict:

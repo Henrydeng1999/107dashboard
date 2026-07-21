@@ -142,6 +142,17 @@ def test_unknown_or_write_tool_is_rejected(tmp_path) -> None:
         else:
             raise AssertionError(f"invalid identifier was accepted: {name}")
 
+    scoped = AiReadTools(
+        runtime_info_provider=app.state.runtime_info_provider,
+        jobs=app.state.job_catalog,
+        product=app.state.product_service,
+        repositories=app.state.git_repository_browser,
+        test_projects=app.state.test_project_catalog,
+        allowed_repository_ids={"a" * 16},
+    )
+    with pytest.raises(AiReadToolError):
+        scoped.execute("get_repository", {"repository_id": "b" * 16})
+
 
 def test_tool_budget_keeps_assistant_and_tool_messages_complete(tmp_path, monkeypatch) -> None:
     client = _configured_client(tmp_path)

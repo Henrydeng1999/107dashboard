@@ -3,6 +3,7 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { fetchJobs } from "../api/jobs";
+import { fetchRepositories } from "../api/repositories";
 import {
   addAiProviderModel,
   createEvaluationProject,
@@ -18,8 +19,11 @@ import {
   setDefaultAiProviderModel,
   testAiProvider,
   testAiProviderModel,
+  updatePromptTemplate,
+  resetPromptTemplate,
 } from "../api/product";
 import type { Job } from "../features/jobs/types";
+import type { GitRepositorySummary } from "../features/repositories/types";
 import type {
   AiCallRecord,
   AiProvider,
@@ -249,7 +253,10 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   const [calls, setCalls] = useState<AiCallRecord[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [repositories, setRepositories] = useState<GitRepositorySummary[]>([]);
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
+  const [selectedRepositoryIds, setSelectedRepositoryIds] = useState<string[]>([]);
+  const [templateDrafts, setTemplateDrafts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
   const [lastQuestion, setLastQuestion] = useState("");
@@ -259,7 +266,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
   const [providerTest, setProviderTest] = useState<string | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [providerForm, setProviderForm] = useState(schoolPreset);
-  const [chat, setChat] = useState({ provider_id: "school", model: "deepseek-v4-pro", message: "" });
+  const [chat, setChat] = useState({ provider_id: "school", model: "deepseek-v4-pro", message: "", template_id: "job-diagnosis" as string | null });
   const suggestions = [
     "总结这个作业的异常发现",
     "对比这两个作业的资源效率",
@@ -275,6 +282,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
     ]);
     setProviders(providerItems);
     setTemplates(templateItems);
+    setTemplateDrafts(Object.fromEntries(templateItems.map((item) => [item.id, item.system_prompt])));
     setCalls(callItems);
     const selected = providerItems.find((item) => item.id === chat.provider_id);
     if (providerItems[0] && (!selected || !selected.models.includes(chat.model))) {
@@ -293,12 +301,15 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
       fetchPromptTemplates(controller.signal),
       fetchAiCalls(controller.signal),
       fetchJobs(1, 20, "ALL", controller.signal),
+      fetchRepositories(controller.signal),
     ])
-      .then(([providerItems, templateItems, callItems, jobPage]) => {
+      .then(([providerItems, templateItems, callItems, jobPage, repositoryPage]) => {
         setProviders(providerItems);
         setTemplates(templateItems);
         setCalls(callItems);
         setJobs(jobPage.items);
+        setRepositories(repositoryPage.items);
+        setTemplateDrafts(Object.fromEntries(templateItems.map((item) => [item.id, item.system_prompt])));
         if (providerItems[0]) {
           setChat((current) => ({
             ...current,
@@ -363,7 +374,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
     setBusy(true);
     setChatStartedAt(Date.now());
     try {
-      const response = await sendAiChat({ ...chat, message: question, job_ids: selectedJobIds });
+      const response = await sendAiChat({ ...chat, message: question, job_ids: selectedJobIds, repository_ids: selectedRepositoryIds });
       setAnswer(response.answer);
       await reload();
     } catch (reason) {
@@ -501,13 +512,25 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
   }
 
   if (subpage === "内置提示词") {
+    const saveTemplate = async (template: PromptTemplate) => {
+      setBusy(true); setError(null);
+      try { await updatePromptTemplate(template.id, templateDrafts[template.id] ?? template.system_prompt); await reload(); }
+      catch (reason) { setError(message(reason)); } finally { setBusy(false); }
+    };
+    const restoreTemplate = async (template: PromptTemplate) => {
+      setBusy(true); setError(null);
+      try { const restored = await resetPromptTemplate(template.id); setTemplateDrafts((current) => ({ ...current, [template.id]: restored.system_prompt })); await reload(); }
+      catch (reason) { setError(message(reason)); } finally { setBusy(false); }
+    };
     return (
       <section className="prototype-panel prototype-panel--scroll">
         {heading}
+        {error && <div className="prototype-live-error">{error}</div>}
         <div className="prototype-template-grid">{templates.map((item) => (
           <article key={item.id}>
-            <span>SYSTEM</span><h3>{item.name}</h3><p>{item.description}</p>
-            <small>{item.system_prompt}</small>
+            <span>{item.customized ? "CUSTOM" : "SYSTEM"}</span><h3>{item.name}</h3><p>{item.description}</p>
+            <textarea value={templateDrafts[item.id] ?? item.system_prompt} maxLength={4000} onChange={(event) => setTemplateDrafts((current) => ({ ...current, [item.id]: event.target.value }))} />
+            <div><button type="button" disabled={busy || !(templateDrafts[item.id] ?? "").trim()} onClick={() => void saveTemplate(item)}>保存</button><button type="button" disabled={busy || !item.customized} onClick={() => void restoreTemplate(item)}>恢复默认</button></div>
           </article>
         ))}</div>
       </section>
@@ -625,7 +648,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
             <div className="prototype-chat-empty">
               <span>✦</span><h3>只读作业分析助手</h3>
               <p>回答来自配置的 OpenAI 兼容 Provider；AI 不具备作业控制权限。</p>
-              <div>
+              <div className="prototype-suggestion-list">
                 {suggestions.map((text) => (
                   <button key={text} type="button" onClick={() => setChat({ ...chat, message: text })}>
                     {text}
@@ -644,6 +667,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
         )}
         {error && <div className="prototype-live-error">{error}</div>}
         <form className="prototype-composer" onSubmit={(event) => void send(event)}>
+          <select aria-label="选择分析提示词" value={chat.template_id ?? ""} onChange={(event) => setChat({ ...chat, template_id: event.target.value || null })}><option value="">通用分析</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select>
           <select aria-label="选择 AI 模型" value={JSON.stringify([chat.provider_id, chat.model])} onChange={(event) => {
             const [provider_id, model] = JSON.parse(event.target.value) as [string, string];
             setChat({ ...chat, provider_id, model });
@@ -658,7 +682,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
         </form>
       </section>
       <aside className="prototype-panel prototype-panel--scroll">
-        <span className="prototype-kicker">EVIDENCE CONTEXT</span><h2>选择作业证据</h2>
+        <span className="prototype-kicker">EVIDENCE CONTEXT</span><h2>历史作业证据</h2>
         <div className="prototype-ai-job-list">
           {jobs.map((job) => (
             <label key={job.id}>
@@ -675,9 +699,14 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
             </label>
           ))}
         </div>
+        <h3>引用 Git 项目</h3>
+        <div className="prototype-ai-repository-list">
+          {repositories.map((repository) => <label key={repository.id}><input type="checkbox" checked={selectedRepositoryIds.includes(repository.id)} onChange={() => setSelectedRepositoryIds((current) => current.includes(repository.id) ? current.filter((id) => id !== repository.id) : [...current, repository.id])} /><span>{repository.name}</span><small>{repository.branch} · {repository.dirty ? `${repository.changed_files} 个未提交文件` : "工作区干净"}</small></label>)}
+          {repositories.length === 0 && <p>当前没有可引用的 Git 项目。</p>}
+        </div>
         <h3>只读边界</h3>
         <ul className="prototype-check-list">
-          <li>AI 仅接收勾选作业的结构化报告</li>
+          <li>AI 仅接收勾选作业与 Git 项目的结构化证据</li>
           <li>无法提交、取消或克隆作业</li>
           <li>密钥原文不会返回浏览器</li>
           <li>调用成功或失败均进入审计记录</li>

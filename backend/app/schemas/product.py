@@ -1,4 +1,5 @@
 from datetime import datetime
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl, field_validator
@@ -117,6 +118,24 @@ class AiChatRequest(BaseModel):
     )
     message: str = Field(min_length=1, max_length=8000)
     job_ids: list[str] = Field(default_factory=list, max_length=20)
+    repository_ids: list[str] = Field(default_factory=list, max_length=5)
+    template_id: str | None = Field(
+        default=None, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"
+    )
+
+    @field_validator("job_ids", "repository_ids")
+    @classmethod
+    def unique_evidence_ids(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("evidence identifiers must be unique")
+        return value
+
+    @field_validator("repository_ids")
+    @classmethod
+    def valid_repository_ids(cls, value: list[str]) -> list[str]:
+        if any(re.fullmatch(r"[a-f0-9]{16}", item) is None for item in value):
+            raise ValueError("repository_ids contain an invalid identifier")
+        return value
 
 
 class AiChatResponse(BaseModel):
@@ -125,6 +144,8 @@ class AiChatResponse(BaseModel):
     model: str
     answer: str
     evidence_job_ids: list[str]
+    evidence_repository_ids: list[str] = Field(default_factory=list)
+    template_id: str | None = None
     tools_used: list[str] = Field(default_factory=list)
     created_at: datetime
 
@@ -171,6 +192,11 @@ class PromptTemplate(BaseModel):
     name: str
     description: str
     system_prompt: str
+    customized: bool = False
+
+
+class PromptTemplateUpdate(BaseModel):
+    system_prompt: str = Field(min_length=1, max_length=4000)
 
 
 class PromptTemplateList(BaseModel):

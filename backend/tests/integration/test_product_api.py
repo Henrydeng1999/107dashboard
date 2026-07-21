@@ -1,4 +1,6 @@
 import os
+from datetime import UTC, datetime
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
@@ -69,11 +71,13 @@ def test_reports_projects_and_ai_workspace(tmp_path, monkeypatch) -> None:
     if os.name != "nt":
         assert secret_path.stat().st_mode & 0o777 == 0o600
 
-    monkeypatch.setattr(
-        ProductService,
-        "_call_provider",
-        lambda self, metadata, prompt, tools=None: ("基于结构化证据的测试回答", []),
-    )
+    prompts: list[str] = []
+
+    def answer(self, metadata, prompt, tools=None):
+        prompts.append(prompt)
+        return "基于结构化证据的测试回答", []
+
+    monkeypatch.setattr(ProductService, "_call_provider", answer)
     chat = client.post(
         "/api/ai/chat",
         json={"provider_id": "school", "message": "解释作业", "job_ids": [jobs[0]["id"]]},
@@ -81,6 +85,52 @@ def test_reports_projects_and_ai_workspace(tmp_path, monkeypatch) -> None:
     assert chat.status_code == 200
     assert chat.json()["answer"] == "基于结构化证据的测试回答"
     assert chat.json()["model"] == "school-chat-pro"
+
+    templates = client.get("/api/ai/templates").json()["items"]
+    assert all(item["customized"] is False for item in templates)
+    edited = client.put(
+        "/api/ai/templates/job-diagnosis",
+        json={"system_prompt": "优先比较退出码和资源效率。"},
+    )
+    assert edited.status_code == 200
+    assert edited.json()["customized"] is True
+
+    repository_id = "a" * 16
+    client.app.state.git_repository_browser = SimpleNamespace(
+        detail=lambda selected: SimpleNamespace(
+            repository=SimpleNamespace(
+                id=selected,
+                name="demo-repository",
+                branch="master",
+                head="b" * 40,
+                dirty=False,
+                changed_files=0,
+            ),
+            commits=[SimpleNamespace(
+                hash="b" * 40,
+                subject="test commit",
+                authored_at=datetime.now(UTC),
+            )],
+        )
+    )
+    contextual = client.post(
+        "/api/ai/chat",
+        json={
+            "provider_id": "school",
+            "message": "结合仓库分析作业",
+            "job_ids": [jobs[0]["id"]],
+            "repository_ids": [repository_id],
+            "template_id": "job-diagnosis",
+        },
+    )
+    assert contextual.status_code == 200
+    assert contextual.json()["evidence_repository_ids"] == [repository_id]
+    assert contextual.json()["template_id"] == "job-diagnosis"
+    assert "优先比较退出码和资源效率" in prompts[-1]
+    assert "demo-repository" in prompts[-1]
+    restored = client.delete("/api/ai/templates/job-diagnosis")
+    assert restored.status_code == 200
+    assert restored.json()["customized"] is False
 
     client.post(
         "/api/ai/providers/school/models",

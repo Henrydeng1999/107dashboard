@@ -16,6 +16,8 @@ from app.schemas.product import (
     EvaluationProjectCreate,
     EvaluationProjectList,
     PromptTemplateList,
+    PromptTemplate,
+    PromptTemplateUpdate,
     ProviderModelList,
     ProviderModelTestRequest,
     ProviderTestResult,
@@ -32,6 +34,7 @@ from app.services.product import (
     ProductService,
 )
 from app.services.ai_tools import AiReadTools
+from app.services.repositories import GitRepositoryNotFound
 
 router = APIRouter(tags=["product"])
 
@@ -184,6 +187,24 @@ def ai_templates(product: Service):
     return PromptTemplateList(items=product.templates())
 
 
+@router.put("/ai/templates/{template_id}", response_model=PromptTemplate)
+def update_ai_template(
+    template_id: ProviderId, payload: PromptTemplateUpdate, request: Request, product: Service
+):
+    try:
+        return product.update_template(template_id, payload.system_prompt)
+    except ProductNotFound:
+        return error(request, 404, "AI_TEMPLATE_NOT_FOUND", "Prompt template was not found")
+
+
+@router.delete("/ai/templates/{template_id}", response_model=PromptTemplate)
+def reset_ai_template(template_id: ProviderId, request: Request, product: Service):
+    try:
+        return product.reset_template(template_id)
+    except ProductNotFound:
+        return error(request, 404, "AI_TEMPLATE_NOT_FOUND", "Prompt template was not found")
+
+
 @router.get("/ai/calls", response_model=AiCallRecordList)
 def ai_calls(product: Service):
     return AiCallRecordList(items=product.calls())
@@ -192,18 +213,48 @@ def ai_calls(product: Service):
 @router.post("/ai/chat", response_model=AiChatResponse)
 def ai_chat(payload: AiChatRequest, request: Request, product: Service, jobs: Catalog):
     try:
+        repository_context = []
+        for repository_id in payload.repository_ids:
+            detail = request.app.state.git_repository_browser.detail(repository_id)
+            repository_context.append({
+                "id": detail.repository.id,
+                "name": detail.repository.name,
+                "branch": detail.repository.branch,
+                "head": detail.repository.head,
+                "dirty": detail.repository.dirty,
+                "changed_files": detail.repository.changed_files,
+                "recent_commits": [
+                    {
+                        "hash": commit.hash,
+                        "subject": commit.subject,
+                        "authored_at": commit.authored_at.isoformat(),
+                    }
+                    for commit in detail.commits[:5]
+                ],
+            })
         tools = AiReadTools(
             runtime_info_provider=request.app.state.runtime_info_provider,
             jobs=jobs,
             product=product,
             repositories=request.app.state.git_repository_browser,
             test_projects=request.app.state.test_project_catalog,
+            allowed_repository_ids=set(payload.repository_ids),
         )
         return product.chat(
-            jobs, payload.provider_id, payload.model, payload.message, payload.job_ids, tools
+            jobs,
+            payload.provider_id,
+            payload.model,
+            payload.message,
+            payload.job_ids,
+            payload.repository_ids,
+            repository_context,
+            payload.template_id,
+            tools,
         )
     except ProductNotFound:
         return error(request, 404, "JOB_NOT_FOUND", "One or more jobs were not found")
+    except GitRepositoryNotFound:
+        return error(request, 404, "REPOSITORY_NOT_FOUND", "Repository was not found")
     except AiProviderNotConfigured:
         return error(request, 409, "AI_PROVIDER_NOT_CONFIGURED", "AI provider is not configured")
     except AiProviderTimeout:

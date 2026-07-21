@@ -34,12 +34,14 @@ class AiReadTools:
         product: ProductService,
         repositories: GitRepositoryBrowser,
         test_projects: TestProjectCatalog | None,
+        allowed_repository_ids: set[str] | None = None,
     ) -> None:
         self._runtime_info_provider = runtime_info_provider
         self._jobs = jobs
         self._product = product
         self._repositories = repositories
         self._test_projects = test_projects
+        self._allowed_repository_ids = allowed_repository_ids
 
     @staticmethod
     def definitions() -> list[dict[str, Any]]:
@@ -250,13 +252,17 @@ class AiReadTools:
                     "last_commit_at": item.last_commit_at,
                 }
                 for item in self._repositories.repositories()
+                if self._allowed_repository_ids is None or item.id in self._allowed_repository_ids
             ],
         }
 
     def _get_repository(self, arguments: dict[str, Any]) -> Any:
         self._only(arguments, {"repository_id"})
+        repository_id = self._identifier(arguments, "repository_id", _REPOSITORY_ID)
+        if self._allowed_repository_ids is not None and repository_id not in self._allowed_repository_ids:
+            raise AiReadToolError("repository was not selected for this chat")
         detail = self._repositories.detail(
-            self._identifier(arguments, "repository_id", _REPOSITORY_ID)
+            repository_id
         )
         value = detail.model_dump(mode="json")
         value["repository"].pop("relative_path", None)
@@ -270,8 +276,11 @@ class AiReadTools:
 
     def _get_commit(self, arguments: dict[str, Any]) -> Any:
         self._only(arguments, {"repository_id", "revision"})
+        repository_id = self._identifier(arguments, "repository_id", _REPOSITORY_ID)
+        if self._allowed_repository_ids is not None and repository_id not in self._allowed_repository_ids:
+            raise AiReadToolError("repository was not selected for this chat")
         commit = self._repositories.commit(
-            self._identifier(arguments, "repository_id", _REPOSITORY_ID),
+            repository_id,
             self._identifier(arguments, "revision", _REVISION),
         )
         return {

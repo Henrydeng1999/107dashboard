@@ -137,9 +137,9 @@
 .prototype-overview-status span { color: var(--p-muted); font-size: 10px; font-weight: 700; }
 .prototype-overview-status strong { grid-row: 1 / span 2; grid-column: 2; color: var(--p-text); font-size: 25px; line-height: 1; }
 .prototype-overview-status small { overflow: hidden; color: var(--p-text-3); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.prototype-overview-grid { min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); grid-template-rows: auto repeat(2, minmax(220px, 1fr)); gap: 14px; }
+.prototype-overview-grid { min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); grid-template-rows: minmax(145px, auto) repeat(2, minmax(150px, 1fr)); gap: 14px; }
 .prototype-overview-grid > .prototype-panel { display: flex; flex-direction: column; }
-.prototype-resource-overview { grid-column: 1 / -1; }
+.prototype-resource-overview { grid-column: 1 / -1; min-height: 145px; }
 .prototype-overview-primary { grid-column: 1; }
 .prototype-overview-link { border: 0; background: transparent; padding: 5px; color: var(--p-blue); font-size: 10px; font-weight: 700; cursor: pointer; }
 .prototype-overview-link:hover { text-decoration: underline; }
@@ -472,6 +472,14 @@
 .prototype-ai-job-list label input { grid-row: 1 / 3; }
 .prototype-ai-job-list label span { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .prototype-ai-job-list label small { color: var(--p-text-3); font-size: 10px; }
+.prototype-ai-repository-list { display: grid; gap: 6px; max-height: 145px; overflow: auto; margin: 8px 0 14px; }
+.prototype-ai-repository-list label { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 8px; align-items: center; border: 1px solid var(--p-line); border-radius: 7px; padding: 8px; cursor: pointer; }
+.prototype-ai-repository-list input { grid-row: 1 / 3; }
+.prototype-ai-repository-list span, .prototype-ai-repository-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.prototype-ai-repository-list small { color: var(--p-text-3); }
+.prototype-suggestion-list { display: grid !important; grid-template-columns: 1fr !important; gap: 7px !important; }
+.prototype-template-grid textarea { width: 100%; min-height: 110px; resize: vertical; border: 1px solid var(--p-border); border-radius: 7px; background: var(--p-surface-2); padding: 9px; color: var(--p-text-2); font: 11px/1.55 ui-monospace, monospace; }
+.prototype-template-grid article > div { display: flex; gap: 8px; margin-top: 8px; }
 
 .prototype-repository-layout { min-width: 0; min-height: 0; height: 100%; display: grid; grid-template-columns: minmax(220px, .72fr) minmax(360px, 1.45fr) minmax(260px, .83fr); gap: 14px; }
 .prototype-repository-sidebar { min-height: 0; }
