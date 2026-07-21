@@ -170,19 +170,20 @@ export function ProjectsWorkspace() {
         </div>
         {error && <div className="prototype-live-error">{error}</div>}
         <form className="prototype-project-form" onSubmit={(event) => void submit(event)}>
-          <input
+          <label className="prototype-project-field"><span>项目名称</span><input
             required
             maxLength={64}
-            placeholder="项目名称"
+            placeholder="例如：H200 参数对比"
             value={name}
             onChange={(event) => setName(event.target.value)}
-          />
-          <textarea
+          /></label>
+          <label className="prototype-project-field"><span>项目说明（可选）</span><textarea
             maxLength={500}
-            placeholder="项目说明（可选）"
+            placeholder="记录实验目标和比较口径"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-          />
+          /></label>
+          <p className="prototype-field-hint">至少选择一个作业，评价将依据现有诊断事实生成。</p>
           <div>
             {jobs.map((job) => (
               <label key={job.id}>
@@ -242,8 +243,8 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
   const [providerForm, setProviderForm] = useState({
     id: "school",
     name: "学校 AI 服务",
-    base_url: "https://ai.example.edu/v1",
-    model: "school-chat-pro",
+    base_url: "",
+    model: "",
     api_key: "",
   });
   const [chat, setChat] = useState({ provider_id: "school", message: "" });
@@ -379,7 +380,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
     );
   }
 
-  if (subpage === "提示词模板") {
+  if (subpage === "内置提示词") {
     return (
       <section className="prototype-panel prototype-panel--scroll">
         {heading}
@@ -412,7 +413,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
           {error && <div className="prototype-live-error">{error}</div>}
           {providerTest && <div className="prototype-live-notice">{providerTest}</div>}
           <form className="prototype-form" onSubmit={(event) => void save(event)}>
-            <label><span>Provider ID</span><input required pattern="[A-Za-z0-9_-]+" maxLength={64} value={providerForm.id} onChange={(event) => setProviderForm({ ...providerForm, id: event.target.value })} /></label>
+            <label><span>Provider ID</span><input required readOnly={providers.some((provider) => provider.id === providerForm.id)} pattern="[A-Za-z0-9_-]+" maxLength={64} value={providerForm.id} onChange={(event) => setProviderForm({ ...providerForm, id: event.target.value })} /></label>
             <label><span>名称</span><input required maxLength={64} value={providerForm.name} onChange={(event) => setProviderForm({ ...providerForm, name: event.target.value })} /></label>
             <label className="prototype-form-wide"><span>Base URL（HTTPS）</span><input required type="url" value={providerForm.base_url} onChange={(event) => setProviderForm({ ...providerForm, base_url: event.target.value })} /></label>
             <label><span>模型</span><input required value={providerForm.model} onChange={(event) => setProviderForm({ ...providerForm, model: event.target.value })} /></label>
@@ -421,6 +422,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
               <button className="prototype-primary" type="submit" disabled={busy}>{busy ? "处理中…" : "保存 Provider"}</button>
               <button className="prototype-secondary" type="button" disabled={busy || !providers.some((provider) => provider.id === providerForm.id && provider.configured)} onClick={() => void testProvider()}>测试连接</button>
             </div>
+            {!providers.some((provider) => provider.id === providerForm.id && provider.configured) && <p className="prototype-field-hint prototype-form-wide">先保存至少 8 位 API Key，随后即可测试连接。</p>}
           </form>
         </section>
         <aside className="prototype-panel prototype-panel--scroll">
@@ -448,7 +450,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
           {error && <div className="prototype-live-error">{error}</div>}
           <form className="prototype-form" onSubmit={(event) => void save(event)}>
             <label><span>Provider</span>
-              <select value={providerForm.id} onChange={(event) => {
+              <select disabled={providers.length === 0} value={providerForm.id} onChange={(event) => {
                 const selected = providers.find((p) => p.id === event.target.value);
                 if (selected) loadProvider(selected);
               }}>
@@ -456,7 +458,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
               </select>
             </label>
             <label className="prototype-form-wide"><span>新 API Key</span><input type="password" minLength={8} autoComplete="new-password" placeholder="输入新密钥以更新" value={providerForm.api_key} onChange={(event) => setProviderForm({ ...providerForm, api_key: event.target.value })} /></label>
-            <button className="prototype-primary" type="submit" disabled={busy || providerForm.api_key.length < 8}>{busy ? "保存中…" : "更新密钥"}</button>
+            <button className="prototype-primary" type="submit" disabled={busy || providers.length === 0 || !providers.some((provider) => provider.id === providerForm.id) || providerForm.api_key.length < 8}>{busy ? "保存中…" : "更新密钥"}</button>
           </form>
           <div className="prototype-key-list-note">
             <span>✦</span><span>浏览器只显示密钥末四位提示。若 Provider 信息需变更，请前往「模型接入」页面。</span>
@@ -498,12 +500,12 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
         </div>
         {error && <div className="prototype-live-error">{error}</div>}
         <form className="prototype-composer" onSubmit={(event) => void send(event)}>
-          <select value={chat.provider_id} onChange={(event) => setChat({ ...chat, provider_id: event.target.value })}>
-            {providers.length === 0 && <option value="school">请先配置 Provider</option>}
-            {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
+          <select aria-label="AI Provider" value={chat.provider_id} onChange={(event) => setChat({ ...chat, provider_id: event.target.value })}>
+            {!providers.some((provider) => provider.configured) && <option value="school">请先配置可用 Provider</option>}
+            {providers.filter((provider) => provider.configured).map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
           </select>
-          <input required placeholder="输入问题…" value={chat.message} onChange={(event) => setChat({ ...chat, message: event.target.value })} />
-          <button type="submit" disabled={busy || providers.length === 0}>{busy ? "…" : "↑"}</button>
+          <input required aria-label="分析问题" placeholder="输入问题…" value={chat.message} onChange={(event) => setChat({ ...chat, message: event.target.value })} />
+          <button type="submit" aria-label="发送分析请求" disabled={busy || !providers.some((provider) => provider.configured)}>{busy ? "…" : "↑"}</button>
         </form>
       </section>
       <aside className="prototype-panel prototype-panel--scroll">

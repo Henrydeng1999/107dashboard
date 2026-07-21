@@ -125,7 +125,8 @@ export function JobsWorkspace({
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    fetchJobs(page, PAGE_SIZE, stateFilter, controller.signal)
+    const scopedView = subpage === "活动作业" || subpage === "历史作业";
+    fetchJobs(scopedView ? 1 : page, scopedView ? 100 : PAGE_SIZE, stateFilter, controller.signal)
       .then((payload) => {
         setData(payload);
         setLastSyncedAt(new Date());
@@ -142,7 +143,7 @@ export function JobsWorkspace({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [page, reloadKey, stateFilter]);
+  }, [page, reloadKey, stateFilter, subpage]);
 
   const hasActiveJobs = data?.items.some((job) => ["PENDING", "RUNNING"].includes(job.state)) ?? false;
   const refreshDelay = hasActiveJobs ? ACTIVE_REFRESH_MS : IDLE_REFRESH_MS;
@@ -162,7 +163,8 @@ export function JobsWorkspace({
     }
   }, [subpage]);
 
-  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
+  const scopedView = subpage === "活动作业" || subpage === "历史作业";
+  const totalPages = scopedView ? 1 : Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
   const visibleJobs = (data?.items ?? []).filter((job) => pagePredicate(subpage, job));
   const capabilities = runtime?.capabilities ?? safeCapabilities;
 
@@ -289,7 +291,7 @@ export function JobsWorkspace({
             <div className="prototype-live-empty prototype-live-empty--table"><span>▱</span><h2>没有符合条件的作业</h2><p>{subpage === "活动作业" ? "当前没有排队中或运行中的作业。" : subpage === "历史作业" ? "当前页没有终态历史作业。" : "切换筛选条件，或新建一个作业。"}</p></div>
           )}
         </div>
-        <div className="prototype-table-footer"><span>API 共 {data?.total ?? 0} 项 · 当前显示 {visibleJobs.length} 项</span><div><button type="button" disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)}>‹</button><b>{page} / {totalPages}</b><button type="button" disabled={page >= totalPages || loading} onClick={() => setPage((value) => value + 1)}>›</button></div></div>
+        <div className="prototype-table-footer"><span>{scopedView ? `已读取最近 ${data?.items.length ?? 0} 项 · 当前范围 ${visibleJobs.length} 项` : `API 共 ${data?.total ?? 0} 项 · 当前显示 ${visibleJobs.length} 项`}</span>{!scopedView && <div><button type="button" disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)}>‹</button><b>{page} / {totalPages}</b><button type="button" disabled={page >= totalPages || loading} onClick={() => setPage((value) => value + 1)}>›</button></div>}</div>
       </section>
       <aside className="prototype-side-stack prototype-live-side">
         {selectedJob ? (

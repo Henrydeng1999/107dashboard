@@ -403,6 +403,7 @@ function JobLogPanel({ jobId, active }: { jobId: string; active: boolean }) {
                 type="button"
                 role="tab"
                 aria-selected={stream === value}
+                aria-controls="job-log-output"
                 className={stream === value ? "is-active" : ""}
                 key={value}
                 onClick={() => setStream(value)}
@@ -419,7 +420,7 @@ function JobLogPanel({ jobId, active }: { jobId: string; active: boolean }) {
       {error && <p className="form-error" role="alert">{error}</p>}
       {!error && !available && <div className="log-empty">该日志尚未产生。</div>}
       {!error && available && (
-        <pre className="log-output" aria-live="polite">{content || (loading ? "正在读取…" : "日志为空")}</pre>
+        <pre id="job-log-output" className="log-output" role="tabpanel">{content || (loading ? "正在读取…" : "日志为空")}</pre>
       )}
       <div className="log-footer">
         <span>
