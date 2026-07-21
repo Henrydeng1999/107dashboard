@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import re
 import tempfile
+import time
 from typing import TYPE_CHECKING
 import urllib.error
 import urllib.request
@@ -465,40 +466,56 @@ class ProductService:
         tools_used: list[str] = []
         tool_requests = 0
         total_result_bytes = 0
-        for _ in range(6):
+        tool_deadline = time.monotonic() + 25
+        for _ in range(4):
             try:
                 assistant = self._provider_completion(provider, messages, definitions)
             except AiToolsUnsupported:
                 return str(self._provider_completion(provider, messages, None)["content"]), []
-            tool_calls = assistant.get("tool_calls") or []
+            tool_calls = self._validated_tool_calls(assistant.get("tool_calls"))
             content = assistant.get("content") or ""
             if not tool_calls:
                 return str(content), tools_used
+            remaining_calls = 8 - tool_requests
+            accepted_calls = [call for call in tool_calls if isinstance(call, dict)][
+                :remaining_calls
+            ]
+            if not accepted_calls:
+                break
             messages.append({
                 "role": "assistant",
                 "content": content,
-                "tool_calls": tool_calls,
+                "tool_calls": accepted_calls,
             })
-            for call in tool_calls[: max(0, 8 - tool_requests)]:
+            for call in accepted_calls:
                 tool_requests += 1
-                if not isinstance(call, dict):
-                    continue
                 call_id = str(call.get("id", "tool-call"))
-                function = call.get("function") if isinstance(call, dict) else None
+                function = call.get("function")
                 name = function.get("name") if isinstance(function, dict) else None
                 raw_arguments = function.get("arguments", "{}") if isinstance(function, dict) else "{}"
-                try:
-                    arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else raw_arguments
-                    result = tools.execute(str(name), arguments)
-                    tools_used.append(str(name))
-                except Exception as exc:
+                if total_result_bytes >= 128_000 or time.monotonic() >= tool_deadline:
                     result = json.dumps(
-                        {
-                            "source": f"107-dashboard:{name}",
-                            "trust": "untrusted_data",
-                            "error": type(exc).__name__,
-                            "message": "The read-only query was rejected or unavailable.",
-                        },
+                        {"error": "total tool execution budget exhausted"},
+                        ensure_ascii=False,
+                    )
+                else:
+                    try:
+                        arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else raw_arguments
+                        result = tools.execute(str(name), arguments)
+                        tools_used.append(str(name))
+                    except Exception as exc:
+                        result = json.dumps(
+                            {
+                                "source": f"107-dashboard:{name}",
+                                "trust": "untrusted_data",
+                                "error": type(exc).__name__,
+                                "message": "The read-only query was rejected or unavailable.",
+                            },
+                            ensure_ascii=False,
+                        )
+                if not isinstance(result, str):
+                    result = json.dumps(
+                        {"error": "tool returned an invalid result"},
                         ensure_ascii=False,
                     )
                 total_result_bytes += len(result.encode("utf-8"))
@@ -518,6 +535,35 @@ class ProductService:
         })
         return str(self._provider_completion(provider, messages, None)["content"]), tools_used
 
+    @staticmethod
+    def _validated_tool_calls(value: object) -> list[dict[str, object]]:
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            raise AiProviderUnavailable("AI provider returned invalid tool calls")
+        calls: list[dict[str, object]] = []
+        seen_ids: set[str] = set()
+        for item in value:
+            if not isinstance(item, dict) or item.get("type", "function") != "function":
+                raise AiProviderUnavailable("AI provider returned invalid tool calls")
+            call_id = item.get("id")
+            function = item.get("function")
+            if (
+                not isinstance(call_id, str)
+                or not call_id
+                or len(call_id) > 128
+                or call_id in seen_ids
+                or not isinstance(function, dict)
+                or not isinstance(function.get("name"), str)
+                or not function["name"]
+                or len(function["name"]) > 128
+                or not isinstance(function.get("arguments", "{}"), (str, dict))
+            ):
+                raise AiProviderUnavailable("AI provider returned invalid tool calls")
+            seen_ids.add(call_id)
+            calls.append(item)
+        return calls
+
     def _provider_completion(
         self,
         provider: dict,
@@ -528,6 +574,7 @@ class ProductService:
             "model": provider["model"],
             "messages": messages,
             "temperature": 0.2,
+            "max_tokens": 2_000,
         }
         if tools:
             body["tools"] = tools
@@ -550,7 +597,48 @@ class ProductService:
                 raise ValueError("provider message is not an object")
             return message
         except urllib.error.HTTPError as exc:
-            if tools is not None and exc.code in {400, 422}:
+            detail = exc.read(16_384).decode("utf-8", errors="replace").lower()
+            unsupported_markers = (
+                "tools is not supported",
+                "tools are not supported",
+                "unsupported parameter: tools",
+                "unknown parameter: tools",
+                "unrecognized parameter: tools",
+                "tool_choice is not supported",
+                "unsupported parameter: tool_choice",
+                "unknown parameter: tool_choice",
+                "unrecognized parameter: tool_choice",
+                'unknown field "tools"',
+                "unknown field 'tools'",
+                'unknown field "tool_choice"',
+                "unknown field 'tool_choice'",
+                "tool calling unavailable",
+                "does not support tool calling",
+                "does not support function calling",
+                "function calling is not supported",
+            )
+            structured_unsupported = False
+            try:
+                error = json.loads(detail).get("error", {})
+                structured_unsupported = (
+                    isinstance(error, dict)
+                    and error.get("code") in {"unsupported_parameter", "unknown_parameter"}
+                    and error.get("param") in {"tools", "tool_choice"}
+                )
+            except (ValueError, AttributeError):
+                pass
+            if (
+                tools is not None
+                and exc.code in {400, 422}
+                and (
+                    structured_unsupported
+                    or any(marker in detail for marker in unsupported_markers)
+                    or (
+                        "extra inputs are not permitted" in detail
+                        and ("tools" in detail or "tool_choice" in detail)
+                    )
+                )
+            ):
                 raise AiToolsUnsupported("provider does not support tool calling") from exc
             raise AiProviderUnavailable("AI provider request failed") from exc
         except (OSError, ValueError, KeyError, IndexError, urllib.error.URLError) as exc:
