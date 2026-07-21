@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 
 import { JobsWorkspace } from "./JobsWorkspace";
 import { AiWorkspace, ProjectsWorkspace, ReportsWorkspace } from "./ProductWorkspaces";
+import { ThemeProvider } from "./useTheme";
+import { ThemeToggle } from "./ThemeToggle";
 
 type ModuleId = "jobs" | "reports" | "projects" | "ai";
 
@@ -82,6 +84,7 @@ export function WorkspacePrototype() {
   }
 
   return (
+    <ThemeProvider>
     <div className="prototype-shell">
       <aside className="prototype-sidebar">
         <div className="prototype-brand"><span>107</span><div><strong>Dashboard</strong><small>Student Workspace</small></div></div>
@@ -98,7 +101,7 @@ export function WorkspacePrototype() {
         <div className="prototype-sidebar-bottom"><div className="prototype-sidebar-static-item"><span>?</span><span>帮助与文档</span></div><div className="prototype-sidebar-static-item"><span>⚙</span><span>系统设置</span></div><div className="prototype-platform"><StatusDot /><div><strong>单账号工作台</strong><small>数据源状态见作业页</small></div></div></div>
       </aside>
       <main className="prototype-main">
-        <header className="prototype-topbar"><div className="prototype-breadcrumb"><span>{active.label}</span><b>/</b><strong>{activeItems[activeModule]}</strong></div><div className="prototype-top-actions"><span className="prototype-design-pill is-live">LIVE API</span><span className="prototype-avatar">PB</span></div></header>
+        <header className="prototype-topbar"><div className="prototype-breadcrumb"><span>{active.label}</span><b>/</b><strong>{activeItems[activeModule]}</strong></div><div className="prototype-top-actions"><ThemeToggle /><span className="prototype-design-pill is-live">LIVE API</span><span className="prototype-avatar">PB</span></div></header>
         <div className="prototype-content">
           <div className="prototype-page-header"><div><span>{meta.eyebrow}</span><h1>{meta.title}</h1><p>{meta.description}</p></div><div className="prototype-page-actions">{activeModule === "jobs" && <button className="prototype-primary" type="button" onClick={() => setActiveItems((current) => ({ ...current, jobs: "新建作业" }))}>＋ 新建作业</button>}</div></div>
           <div className="prototype-workspace">
@@ -110,5 +113,6 @@ export function WorkspacePrototype() {
         </div>
       </main>
     </div>
+    </ThemeProvider>
   );
 }
