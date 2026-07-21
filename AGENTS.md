@@ -15,7 +15,9 @@ configure job
   -> view basic resource usage
 ```
 
-AI is used to assist the team with development, documentation, testing, and debugging. AI is not a runtime product feature.
+The competition product is fixed to one trusted Unix account and three primary surfaces: job submission management, automatic job diagnosis/reporting, and project-level AI result evaluation. Do not add login, account switching, multi-user delegation, or cross-owner analysis to the competition scope.
+
+AI assists development and may also power optional read-only explanation and project evaluation. It must never control Slurm jobs, override deterministic evidence, or make the core workflow depend on model availability.
 
 ## Read First
 

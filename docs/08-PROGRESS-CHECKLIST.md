@@ -2,7 +2,7 @@
 
 <div class="progress-meta">
   <span class="status-badge status-done">● 本地回归通过 · 最近 107 验收通过</span>
-  <span>更新时间：2026-07-19</span>
+  <span>更新时间：2026-07-21</span>
   <span>平台验收提交：<code>85c9646</code></span>
 </div>
 
@@ -10,7 +10,7 @@
   <div class="progress-stat progress-stat-done"><strong>可用</strong><span>前后端最小骨架</span></div>
   <div class="progress-stat progress-stat-done"><strong>218 / 218</strong><span>后端测试通过</span></div>
   <div class="progress-stat progress-stat-done"><strong>通过</strong><span>前端类型检查与构建</span></div>
-  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>107 部署与浏览器验收</span></div>
+  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>单账号三主页面产品化</span></div>
 </div>
 
 > **状态说明：** <span class="status-badge status-done">✓ 已完成</span> 已实现并通过对应测试、构建、fixture 或平台证据验证；<span class="status-badge status-active">→ 进行中</span> 已有部分成果；<span class="status-badge status-pending">○ 待开始</span> 尚未实现；<span class="status-badge status-later">◇ 赛后</span> 不阻塞比赛 MVP。
@@ -43,8 +43,13 @@
     <div class="progress-track" role="progressbar" aria-label="日志和资源可视化完成度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span class="progress-fill progress-100"></span></div>
     <p>Fixture 日志、增量读取、作业级资源统计和当前用户摘要均已完成；真实作业 <code>21482</code> 的资源字段及 Job <code>24011</code> 的受控日志限量读取均已通过平台验收。</p>
   </div>
+  <div class="phase-row">
+    <div class="phase-heading"><strong>阶段 5 · 单账号比赛产品完善</strong><span class="status-badge status-active">1 / 3</span></div>
+    <div class="progress-track" role="progressbar" aria-label="单账号比赛产品完善完成度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="33"><span class="progress-fill progress-33"></span></div>
+    <p>三个主页面的信息架构与桌面端 Figma 设计已完成；作业提交管理已有真实闭环，下一步将其整理为独立页面，并实现诊断自动报告和项目 AI 结果评价。</p>
+  </div>
   <div class="phase-row phase-later">
-    <div class="phase-heading"><strong>阶段 5 · 生产化部署</strong><span class="status-badge status-later">赛后</span></div>
+    <div class="phase-heading"><strong>阶段 6 · 生产化部署</strong><span class="status-badge status-later">赛后</span></div>
     <div class="progress-track" role="progressbar" aria-label="生产化部署完成度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="progress-fill progress-0"></span></div>
     <p>HTTPS、长期服务、备份、审计和生产数据库不阻塞比赛 MVP。</p>
   </div>
@@ -72,6 +77,7 @@
 | <span class="status-badge status-done">✓</span> | 当前用户摘要 | 作业总数、活跃/成功/异常数量、完整状态分布和带字段覆盖率的资源快照合计 | 摘要初始值、提交后更新和前端构建通过；不声称为实际利用率 |
 | <span class="status-badge status-done">✓</span> | Fixture MVP 回归 | 健康检查、列表/详情、日志、资源、提交、取消、克隆和摘要组成单一可重复故事 | `test_mvp_fixture_flow.py` 通过，不调用真实 Slurm |
 | <span class="status-badge status-done">✓</span> | 身份设计 | 比赛原型采用后端进程有效 UID 对应的单 Unix 账号，HTTP 输入不能选择 Slurm 用户 | Native 创建前 UID/owner 精确匹配测试通过 |
+| <span class="status-badge status-done">✓</span> | 比赛范围决策 | 当前版本固定单 Unix 账号与三个主页面；登录、账号切换、跨账号委托和多用户评价移至赛后 | README、计划、架构、AI 路线与 Agent 约束已统一 |
 | <span class="status-badge status-done">✓</span> | 身份与元数据链路 | SQLite source 隔离、旧表兼容升级、Slurm 状态优先去重合并和 owner 限定查询 | 恢复、跨 owner、来源隔离、旧表升级和合并测试通过 |
 | <span class="status-badge status-done">✓</span> | Native 能力界面 | `/api/runtime` 分别声明提交、日志等能力，前端展示当前 Native 模式并隐藏未开放操作 | TypeScript 检查和 Vite 生产构建通过 |
 | <span class="status-badge status-done">✓</span> | Native 平台验收 | 有效 UID、owner、真实列表、详情和 usage 在 107 运行通过 | 提交 `05a64a3`；用户 `pb24030760`；Job `21482`；`COMPLETED`；`0:0`；脚本退出 0 |
@@ -99,10 +105,10 @@
 ## 当前待办与提示
 
 <div class="notice-grid">
-  <div class="notice notice-next"><strong>下一开发项</strong><span>项目成员从浏览器依次运行登记的 CPU 完成、增量日志、受控失败和取消/克隆项目，记录 Job ID、资源、终态、退出码、日志与 usage，并确认无活动验收作业遗留。</span></div>
-  <div class="notice notice-warning"><strong>暂时限制</strong><span>用户目录服务和真实模板已完成本地实现，但尚未在 107 浏览器入口验收；当前命令策略仍仅允许 python/python3 与安全参数。</span></div>
+  <div class="notice notice-next"><strong>下一开发项</strong><span>按照已确认设计，将现有真实作业闭环整理为“作业提交管理”主页面，再实现基于可信事实的“作业诊断自动报告”；完成后进入项目级 AI 结果评价。</span></div>
+  <div class="notice notice-warning"><strong>暂时限制</strong><span>诊断报告和项目 AI 评价目前只有设计与实施计划，尚未接入数据库、API 或 React；不得把设计样例当成已实现功能或真实结论。</span></div>
   <div class="notice notice-safe"><strong>安全边界</strong><span>真实测试只能通过 Slurm 提交，禁止在登录节点直接运行学生计算任务。</span></div>
-  <div class="notice notice-info"><strong>验证方式</strong><span>Fixture 与注入式 Native 回归用于本地稳定验证，107 脚本用于平台真实验收：后端 pytest 212 passed、目标 Ruff、Shell 语法、前端类型检查、普通构建与统一导航构建通过。</span></div>
+  <div class="notice notice-info"><strong>验证方式</strong><span>Fixture 与注入式 Native 回归用于本地稳定验证，107 脚本用于平台真实验收：后端 pytest 218 passed、目标 Ruff、Shell 语法、前端类型检查、普通构建与统一导航构建通过。</span></div>
 </div>
 
 ## MVP 必须功能
@@ -132,6 +138,10 @@
 - [x] 预提交作业与真实平台演示回归
 - [x] Native HTTP 提交、状态、日志、usage、取消与克隆的单次真实平台综合验收
 - [ ] 用户目录 Native-only Web 服务与浏览器基础操作验收
+- [x] 单账号模式与三个主页面信息架构确认
+- [ ] 作业提交管理独立主页面
+- [ ] 作业诊断自动报告主页面与确定性报告链路
+- [ ] 项目 AI 结果评价主页面与证据覆盖率
 
 ## 可选创新功能
 
