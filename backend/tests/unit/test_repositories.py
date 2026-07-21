@@ -112,7 +112,7 @@ def test_readme_symlink_is_not_exposed(tmp_path: Path) -> None:
 def test_git_invocation_is_noninteractive_and_disables_repository_hooks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    repository = create_repository(tmp_path)
+    create_repository(tmp_path)
     browser = GitRepositoryBrowser(tmp_path)
     original_run = subprocess.run
     observed: dict[str, object] = {}
