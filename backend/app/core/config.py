@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     demo_fallback_cooldown_seconds: float = 30.0
     demo_fallback_owner: str = "demo-user"
     ai_secret_directory: Path = PROJECT_ROOT / "data" / "secrets" / "ai"
+    git_repository_root: Path | None = None
+    git_repository_scan_depth: int = 3
+    git_repository_limit: int = 50
 
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env",
@@ -64,6 +67,14 @@ class Settings(BaseSettings):
     @field_validator("test_project_directory", mode="before")
     @classmethod
     def resolve_optional_directory(cls, value: object) -> Path | None:
+        if value is None or value == "":
+            return None
+        path = Path(value) if isinstance(value, (str, Path)) else Path(str(value))
+        return path if path.is_absolute() else PROJECT_ROOT / path
+
+    @field_validator("git_repository_root", mode="before")
+    @classmethod
+    def resolve_git_repository_root(cls, value: object) -> Path | None:
         if value is None or value == "":
             return None
         path = Path(value) if isinstance(value, (str, Path)) else Path(str(value))
@@ -112,6 +123,20 @@ class Settings(BaseSettings):
     def validate_native_max_active_jobs(cls, value: int) -> int:
         if not 1 <= value <= 100:
             raise ValueError("NATIVE_MAX_ACTIVE_JOBS must be between 1 and 100")
+        return value
+
+    @field_validator("git_repository_scan_depth")
+    @classmethod
+    def validate_git_repository_scan_depth(cls, value: int) -> int:
+        if not 0 <= value <= 5:
+            raise ValueError("GIT_REPOSITORY_SCAN_DEPTH must be between 0 and 5")
+        return value
+
+    @field_validator("git_repository_limit")
+    @classmethod
+    def validate_git_repository_limit(cls, value: int) -> int:
+        if not 1 <= value <= 200:
+            raise ValueError("GIT_REPOSITORY_LIMIT must be between 1 and 200")
         return value
 
     @field_validator("dashboard_owner", "demo_fallback_owner")

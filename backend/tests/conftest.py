@@ -24,6 +24,9 @@ _SETTINGS_ENVIRONMENT_VARIABLES = (
     "DEMO_FALLBACK_OWNER",
     "SERVE_FRONTEND",
     "FRONTEND_DIST_DIRECTORY",
+    "GIT_REPOSITORY_ROOT",
+    "GIT_REPOSITORY_SCAN_DEPTH",
+    "GIT_REPOSITORY_LIMIT",
 )
 
 # Test modules import the application during collection, before fixtures run.

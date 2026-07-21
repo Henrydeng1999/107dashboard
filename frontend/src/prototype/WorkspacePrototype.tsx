@@ -5,8 +5,9 @@ import { AiWorkspace, ProjectsWorkspace, ReportsWorkspace } from "./ProductWorks
 import { ThemeProvider } from "./useTheme";
 import { ThemeToggle } from "./ThemeToggle";
 import { HelpWorkspace, SettingsWorkspace, type WorkspaceDestination } from "./HelpWorkspace";
+import { RepositoriesWorkspace } from "./RepositoriesWorkspace";
 
-type ModuleId = "jobs" | "reports" | "projects" | "ai";
+type ModuleId = "jobs" | "reports" | "projects" | "repositories" | "ai";
 
 type NavModule = {
   id: ModuleId;
@@ -16,6 +17,12 @@ type NavModule = {
 };
 
 const modules: NavModule[] = [
+  {
+    id: "repositories",
+    label: "Git 仓库",
+    icon: "⑂",
+    items: ["仓库浏览"],
+  },
   {
     id: "jobs",
     label: "作业提交管理",
@@ -58,6 +65,11 @@ const pageMeta: Record<ModuleId, { eyebrow: string; title: string; description: 
     title: "项目结果评价",
     description: "基于确定性诊断结果聚合作业，形成可复核的项目级结论。",
   },
+  repositories: {
+    eyebrow: "SOURCE CONTROL",
+    title: "Git 仓库浏览",
+    description: "只读查看当前账户的仓库状态、README 与提交历史。",
+  },
   ai: {
     eyebrow: "AI WORKSPACE",
     title: "AI 工作台",
@@ -74,7 +86,7 @@ export function WorkspacePrototype() {
   const [utilityPage, setUtilityPage] = useState<"help" | "settings" | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
-  const [activeItems, setActiveItems] = useState<Record<ModuleId, string>>({ jobs: "作业总览", reports: "报告总览", projects: "项目总览", ai: "Chat" });
+  const [activeItems, setActiveItems] = useState<Record<ModuleId, string>>({ jobs: "作业总览", reports: "报告总览", projects: "项目总览", repositories: "仓库浏览", ai: "Chat" });
   const active = useMemo(() => modules.find((item) => item.id === activeModule)!, [activeModule]);
   const meta = pageMeta[activeModule];
 
@@ -147,6 +159,7 @@ export function WorkspacePrototype() {
             {!utilityPage && activeModule === "jobs" && <JobsWorkspace subpage={activeItems.jobs} onNavigate={(subpage) => setActiveItems((current) => ({ ...current, jobs: subpage }))} />}
             {!utilityPage && activeModule === "reports" && <ReportsWorkspace />}
             {!utilityPage && activeModule === "projects" && <ProjectsWorkspace />}
+            {!utilityPage && activeModule === "repositories" && <RepositoriesWorkspace />}
             {!utilityPage && activeModule === "ai" && <AiWorkspace subpage={activeItems.ai} />}
           </div>
         </div>

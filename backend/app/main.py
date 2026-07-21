@@ -11,6 +11,7 @@ from app.api.routes.health import router as health_router
 from app.api.routes.jobs import router as jobs_router
 from app.api.routes.projects import router as projects_router
 from app.api.routes.product import router as product_router
+from app.api.routes.repositories import router as repositories_router
 from app.core.config import Settings, get_settings
 from app.services.demo_fallback import DemoFallbackJobCatalog
 from app.services.job_catalog import JobCatalog, build_job_catalog
@@ -18,6 +19,7 @@ from app.schemas.system import RuntimeCapabilities, RuntimeInfo
 from app.services.test_projects import TestProjectCatalog
 from app.repositories.product import ProductRepository
 from app.services.product import ProductService
+from app.services.repositories import GitRepositoryBrowser
 
 
 def _runtime_info(
@@ -102,6 +104,11 @@ def create_app(
         repository=product_repository,
         secret_directory=settings.ai_secret_directory,
     )
+    application.state.git_repository_browser = GitRepositoryBrowser(
+        settings.git_repository_root,
+        settings.git_repository_scan_depth,
+        settings.git_repository_limit,
+    )
 
     @application.middleware("http")
     async def assign_request_id(
@@ -137,6 +144,7 @@ def create_app(
     application.include_router(jobs_router, prefix="/api")
     application.include_router(projects_router, prefix="/api")
     application.include_router(product_router, prefix="/api")
+    application.include_router(repositories_router, prefix="/api")
     if settings.serve_frontend:
         frontend_index = settings.frontend_dist_directory / "index.html"
         if not frontend_index.is_file():

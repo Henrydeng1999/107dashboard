@@ -2,7 +2,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { useTheme } from "./useTheme";
 
 export type WorkspaceDestination =
-  | { kind: "module"; module: "jobs" | "reports" | "projects" | "ai"; item: string }
+  | { kind: "module"; module: "jobs" | "reports" | "projects" | "repositories" | "ai"; item: string }
   | { kind: "utility"; page: "help" | "settings" };
 
 type Navigate = (destination: WorkspaceDestination) => void;
@@ -11,6 +11,7 @@ const topics = [
   { id: "help-start", label: "开始使用" },
   { id: "help-jobs", label: "作业管理" },
   { id: "help-reports", label: "诊断与评价" },
+  { id: "help-git", label: "Git 仓库" },
   { id: "help-ai", label: "AI 工作台" },
   { id: "help-security", label: "安全边界" },
   { id: "help-troubleshooting", label: "故障排查" },
@@ -74,6 +75,15 @@ export function HelpWorkspace({ onNavigate }: { onNavigate: Navigate }) {
           <div className="prototype-help-actions">
             <button className="prototype-primary" type="button" onClick={() => onNavigate({ kind: "module", module: "ai", item: "模型接入" })}>配置 Provider</button>
             <button className="prototype-secondary" type="button" onClick={() => onNavigate({ kind: "module", module: "ai", item: "调用记录" })}>查看调用记录</button>
+          </div>
+        </article>
+
+        <article id="help-git" tabIndex={-1}>
+          <span className="prototype-kicker">SOURCE CONTROL</span>
+          <h2>Git 仓库浏览</h2>
+          <p>仓库页只读取部署配置允许范围内的 Git 元数据：当前分支、工作区状态、最近提交、提交文件列表与仓库根目录 README。页面不会显示远程仓库地址、凭据、任意文件正文或补丁，也不会执行提交、推送、拉取和分支切换。</p>
+          <div className="prototype-help-actions">
+            <button className="prototype-primary" type="button" onClick={() => onNavigate({ kind: "module", module: "repositories", item: "仓库浏览" })}>浏览代码仓库</button>
           </div>
         </article>
 
