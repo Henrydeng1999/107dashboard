@@ -1,0 +1,9 @@
+export type ReportEvidence = { key: string; label: string; value: string; source: "slurm" | "usage" | "metadata" };
+export type ReportFinding = { severity: "info" | "warning" | "critical"; title: string; explanation: string; recommendation: string };
+export type DiagnosticReport = { job_id: string; slurm_job_id: string; job_name: string; state: string; health_score: number; summary: string; evidence: ReportEvidence[]; findings: ReportFinding[]; generated_at: string; generator_version: string };
+export type EvaluationJob = { job_id: string; slurm_job_id: string; name: string; state: string; health_score: number; elapsed_seconds: number | null; max_rss_kb: number | null };
+export type EvaluationProject = { id: string; name: string; description: string; job_ids: string[]; jobs: EvaluationJob[]; score: number; grade: string; summary: string; recommendations: string[]; evidence_coverage_percent: number; created_at: string; updated_at: string };
+export type AiProvider = { id: string; name: string; base_url: string; model: string; configured: boolean; key_hint: string | null; updated_at: string };
+export type PromptTemplate = { id: string; name: string; description: string; system_prompt: string };
+export type AiCallRecord = { id: string; provider_id: string; model: string; status: "SUCCEEDED" | "FAILED"; prompt_preview: string; response_preview: string | null; created_at: string };
+export type AiChatResponse = { id: string; provider_id: string; model: string; answer: string; evidence_job_ids: string[]; created_at: string };

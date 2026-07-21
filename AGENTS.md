@@ -102,6 +102,8 @@ See `docs/03-ENVIRONMENT_CHECK.md` for the complete verified environment record.
 - Do not commit real user logs or unredacted paths belonging to other users.
 - Do not mount or expose the Docker socket, SSH ControlMaster socket, or private keys to the application.
 - Runtime data, logs, SQLite files, generated job scripts, virtual environments, and frontend build output must remain outside tracked source files.
+- AI Provider keys belong only in `AI_SECRET_DIRECTORY`: keep the directory private to the current user and key files mode `600`; never store raw keys in SQLite, return them through an API, write them to logs, or include them in Git.
+- Product AI may receive only explicitly selected, owner-visible structured report evidence. It must not receive raw job logs by default and must not expose submit, cancel, clone, or other Slurm control tools.
 
 ## Development Rules
 

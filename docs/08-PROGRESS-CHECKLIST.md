@@ -8,9 +8,9 @@
 
 <div class="progress-summary" aria-label="当前项目摘要">
   <div class="progress-stat progress-stat-done"><strong>可用</strong><span>前后端最小骨架</span></div>
-  <div class="progress-stat progress-stat-done"><strong>218 / 218</strong><span>后端测试通过</span></div>
+  <div class="progress-stat progress-stat-done"><strong>通过</strong><span>产品链路定向回归</span></div>
   <div class="progress-stat progress-stat-done"><strong>通过</strong><span>前端类型检查与构建</span></div>
-  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>单账号四模块产品化</span></div>
+  <div class="progress-stat progress-stat-next"><strong>下一步</strong><span>107 产品浏览器验收</span></div>
 </div>
 
 > **状态说明：** <span class="status-badge status-done">✓ 已完成</span> 已实现并通过对应测试、构建、fixture 或平台证据验证；<span class="status-badge status-active">→ 进行中</span> 已有部分成果；<span class="status-badge status-pending">○ 待开始</span> 尚未实现；<span class="status-badge status-later">◇ 赛后</span> 不阻塞比赛 MVP。
@@ -44,9 +44,9 @@
     <p>Fixture 日志、增量读取、作业级资源统计和当前用户摘要均已完成；真实作业 <code>21482</code> 的资源字段及 Job <code>24011</code> 的受控日志限量读取均已通过平台验收。</p>
   </div>
   <div class="phase-row">
-    <div class="phase-heading"><strong>阶段 5 · 单账号比赛产品完善</strong><span class="status-badge status-active">1 / 4</span></div>
-    <div class="progress-track" role="progressbar" aria-label="单账号比赛产品完善完成度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="25"><span class="progress-fill progress-25"></span></div>
-    <p>四个一级模块、子页面拆分、Cloudflare 风格黑色工作台和桌面视口规范已确定；作业提交管理已有真实闭环，诊断报告、项目评价与独立 AI 工作台仍待实现。</p>
+    <div class="phase-heading"><strong>阶段 5 · 单账号比赛产品完善</strong><span class="status-badge status-active">3 / 4</span></div>
+    <div class="progress-track" role="progressbar" aria-label="单账号比赛产品完善完成度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="75"><span class="progress-fill progress-75"></span></div>
+    <p>四个一级模块已统一为单一 React 工作台；作业管理、确定性诊断报告、多作业项目评价和只读 AI 工作台均已接入本地真实 API。仍需在 107 浏览器完成整体验收，并使用学校真实 Provider 地址与凭证验证外部 AI 调用。</p>
   </div>
   <div class="phase-row phase-later">
     <div class="phase-heading"><strong>阶段 6 · 生产化部署</strong><span class="status-badge status-later">赛后</span></div>
@@ -78,7 +78,12 @@
 | <span class="status-badge status-done">✓</span> | Fixture MVP 回归 | 健康检查、列表/详情、日志、资源、提交、取消、克隆和摘要组成单一可重复故事 | `test_mvp_fixture_flow.py` 通过，不调用真实 Slurm |
 | <span class="status-badge status-done">✓</span> | 身份设计 | 比赛原型采用后端进程有效 UID 对应的单 Unix 账号，HTTP 输入不能选择 Slurm 用户 | Native 创建前 UID/owner 精确匹配测试通过 |
 | <span class="status-badge status-done">✓</span> | 比赛范围决策 | 当前版本固定单 Unix 账号与作业、诊断报告、项目评价、AI 四个一级模块；多用户能力移至赛后 | README、计划、架构、AI 路线与 Agent 约束已统一 |
-| <span class="status-badge status-done">✓</span> | 前端布局规范 | 浏览器内容视口以 `1600×800` 为基准、`1440×720` 为最低桌面验收，页面根容器无纵向滚动，主区优先 `68/32` 双栏 | 已写入架构、计划和 AI 信息架构；React 与新 Figma 子页面尚待实现 |
+| <span class="status-badge status-done">✓</span> | 前端布局规范 | 浏览器内容视口以 `1600×800` 为基准、`1440×720` 为最低桌面验收，页面根容器无纵向滚动，主区优先 `68/32` 双栏 | React 原型在两个目标视口实测 `scrollWidth/Height` 均等于视口；无控制台警告或错误 |
+| <span class="status-badge status-done">✓</span> | 四模块统一工作台 | 可展开侧栏、作业提交管理、诊断报告、项目评价和 AI 工作台；旧版页面入口已移除 | 四个主模块统一使用 `LIVE API` 页面入口；前端类型检查与生产构建通过 |
+| <span class="status-badge status-done">✓</span> | 确定性诊断报告 | 基于 owner 可见作业的 Slurm 状态、退出码、原因、申请资源和 usage 生成版本化证据、分数、发现与建议 | 产品 API 集成测试、Ruff 与前端构建通过；不依赖外部 AI |
+| <span class="status-badge status-done">✓</span> | 多作业项目评价 | SQLite 持久化项目与作业关联，按规则返回综合分、等级、证据覆盖率和缺口建议 | 创建、查询、未知作业边界与前端构建通过 |
+| <span class="status-badge status-active">→</span> | 只读 AI 工作台 | HTTPS OpenAI 兼容 Provider、私有 API Key、作业证据选择、Chat、提示词与调用记录已接线 | 本地未配置/模拟成功/密钥不回显测试通过；学校真实 Provider 尚待凭证验收 |
+| <span class="status-badge status-active">→</span> | 新版作业页完整迁移 | jobs、runtime、projects、summary、logs、usage API，以及提交、取消、克隆、幂等、轮询和能力门禁均迁入新版布局 | 本地 Fixture 已通过列表、筛选、活动页、详情、usage、stdout/stderr、提交、取消和克隆；等待 107 浏览器 Native 验收 |
 | <span class="status-badge status-done">✓</span> | 身份与元数据链路 | SQLite source 隔离、旧表兼容升级、Slurm 状态优先去重合并和 owner 限定查询 | 恢复、跨 owner、来源隔离、旧表升级和合并测试通过 |
 | <span class="status-badge status-done">✓</span> | Native 能力界面 | `/api/runtime` 分别声明提交、日志等能力，前端展示当前 Native 模式并隐藏未开放操作 | TypeScript 检查和 Vite 生产构建通过 |
 | <span class="status-badge status-done">✓</span> | Native 平台验收 | 有效 UID、owner、真实列表、详情和 usage 在 107 运行通过 | 提交 `05a64a3`；用户 `pb24030760`；Job `21482`；`COMPLETED`；`0:0`；脚本退出 0 |
@@ -106,8 +111,8 @@
 ## 当前待办与提示
 
 <div class="notice-grid">
-  <div class="notice notice-next"><strong>下一开发项</strong><span>按照四模块信息架构，将现有真实作业闭环整理为作业子页面，再实现诊断报告、项目评价和独立 AI 工作台；每页采用一大一小双栏，超量内容拆页或局部滚动。</span></div>
-  <div class="notice notice-warning"><strong>暂时限制</strong><span>AI Chat、模型接入和 API 密钥页面尚未写入 Figma 或 React；Figma Starter MCP 调用额度当前已用尽。学校 Provider 与密钥管理也尚未接入后端，不得把设计计划视为可用功能。</span></div>
+  <div class="notice notice-next"><strong>下一开发项</strong><span>将当前构建部署到 107 用户目录，集中验收四模块浏览器流程；随后填写学校真实 AI Provider 地址与测试密钥，验证一次只读结构化证据问答。</span></div>
+  <div class="notice notice-warning"><strong>暂时限制</strong><span>诊断与项目评价已可离线确定性运行；AI Chat 必须先配置真实 HTTPS Provider。默认学校地址只是模板，当前尚未完成外部 Provider 真实性验收。</span></div>
   <div class="notice notice-safe"><strong>安全边界</strong><span>真实测试只能通过 Slurm 提交，禁止在登录节点直接运行学生计算任务。</span></div>
   <div class="notice notice-info"><strong>验证方式</strong><span>Fixture 与注入式 Native 回归用于本地稳定验证，107 脚本用于平台真实验收：后端 pytest 218 passed、目标 Ruff、Shell 语法、前端类型检查、普通构建与统一导航构建通过。</span></div>
 </div>
@@ -140,10 +145,10 @@
 - [x] Native HTTP 提交、状态、日志、usage、取消与克隆的单次真实平台综合验收
 - [ ] 用户目录 Native-only Web 服务与浏览器基础操作验收
 - [x] 单账号模式与四个一级模块、子页面信息架构确认
-- [ ] 作业提交管理独立主页面
-- [ ] 作业诊断自动报告主页面与确定性报告链路
-- [ ] 项目结果评价主页面与证据覆盖率
-- [ ] 独立 AI 工作台、Provider 与 API 密钥管理
+- [x] 作业提交管理独立主页面
+- [x] 作业诊断自动报告主页面与确定性报告链路
+- [x] 项目结果评价主页面与证据覆盖率
+- [ ] 独立 AI 工作台、Provider 与 API 密钥管理（本地链路完成，真实学校 Provider 待验收）
 
 ## 可选创新功能
 

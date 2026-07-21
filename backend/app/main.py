@@ -10,11 +10,14 @@ from fastapi.staticfiles import StaticFiles
 from app.api.routes.health import router as health_router
 from app.api.routes.jobs import router as jobs_router
 from app.api.routes.projects import router as projects_router
+from app.api.routes.product import router as product_router
 from app.core.config import Settings, get_settings
 from app.services.demo_fallback import DemoFallbackJobCatalog
 from app.services.job_catalog import JobCatalog, build_job_catalog
 from app.schemas.system import RuntimeCapabilities, RuntimeInfo
 from app.services.test_projects import TestProjectCatalog
+from app.repositories.product import ProductRepository
+from app.services.product import ProductService
 
 
 def _runtime_info(
@@ -92,6 +95,13 @@ def create_app(
     application.state.runtime_info_provider = lambda: _runtime_info(
         settings, application.state.job_catalog
     )
+    product_repository = ProductRepository(settings.database_url)
+    product_repository.initialize()
+    application.state.product_service = ProductService(
+        owner=settings.dashboard_owner,
+        repository=product_repository,
+        secret_directory=settings.ai_secret_directory,
+    )
 
     @application.middleware("http")
     async def assign_request_id(
@@ -120,12 +130,13 @@ def create_app(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
         allow_credentials=False,
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["*"],
     )
     application.include_router(health_router, prefix="/api")
     application.include_router(jobs_router, prefix="/api")
     application.include_router(projects_router, prefix="/api")
+    application.include_router(product_router, prefix="/api")
     if settings.serve_frontend:
         frontend_index = settings.frontend_dist_directory / "index.html"
         if not frontend_index.is_file():

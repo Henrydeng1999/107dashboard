@@ -1,14 +1,9 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
-import { ApiError, cancelJob, cloneJob, fetchJob, fetchJobLog, fetchJobSummary, fetchJobUsage, fetchJobs, fetchRuntimeInfo, fetchTestProjects, submitJob } from "../../api/jobs";
-import type { Job, JobListResponse, JobLogStream, JobState, JobSubmitRequest, JobUsageResponse, RuntimeCapabilities, RuntimeInfo, TestProject, UserJobSummary } from "./types";
+import { ApiError, fetchJobLog, fetchJobSummary, fetchJobUsage, fetchTestProjects, submitJob } from "../../api/jobs";
+import type { Job, JobLogStream, JobState, JobSubmitRequest, JobUsageResponse, RuntimeCapabilities, TestProject, UserJobSummary } from "./types";
 
-const PAGE_SIZE = 5;
-const ACTIVE_REFRESH_MS = 5_000;
-const IDLE_REFRESH_MS = 15_000;
-type Theme = "dark" | "light";
-
-const stateLabels: Record<JobState, string> = {
+export const stateLabels: Record<JobState, string> = {
   PENDING: "排队中",
   RUNNING: "运行中",
   COMPLETED: "已完成",
@@ -18,7 +13,7 @@ const stateLabels: Record<JobState, string> = {
   UNKNOWN: "未知",
 };
 
-const stateOptions: Array<{ value: JobState | "ALL"; label: string }> = [
+export const stateOptions: Array<{ value: JobState | "ALL"; label: string }> = [
   { value: "ALL", label: "全部状态" },
   ...Object.entries(stateLabels).map(([value, label]) => ({ value: value as JobState, label })),
 ];
@@ -76,28 +71,11 @@ const jobTemplates: Array<{
 function copySubmission(submission: JobSubmitRequest): JobSubmitRequest {
   return { ...submission, resources: { ...submission.resources } };
 }
-
 function valueOrDash(value: string | number | null | undefined): string {
   return value === null || value === undefined || value === "" ? "—" : String(value);
 }
 
-function nativeCapabilitySummary(runtime: RuntimeInfo): string {
-  const labels: Array<[keyof RuntimeCapabilities, string]> = [
-    ["submit", "提交"],
-    ["logs", "日志"],
-    ["cancel", "取消"],
-    ["clone", "克隆"],
-  ];
-  const enabled = labels.filter(([key]) => runtime.capabilities[key]).map(([, label]) => label);
-  const disabled = labels.filter(([key]) => !runtime.capabilities[key]).map(([, label]) => label);
-  return [
-    enabled.length > 0 ? `已开放：${enabled.join("、")}` : "当前只开放查询与资源统计",
-    disabled.length > 0 ? `未开放：${disabled.join("、")}` : "全部 MVP 能力已开放",
-    "所有操作均绑定当前 Unix 账号",
-  ].join("；");
-}
-
-function formatMemory(memoryMb: number | null): string {
+export function formatMemory(memoryMb: number | null): string {
   if (memoryMb === null) return "—";
   return memoryMb >= 1024 ? `${memoryMb / 1024} GiB` : `${memoryMb} MiB`;
 }
@@ -108,7 +86,7 @@ function formatMemoryKb(memoryKb: number | null): string {
   return formatMemory(memoryKb / 1024);
 }
 
-function JobSummaryPanel({ refreshKey }: { refreshKey: number }) {
+export function JobSummaryPanel({ refreshKey }: { refreshKey: number }) {
   const [summary, setSummary] = useState<UserJobSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -456,7 +434,7 @@ function JobLogPanel({ jobId, active }: { jobId: string; active: boolean }) {
   );
 }
 
-function JobDetail({
+export function JobDetail({
   job,
   capabilities,
   actionPending,
@@ -543,7 +521,7 @@ function JobDetail({
   );
 }
 
-function JobSubmitForm({
+export function JobSubmitForm({
   onCancel,
   onSubmitted,
   nativeMode,
@@ -699,377 +677,5 @@ function JobSubmitForm({
         </button>
       </div>
     </form>
-  );
-}
-
-export function JobDashboard() {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const savedTheme = window.localStorage.getItem("107dashboard-theme");
-    return savedTheme === "light" ? "light" : "dark";
-  });
-  const [stateFilter, setStateFilter] = useState<JobState | "ALL">("ALL");
-  const [page, setPage] = useState(1);
-  const [data, setData] = useState<JobListResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [showSubmitForm, setShowSubmitForm] = useState(false);
-  const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
-  const [actionPending, setActionPending] = useState<"cancel" | "clone" | null>(null);
-  const operationIdempotency = useRef<Record<string, string>>({});
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
-  const [runtimeError, setRuntimeError] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const [pageVisible, setPageVisible] = useState(() => !document.hidden);
-  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
-  const [stateEvents, setStateEvents] = useState<string[]>([]);
-  const previousStates = useRef<Map<string, JobState>>(new Map());
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme;
-    window.localStorage.setItem("107dashboard-theme", theme);
-  }, [theme]);
-
-  useEffect(() => {
-    const updateVisibility = () => setPageVisible(!document.hidden);
-    document.addEventListener("visibilitychange", updateVisibility);
-    return () => document.removeEventListener("visibilitychange", updateVisibility);
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    setError(null);
-    fetchJobs(page, PAGE_SIZE, stateFilter, controller.signal)
-      .then((payload) => {
-        const nextStates = new Map(previousStates.current);
-        const changes: string[] = [];
-        for (const job of payload.items) {
-          const previous = previousStates.current.get(job.id);
-          if (previous !== undefined && previous !== job.state) {
-            changes.push(`#${job.slurm_job_id}：${stateLabels[previous]} → ${stateLabels[job.state]}`);
-          }
-          nextStates.set(job.id, job.state);
-        }
-        previousStates.current = nextStates;
-        if (changes.length > 0) {
-          setStateEvents((current) => [...changes, ...current].slice(0, 4));
-        }
-        setData(payload);
-        setLastSyncedAt(new Date());
-        void fetchRuntimeInfo(controller.signal)
-          .then((runtimeInfo) => {
-            setRuntime(runtimeInfo);
-            setRuntimeError(false);
-          })
-          .catch((reason: unknown) => {
-            if (reason instanceof DOMException && reason.name === "AbortError") return;
-            setRuntimeError(true);
-          });
-        setSelectedJob((current) => {
-          if (current === null) return null;
-          return payload.items.find((job) => job.id === current.id) ?? current;
-        });
-      })
-      .catch((reason: unknown) => {
-        if (reason instanceof DOMException && reason.name === "AbortError") return;
-        setError(reason instanceof ApiError ? reason.message : "无法连接作业 API");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [page, reloadKey, stateFilter]);
-
-  const hasActiveJobs = data?.items.some((job) => ["PENDING", "RUNNING"].includes(job.state)) ?? false;
-  const refreshDelay = hasActiveJobs ? ACTIVE_REFRESH_MS : IDLE_REFRESH_MS;
-
-  useEffect(() => {
-    if (!autoRefresh || !pageVisible) return;
-    const timer = window.setTimeout(() => setReloadKey((value) => value + 1), refreshDelay);
-    return () => window.clearTimeout(timer);
-  }, [autoRefresh, pageVisible, refreshDelay, reloadKey]);
-
-  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
-
-  const openDetail = async (jobId: string) => {
-    setDetailLoading(true);
-    setError(null);
-    try {
-      setSelectedJob(await fetchJob(jobId));
-    } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "无法读取作业详情");
-    } finally {
-      setDetailLoading(false);
-    }
-  };
-
-  const operateOnJob = async (operation: "cancel" | "clone") => {
-    if (!selectedJob) return;
-    if (operation === "cancel" && !window.confirm(`确定取消作业 #${selectedJob.slurm_job_id} 吗？`)) return;
-    setActionPending(operation);
-    setActionError(null);
-    const operationKey = `${operation}:${selectedJob.id}`;
-    const idempotencyKey = operationIdempotency.current[operationKey] ?? crypto.randomUUID();
-    operationIdempotency.current[operationKey] = idempotencyKey;
-    try {
-      const job = operation === "cancel"
-        ? await cancelJob(selectedJob.id, idempotencyKey)
-        : await cloneJob(selectedJob.id, idempotencyKey);
-      delete operationIdempotency.current[operationKey];
-      setSelectedJob(job);
-      setSubmissionNotice(
-        operation === "cancel"
-          ? `作业 #${job.slurm_job_id} 已取消`
-          : `已克隆为新作业 #${job.slurm_job_id}`,
-      );
-      setStateFilter("ALL");
-      setPage(1);
-      setReloadKey((value) => value + 1);
-    } catch (reason) {
-      setActionError(reason instanceof ApiError ? reason.message : "作业操作失败");
-    } finally {
-      setActionPending(null);
-    }
-  };
-
-  return (
-    <main className="app-shell">
-      <header className="topbar">
-        <div className="brand-mark" aria-hidden="true">107</div>
-        <div>
-          <p className="eyebrow">STUDENT SLURM CONSOLE</p>
-          <h1>算力作业</h1>
-        </div>
-        <div className={`connection-pill ${error ? "is-offline" : runtime?.degraded ? "is-degraded" : ""}`}>
-          <span className="status-dot" />
-          {error || runtimeError
-            ? "API 异常"
-            : loading || runtime === null
-              ? "正在同步"
-              : runtime.degraded
-                ? "Fixture 演示回退"
-                : runtime.read_only
-                ? "Native 只读"
-                : runtime.data_source === "native"
-                  ? "Native 真实交互"
-                  : "Fixture 已连接"}
-        </div>
-        <div className="theme-toggle" role="group" aria-label="显示主题">
-          <button
-            className={theme === "dark" ? "is-active" : ""}
-            type="button"
-            aria-pressed={theme === "dark"}
-            onClick={() => setTheme("dark")}
-          >
-            深色
-          </button>
-          <button
-            className={theme === "light" ? "is-active" : ""}
-            type="button"
-            aria-pressed={theme === "light"}
-            onClick={() => setTheme("light")}
-          >
-            浅色
-          </button>
-        </div>
-      </header>
-
-      <section className="workspace" aria-labelledby="jobs-title">
-        {runtime?.data_source === "native" && (
-          <div className={`mode-notice ${runtime.degraded ? "fallback-notice" : ""}`} role="status">
-            <strong>
-              {runtime.degraded
-                ? "Slurm 暂不可用 · 已进入只读演示回退"
-                : runtime.read_only
-                  ? "Native 只读模式"
-                  : "真实 Slurm 操作模式"}
-            </strong>
-            <span>
-              {runtime.degraded
-                ? "当前展示脱敏 Fixture；提交、取消和克隆已强制关闭，系统将在冷却后自动探测 Native 恢复。"
-                : `当前只展示真实 Slurm 作业；${nativeCapabilitySummary(runtime)}`}
-            </span>
-          </div>
-        )}
-        <div className="section-heading">
-          <div>
-            <p className="section-kicker">作业队列与历史</p>
-            <h2 id="jobs-title">当前账户的计算任务</h2>
-            <p>自动跟踪状态变化，并对比申请资源、分配资源与实际指标。</p>
-          </div>
-          <div className="section-actions">
-            <div className="refresh-control" role="group" aria-label="自动刷新控制">
-              <button type="button" onClick={() => setAutoRefresh((value) => !value)}>
-                {autoRefresh ? "暂停自动刷新" : "开启自动刷新"}
-              </button>
-              <button type="button" onClick={() => setReloadKey((value) => value + 1)}>立即刷新</button>
-              <span>
-                {!pageVisible
-                  ? "页面隐藏，已暂停"
-                  : autoRefresh
-                    ? `${hasActiveJobs ? "活跃" : "空闲"} · ${refreshDelay / 1000} 秒`
-                    : "自动刷新已暂停"}
-              </span>
-            </div>
-            <label className="filter-control">
-              <span>状态筛选</span>
-              <select
-                value={stateFilter}
-                onChange={(event) => {
-                  setStateFilter(event.target.value as JobState | "ALL");
-                  setPage(1);
-                  setSelectedJob(null);
-                }}
-              >
-                {stateOptions.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </label>
-            {runtime?.capabilities.submit && (
-              <button className="primary-button new-job-button" type="button" onClick={() => setShowSubmitForm(true)}>
-                新建作业
-              </button>
-            )}
-          </div>
-        </div>
-
-        <JobSummaryPanel refreshKey={reloadKey} />
-
-        <div className="sync-status" aria-live="polite">
-          <span>{lastSyncedAt ? `上次同步 ${lastSyncedAt.toLocaleTimeString("zh-CN", { hour12: false })}` : "等待首次同步"}</span>
-          <span>页面失焦时自动暂停网络请求</span>
-        </div>
-
-        {stateEvents.length > 0 && (
-          <div className="notice state-change-notice" role="status">
-            <div><strong>作业状态发生变化</strong><span>{stateEvents.join("；")}</span></div>
-            <button type="button" onClick={() => setStateEvents([])}>清除</button>
-          </div>
-        )}
-
-        {showSubmitForm && (
-          <JobSubmitForm
-            nativeMode={runtime?.serving_source === "native"}
-            onCancel={() => setShowSubmitForm(false)}
-            onSubmitted={(job) => {
-              setShowSubmitForm(false);
-              setSubmissionNotice(
-                runtime?.serving_source === "native"
-                  ? `作业 #${job.slurm_job_id} 已提交到 Slurm`
-                  : `作业 #${job.slurm_job_id} 已加入 Fixture 队列`,
-              );
-              setStateFilter("ALL");
-              setPage(1);
-              setSelectedJob(job);
-              setReloadKey((value) => value + 1);
-            }}
-          />
-        )}
-
-        {submissionNotice && (
-          <div className="notice success-notice" role="status">
-            <div><strong>提交成功</strong><span>{submissionNotice}</span></div>
-            <button type="button" onClick={() => setSubmissionNotice(null)}>知道了</button>
-          </div>
-        )}
-
-        {error && (
-          <div className="notice error-notice" role="alert">
-            <div><strong>暂时无法读取作业</strong><span>{error}</span></div>
-            <button type="button" onClick={() => setReloadKey((value) => value + 1)}>重新加载</button>
-          </div>
-        )}
-
-        <div className="list-frame" aria-busy={loading}>
-          <div className="list-summary">
-            <span>{loading ? "正在读取…" : `共 ${data?.total ?? 0} 个作业`}</span>
-            <span>第 {page} / {totalPages} 页</span>
-          </div>
-
-          {!loading && !error && data?.items.length === 0 && (
-            <div className="empty-state">
-              <strong>没有符合条件的作业</strong>
-              <span>切换状态筛选，或等待新的作业进入队列。</span>
-            </div>
-          )}
-
-          <div className="job-list">
-            {loading
-              ? Array.from({ length: 3 }, (_, index) => <div className="job-card skeleton" key={index} />)
-              : data?.items.map((job) => (
-                  <article className={`job-card state-${job.state.toLowerCase()}`} key={job.id}>
-                    <div className="state-rail" aria-hidden="true" />
-                    <div className="job-main">
-                      <div className="job-title-row">
-                        <div>
-                          <span className="job-id">#{job.slurm_job_id}</span>
-                          <h3>{job.name}</h3>
-                        </div>
-                        <span className="state-badge">{stateLabels[job.state]}</span>
-                      </div>
-                      <div className="job-meta">
-                        <span>分区 {valueOrDash(job.partition)}</span>
-                        <span>节点 {valueOrDash(job.node)}</span>
-                        <span>CPU {valueOrDash(job.resources.cpus)}</span>
-                        <span>GPU {valueOrDash(job.resources.gpus)}</span>
-                        <span>内存 {formatMemory(job.resources.memory_mb)}</span>
-                      </div>
-                    </div>
-                    <button
-                      className="detail-button"
-                      type="button"
-                      disabled={detailLoading}
-                      onClick={() => void openDetail(job.id)}
-                    >
-                      查看详情
-                    </button>
-                  </article>
-                ))}
-          </div>
-
-          <nav className="pagination" aria-label="作业列表分页">
-            <button type="button" disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)}>
-              上一页
-            </button>
-            <button
-              type="button"
-              disabled={page >= totalPages || loading}
-              onClick={() => setPage((value) => value + 1)}
-            >
-              下一页
-            </button>
-          </nav>
-        </div>
-      </section>
-
-      {selectedJob && (
-        <JobDetail
-          job={selectedJob}
-          capabilities={runtime?.capabilities ?? {
-            list_jobs: true,
-            job_details: true,
-            usage: true,
-            submit: false,
-            cancel: false,
-            clone: false,
-            logs: false,
-          }}
-          actionPending={actionPending}
-          actionError={actionError}
-          onCancelJob={() => void operateOnJob("cancel")}
-          onCloneJob={() => void operateOnJob("clone")}
-          onClose={() => {
-            setSelectedJob(null);
-            setActionError(null);
-          }}
-        />
-      )}
-    </main>
   );
 }

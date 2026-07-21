@@ -162,6 +162,8 @@ footer { padding: 28px 18px; border-top: 1px solid var(--docs-line); color: var(
 .progress-0 { width: 0; }
 .progress-20 { width: 20%; }
 .progress-25 { width: 25%; }
+.progress-35 { width: 35%; }
+.progress-45 { width: 45%; }
 .progress-40 { width: 40%; }
 .progress-50 { width: 50%; }
 .progress-60 { width: 60%; }

@@ -1,11 +1,12 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
-import { JobDashboard } from "./features/jobs/JobDashboard";
+import { WorkspacePrototype } from "./prototype/WorkspacePrototype";
 import "./styles.css";
+import "./prototype/workspace-prototype.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <JobDashboard />
+    <WorkspacePrototype />
   </StrictMode>,
 );

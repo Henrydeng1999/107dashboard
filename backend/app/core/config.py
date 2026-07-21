@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     demo_fallback_enabled: bool = False
     demo_fallback_cooldown_seconds: float = 30.0
     demo_fallback_owner: str = "demo-user"
+    ai_secret_directory: Path = PROJECT_ROOT / "data" / "secrets" / "ai"
 
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env",
@@ -52,6 +53,7 @@ class Settings(BaseSettings):
         "fixture_job_output_directory",
         "job_workspace_directory",
         "frontend_dist_directory",
+        "ai_secret_directory",
         mode="before",
     )
     @classmethod
