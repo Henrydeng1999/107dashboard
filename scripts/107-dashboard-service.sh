@@ -46,9 +46,17 @@ preflight() {
   require_tmux
   [[ -x "${PROJECT_ROOT}/backend/.venv/bin/python" ]] || { echo "Backend venv is missing" >&2; exit 1; }
   [[ -f "${PROJECT_ROOT}/frontend/dist/index.html" ]] || { echo "Frontend build is missing" >&2; exit 1; }
+  grep -q '/107-dashboard/assets/' "${PROJECT_ROOT}/frontend/dist/index.html" || {
+    echo "Frontend build has the wrong asset prefix; run 'npm run build:107'." >&2
+    exit 1
+  }
+  grep -Rqs '/107-dashboard/api' "${PROJECT_ROOT}/frontend/dist/assets" || {
+    echo "Frontend build has the wrong API prefix; run 'npm run build:107'." >&2
+    exit 1
+  }
   if grep -RqsE 'https?://(localhost|127\.0\.0\.1):[0-9]+/api' \
       "${PROJECT_ROOT}/frontend/dist"; then
-    echo "Frontend build contains a development API address; run 'npm run build:server'." >&2
+    echo "Frontend build contains a development API address; run 'npm run build:107'." >&2
     exit 1
   fi
   "${PROJECT_ROOT}/backend/.venv/bin/python" "${PROJECT_ROOT}/scripts/check-native-product.py"

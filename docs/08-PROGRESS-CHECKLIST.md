@@ -100,7 +100,7 @@
 | <span class="status-badge status-done">✓</span> | Native 控制集中验收 | 脚本自建最小来源作业、取消、克隆并再次取消，保持 Owner、幂等与审计链完整 | 提交 `11cd3b4`；Job `24063`、`24064` 均 `CANCELLED by 68311`；`squeue` 无遗留活动作业 |
 | <span class="status-badge status-done">✓</span> | 前端演示体验 | 自适应轮询、页面隐藏暂停、状态变化提示、资源申请/实际对比、安全模板和保守失败排查 | TypeScript 检查、Vite 生产构建及浏览器交互/布局检查通过 |
 | <span class="status-badge status-done">✓</span> | 安全演示回退 | Native 查询失败后限时切换脱敏 Fixture，动态声明降级来源；恢复探测整体切回 Native，回退期间写操作强制关闭 | 故障、冷却恢复、动态 runtime、HTTP 503 与零 Native 写调用集成测试通过 |
-| <span class="status-badge status-done">✓</span> | 演示部署骨架 | FastAPI 可选托管预构建前端，缺少 index 或静态包含开发 API 地址时快速失败；提供同源 server 构建、Native 环境和用户级 systemd 模板 | `build:server` 固定 `/api`，产物扫描、Shell 语法、静态页面/API 共存和配置校验通过 |
+| <span class="status-badge status-done">✓</span> | 演示部署骨架 | FastAPI 托管预构建前端；正式发布先暂存构建并强制 `/107-dashboard/` 资源/API 前缀，错误前缀或开发地址快速失败 | `build:107` 原子替换、启动双重门禁、Shell 语法和公开入口 HTML/JS/CSS/API 检查通过 |
 | <span class="status-badge status-done">✓</span> | 发布验收脚本 | 一条命令集中验证真实 Native 读取与模拟 Fixture 回退，真实查询降级时拒绝误报通过 | 提交 `b253ac0` 在 107 通过：Native 4 个作业、Fixture 5 个作业、写请求 503、`would_invoke_sbatch=false` |
 | <span class="status-badge status-done">✓</span> | 整页演示部署 | 固定统一导航构建、SSH 隧道恢复和桌面/移动端整页检查 | 提交 `0d2c1d7` 在 107 与本机统一入口通过；无资源、控制台、溢出或重叠错误 |
 | <span class="status-badge status-done">✓</span> | Native 全交互综合链 | 通过真实 HTTP 路由集中覆盖提交、终态、日志、usage、取消、克隆、再次取消、幂等与审计 | 提交 `85c9646` 在 107 通过；Job `24159` 完成，Job `24160/24161` 取消，5 条幂等记录及审计链完整，无活动作业遗留 |

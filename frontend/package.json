@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:server": "tsc -b && vite build --mode server",
     "build:navigation": "tsc -b && vite build --mode navigation --base=/107-dashboard/",
+    "build:107": "bash ../scripts/build-107-frontend.sh",
     "preview": "vite preview",
     "lint": "tsc --noEmit"
   },

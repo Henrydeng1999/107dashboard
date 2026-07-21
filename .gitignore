@@ -15,7 +15,6 @@ coverage/
 .env.*
 !.env.example
 !frontend/.env.navigation
-!frontend/.env.server
 *.pem
 *.key
 id_rsa*

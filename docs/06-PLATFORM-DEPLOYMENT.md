@@ -295,22 +295,15 @@ ssh 107 'chmod -R go-rwx ~/dashboard-test-projects'
 
 正式环境配置使用 `TEST_PROJECT_DIRECTORY=~/dashboard-test-projects` 的绝对展开路径。产品启动检查会加载 CPU 完成、增量日志、受控失败、取消与克隆四个项目；目录缺失、owner 不匹配、文件可被组/其他用户写入、符号链接、非法 manifest 或项目集合不完整都会阻止服务启动。该检查不执行项目源码，也不调用 `sbatch`。
 
-正式产品配置不启用 Fixture 回退。开发电脑先生成带 `native-basic-v1` 标识的统一导航前端并传输到 107：
+正式产品配置不启用 Fixture 回退。开发电脑先使用唯一正式发布命令生成带 `native-basic-v1` 标识的统一导航前端并传输到 107：
 
 ```bash
 cd frontend
-npm run build:navigation
+npm run build:107
 rsync -az --delete dist/ 107:~/107dashboard/frontend/dist/
 ```
 
-FastAPI 直接同源托管的独立端口入口必须使用服务器构建模式，避免本地 `.env` 中的开发地址进入生产包：
-
-```bash
-cd frontend
-npm run build:server
-```
-
-`scripts/107-dashboard-service.sh start` 会扫描静态产物；若其中包含 `localhost` 或 `127.0.0.1` API 地址，预检会拒绝启动。开发机专用地址应放在未跟踪的 `.env.development.local`，不得使用会影响全部 Vite mode 的 `frontend/.env`。
+`build:107` 先写入临时目录，只有在 HTML 使用 `/107-dashboard/assets/`、前端 API 使用 `/107-dashboard/api` 且不含 `localhost`/`127.0.0.1` 开发地址时才替换现有 `dist/`。`scripts/107-dashboard-service.sh start` 会重复执行相同的前缀门禁。开发机专用地址应放在未跟踪的 `.env.development.local`，不得使用会影响全部 Vite mode 的 `frontend/.env`。
 
 然后在 107 用户目录拉取代码并启动：
 
@@ -367,7 +360,7 @@ backend/.venv/bin/python scripts/check-demo-release.py
 
 通过输出必须包含 `mode=demo-release-readiness-no-write`、`passed=true`、Native `serving_source=native`、回退 `serving_source=fixture_fallback`、`write_status=503` 和 `would_invoke_sbatch=false`。如果真实查询已进入回退，脚本会主动失败，不能把 Fixture 成功误记为 Native 平台通过。
 
-完整网页演示前，在开发电脑执行 `npm run build:server`，把未跟踪的 `frontend/dist/` 复制到 107 的仓库同一路径，再参考 `deploy/107-native.env.example` 设置 `SERVE_FRONTEND=true`。后端找不到 `index.html`、或静态包含开发 API 地址时会拒绝启动，防止出现 API 正常但网页空白或请求访问者 localhost 的假部署。
+完整网页演示前，在开发电脑执行 `npm run build:107`，把未跟踪的 `frontend/dist/` 复制到 107 的仓库同一路径，再参考 `deploy/107-native.env.example` 设置 `SERVE_FRONTEND=true`。后端找不到 `index.html`、静态前缀不是 `/107-dashboard/`、或静态包含开发 API 地址时会拒绝启动，防止出现 API 正常但网页空白的假部署。
 
 通过本机统一导航页部署时，使用固定字符路径构建，避免静态资源和 API 请求退回站点根路径：
 
