@@ -42,7 +42,7 @@
 .prototype-shell button { color: inherit; }
 .prototype-shell button:focus-visible, .prototype-shell a:focus-visible, .prototype-shell input:focus-visible, .prototype-shell select:focus-visible, .prototype-shell textarea:focus-visible { outline: 2px solid #5da2ff; outline-offset: 2px; }
 
-.prototype-sidebar { min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--p-line); background: var(--p-sidebar); }
+.prototype-sidebar { z-index: 30; width: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--p-line); background: var(--p-sidebar); transition: width .22s ease, box-shadow .22s ease; }
 .prototype-brand { width: 100%; height: 58px; flex: 0 0 58px; display: flex; align-items: center; gap: 10px; border: 0; border-bottom: 1px solid var(--p-line); background: transparent; padding: 0 17px; text-align: left; cursor: pointer; }
 .prototype-brand:hover { background: var(--p-surface-2); }
 .prototype-brand > span { display: grid; place-items: center; width: 34px; height: 28px; border-radius: 8px; background: var(--p-orange); color: #111; font-size: 12px; font-weight: 900; letter-spacing: -1px; }
@@ -103,6 +103,11 @@
 .prototype-breadcrumb span, .prototype-breadcrumb b { color: #66666d; font-weight: 500; }
 .prototype-breadcrumb strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prototype-top-actions { display: flex; align-items: center; gap: 6px; }
+.prototype-top-account { height: 38px; display: flex; align-items: center; gap: 8px; border-right: 1px solid var(--p-line); margin-right: 4px; padding-right: 12px; }
+.prototype-top-account > span { width: 28px; height: 28px; display: grid; place-items: center; flex: 0 0 28px; border-radius: 50%; background: #242424; color: var(--p-text-2); font-size: 11px; font-weight: 750; }
+.prototype-top-account > div { min-width: 0; display: grid; line-height: 1.15; }
+.prototype-top-account strong { font-size: 11px; white-space: nowrap; }
+.prototype-top-account small { margin-top: 2px; color: var(--p-muted); font-size: 10px; white-space: nowrap; }
 .prototype-top-actions button { height: 30px; border: 0; border-radius: 6px; background: transparent; padding: 0 9px; color: var(--p-muted); font-size: 12px; cursor: pointer; }
 .prototype-top-actions button:hover { background: var(--p-surface-2); color: #fff; }
 .prototype-top-actions .prototype-global-refresh { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--p-border); background: var(--p-panel); color: var(--p-text-2); }
@@ -972,6 +977,7 @@
 [data-theme="light"] .prototype-sidebar-static-item > span:first-child { color: var(--p-muted); }
 [data-theme="light"] .prototype-platform { background: #f0f5f0; }
 [data-theme="light"] .prototype-topbar { background: #fafbfc; border-bottom-color: var(--p-line); }
+[data-theme="light"] .prototype-top-account > span { background: #e2e5ea; color: var(--p-text-2); }
 [data-theme="light"] .prototype-breadcrumb span,
 [data-theme="light"] .prototype-breadcrumb b { color: var(--p-muted); }
 [data-theme="light"] .prototype-theme-toggle { border-color: var(--p-border); background: var(--p-surface-2); }
@@ -1178,25 +1184,37 @@
 /* Shell motion and compact-sidebar behavior. */
 .prototype-shell { transition: grid-template-columns .22s ease; }
 .prototype-shell.is-sidebar-collapsed { grid-template-columns: 72px minmax(0, 1fr); }
-.prototype-shell.is-sidebar-collapsed .prototype-brand { justify-content: center; padding: 0; }
-.prototype-shell.is-sidebar-collapsed .prototype-brand > span { width: 38px; }
-.prototype-shell.is-sidebar-collapsed .prototype-brand div,
-.prototype-shell.is-sidebar-collapsed .prototype-account div,
-.prototype-shell.is-sidebar-collapsed .prototype-sidebar-collapse span { display: none; }
-.prototype-shell.is-sidebar-collapsed .prototype-nav-search,
-.prototype-shell.is-sidebar-collapsed .prototype-nav-label,
-.prototype-shell.is-sidebar-collapsed .prototype-subnav-shell {
-  visibility: hidden;
-  pointer-events: none;
+.prototype-shell.is-sidebar-collapsed .prototype-sidebar { width: 72px; }
+.prototype-shell.is-sidebar-collapsed.is-sidebar-preview .prototype-sidebar { width: 224px; box-shadow: 16px 0 32px rgba(0, 0, 0, .32); }
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-brand { justify-content: center; padding: 0; }
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-brand > span { width: 38px; }
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-brand div,
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-sidebar-collapse span,
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-nav-search,
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-nav-label,
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-nav-toggle,
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-subnav-shell { opacity: 0; visibility: hidden; pointer-events: none; }
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-nav { padding-inline: 8px; }
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-nav-label,
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-nav-search { position: absolute; }
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-nav-row { display: block; min-height: 52px; }
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-nav-row > button:first-child { min-height: 48px; justify-content: center; padding: 8px; }
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-nav-row > button:first-child > span { width: 18px; flex-basis: 18px; margin: 0; }
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-nav-row > button:first-child em { width: 0; opacity: 0; visibility: hidden; }
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-subnav-shell { display: none; }
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-sidebar-bottom { padding-inline: 10px; }
+.prototype-shell.is-sidebar-collapsed:not(.is-sidebar-preview) .prototype-sidebar-collapse { justify-content: center; padding-inline: 0; }
+.prototype-shell.is-sidebar-preview .prototype-brand div,
+.prototype-shell.is-sidebar-preview .prototype-nav-search,
+.prototype-shell.is-sidebar-preview .prototype-nav-label,
+.prototype-shell.is-sidebar-preview .prototype-nav-row em,
+.prototype-shell.is-sidebar-preview .prototype-nav-toggle,
+.prototype-shell.is-sidebar-preview .prototype-sidebar-collapse span { animation: prototype-sidebar-copy-in .16s .06s ease both; }
+
+@keyframes prototype-sidebar-copy-in {
+  from { opacity: 0; transform: translateX(-5px); }
+  to { opacity: 1; transform: translateX(0); }
 }
-.prototype-shell.is-sidebar-collapsed .prototype-account { justify-content: center; margin-inline: 9px; padding-inline: 0; }
-.prototype-shell.is-sidebar-collapsed .prototype-nav { padding-inline: 8px; }
-.prototype-shell.is-sidebar-collapsed .prototype-nav-row { display: block; min-height: 42px; }
-.prototype-shell.is-sidebar-collapsed .prototype-nav-row > button:first-child { min-height: 42px; justify-content: center; padding: 8px; }
-.prototype-shell.is-sidebar-collapsed .prototype-nav-row > button:first-child > span { width: 18px; flex-basis: 18px; margin: 0; }
-.prototype-shell.is-sidebar-collapsed .prototype-nav-row > button:first-child em { display: none; }
-.prototype-shell.is-sidebar-collapsed .prototype-sidebar-bottom { padding-inline: 10px; }
-.prototype-shell.is-sidebar-collapsed .prototype-sidebar-collapse { justify-content: center; padding-inline: 0; }
 
 .prototype-workspace > * { animation: prototype-page-enter .24s ease both; }
 .prototype-overview-status > *,
@@ -1233,6 +1251,11 @@
 
 @media (max-width: 1100px) {
   .prototype-shell.is-sidebar-collapsed { grid-template-columns: 72px minmax(0, 1fr); }
+}
+
+@media (max-width: 920px) {
+  .prototype-top-account > div { display: none; }
+  .prototype-top-account { padding-right: 8px; }
 }
 
 @media (max-width: 720px) {
