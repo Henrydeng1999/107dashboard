@@ -79,7 +79,7 @@
 | <span class="status-badge status-done">✓</span> | 身份设计 | 比赛原型采用后端进程有效 UID 对应的单 Unix 账号，HTTP 输入不能选择 Slurm 用户 | Native 创建前 UID/owner 精确匹配测试通过 |
 | <span class="status-badge status-done">✓</span> | 比赛范围决策 | 当前版本固定单 Unix 账号与作业、诊断报告、项目评价、AI 四个一级模块；多用户能力移至赛后 | README、计划、架构、AI 路线与 Agent 约束已统一 |
 | <span class="status-badge status-done">✓</span> | 前端布局规范 | 浏览器内容视口以 `1600×800` 为基准、`1440×720` 为最低桌面验收，主区优先 `68/32` 双栏；增长型页面允许纵向滚动，但禁止横向滚动和内容裁剪 | 107 正式页面在两个目标视口均无横向溢出；7 个真实分区全部位于容量卡内，主内容纵向滚动正常 |
-| <span class="status-badge status-done">✓</span> | 四模块统一工作台 | 可搜索且可整体收起的侧栏、无圆框右转下 SVG 子导航、稳定滚动槽和纯文字统一页脚 | 有/无侧栏滚动条时导航行 `x=9,width=211`、箭头 `x=190,center=204` 均不变；footer 背景透明、零圆角，长页间距、无横向溢出、类型检查与发布构建通过 |
+| <span class="status-badge status-done">✓</span> | 四模块统一工作台 | 可搜索且可整体收起的侧栏、隐藏但可操作的导航滚动、标签切换回顶、无圆框 SVG 子导航和纯文字页脚 | 左栏无可见 scrollbar 且滚轮有效；一级/二级/footer 跳转重置主内容与内层滚动，footer 透明零圆角，无横向溢出、类型检查与发布构建通过 |
 | <span class="status-badge status-done">✓</span> | 工作台动态反馈 | 页面/区块错峰进入、子导航展开、侧栏宽度、资源进度、CPU 环图、状态呼吸和 hover 反馈 | 两个桌面视口存在预期 Web Animations；`prefers-reduced-motion` 可关闭全部非必要动画 |
 | <span class="status-badge status-done">✓</span> | 确定性诊断报告 | 基于 owner 可见作业的 Slurm 状态、退出码、原因、申请资源和 usage 生成版本化证据、分数、发现与建议 | 产品 API 集成测试、Ruff 与前端构建通过；不依赖外部 AI |
 | <span class="status-badge status-done">✓</span> | 多作业项目评价 | SQLite 持久化项目与作业关联，按规则返回综合分、等级、证据覆盖率和缺口建议 | 创建、查询、未知作业边界与前端构建通过 |
