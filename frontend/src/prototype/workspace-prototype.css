@@ -1241,7 +1241,7 @@
 .prototype-panel, .prototype-overview-status > button, .prototype-resource-card { transition: border-color .16s ease, background .16s ease, transform .16s ease; }
 .prototype-resource-card:hover { border-color: #3b526d; transform: translateY(-2px); }
 
-@keyframes prototype-page-enter { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes prototype-page-enter { from { opacity: 0; } to { opacity: 1; } }
 @keyframes prototype-block-enter { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes prototype-progress-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes prototype-ring-enter { from { opacity: .35; transform: scale(.88) rotate(-8deg); } to { opacity: 1; transform: scale(1) rotate(0); } }
