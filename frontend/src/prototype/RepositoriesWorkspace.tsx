@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { fetchRepositories, fetchRepository, fetchRepositoryCommit } from "../api/repositories";
 import type {
@@ -137,14 +139,14 @@ export function RepositoriesWorkspace() {
 
           <section className="prototype-repository-section">
             <div className="prototype-panel-heading"><div><span className="prototype-kicker">README</span><h2>{detail.readme_name ?? "仓库说明"}</h2></div>{detail.readme_truncated && <span className="prototype-badge prototype-badge--orange">已截断</span>}</div>
-            {detail.readme_content ? <pre className="prototype-readme">{detail.readme_content}</pre> : <p className="prototype-repository-empty">仓库根目录没有 README。</p>}
+            {detail.readme_content ? <div className="prototype-readme"><Markdown remarkPlugins={[remarkGfm]} components={{ a: ({ children, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer">{children}</a> }}>{detail.readme_content}</Markdown></div> : <p className="prototype-repository-empty">仓库根目录没有 README。</p>}
           </section>
         </>}
       </section>
 
-      <aside className="prototype-panel prototype-panel--scroll prototype-commit-panel">
+      <aside className="prototype-panel prototype-commit-panel">
         <span className="prototype-kicker">COMMIT HISTORY</span><h2>{commit ? "提交详情" : "最近提交"}</h2>
-        {commit ? <div className="prototype-commit-detail">
+        <div className="prototype-commit-scroll">{commit ? <div className="prototype-commit-detail">
           <button className="prototype-secondary" type="button" onClick={() => setCommit(null)}>← 返回历史</button>
           <code>{commit.hash}</code><h3>{commit.subject}</h3>
           <p>{commit.author_name} · {formatDate(commit.authored_at)}</p>
@@ -155,7 +157,7 @@ export function RepositoriesWorkspace() {
             <span><strong>{item.subject}</strong><small>{item.author_name} · {formatDate(item.authored_at)}</small></span><code>{item.short_hash}</code>
           </button>
         ))}</div>}
-        {!loading && detail?.commits.length === 0 && <p className="prototype-repository-empty">仓库尚无提交。</p>}
+        {!loading && detail?.commits.length === 0 && <p className="prototype-repository-empty">仓库尚无提交。</p>}</div>
       </aside>
     </div>
   );

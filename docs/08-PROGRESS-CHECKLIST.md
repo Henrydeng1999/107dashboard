@@ -79,13 +79,14 @@
 | <span class="status-badge status-done">✓</span> | 身份设计 | 比赛原型采用后端进程有效 UID 对应的单 Unix 账号，HTTP 输入不能选择 Slurm 用户 | Native 创建前 UID/owner 精确匹配测试通过 |
 | <span class="status-badge status-done">✓</span> | 比赛范围决策 | 当前版本固定单 Unix 账号与作业、诊断报告、项目评价、AI 四个一级模块；多用户能力移至赛后 | README、计划、架构、AI 路线与 Agent 约束已统一 |
 | <span class="status-badge status-done">✓</span> | 前端布局规范 | 浏览器内容视口以 `1600×800` 为基准、`1440×720` 为最低桌面验收，主区优先 `68/32` 双栏；增长型页面允许纵向滚动，但禁止横向滚动和内容裁剪 | 107 正式页面在两个目标视口均无横向溢出；7 个真实分区全部位于容量卡内，主内容纵向滚动正常 |
-| <span class="status-badge status-done">✓</span> | 四模块统一工作台 | 可搜索且可整体收起的侧栏、右转下 SVG 子导航、统一页脚、作业管理、诊断报告、项目评价和 AI 工作台 | Ctrl/Cmd+K、过滤结果、72px 收起宽度、chevron 中心、长页 footer 间距、无横向溢出、前端类型检查与发布构建通过 |
+| <span class="status-badge status-done">✓</span> | 四模块统一工作台 | 可搜索且可整体收起的侧栏、无圆框右转下 SVG 子导航、统一页脚、作业管理、诊断报告、项目评价和 AI 工作台 | Ctrl/Cmd+K、过滤结果、72px 收起宽度、chevron 中心与零边框、长页 footer 间距、无横向溢出、前端类型检查与发布构建通过 |
 | <span class="status-badge status-done">✓</span> | 工作台动态反馈 | 页面/区块错峰进入、子导航展开、侧栏宽度、资源进度、CPU 环图、状态呼吸和 hover 反馈 | 两个桌面视口存在预期 Web Animations；`prefers-reduced-motion` 可关闭全部非必要动画 |
 | <span class="status-badge status-done">✓</span> | 确定性诊断报告 | 基于 owner 可见作业的 Slurm 状态、退出码、原因、申请资源和 usage 生成版本化证据、分数、发现与建议 | 产品 API 集成测试、Ruff 与前端构建通过；不依赖外部 AI |
 | <span class="status-badge status-done">✓</span> | 多作业项目评价 | SQLite 持久化项目与作业关联，按规则返回综合分、等级、证据覆盖率和缺口建议 | 创建、查询、未知作业边界与前端构建通过 |
 | <span class="status-badge status-active">→</span> | 只读 AI 工作台 | HTTPS OpenAI 兼容 Provider、私有 API Key、Provider 多模型、可折叠证据上下文、持久化多轮会话、内置与自定义提示词、Chat 和调用记录已接线 | 107 SQLite 建表及自定义模板创建/查询/清理通过；会话重开、证据 ID、模板生命周期、密钥不回显和 Provider 错误映射测试通过；学校真实 Provider 尚待凭证验收 |
 | <span class="status-badge status-active">→</span> | 新版作业页完整迁移 | jobs、runtime、projects、summary、logs、usage API，以及提交、取消、克隆、幂等、轮询和能力门禁均迁入新版布局 | 本地 Fixture 已通过列表、筛选、活动页、详情、usage、stdout/stderr、提交、取消和克隆；等待 107 浏览器 Native 验收 |
 | <span class="status-badge status-done">✓</span> | 工作台资源概览 | Overview 与作业页使用真实资源汇总、状态分布和活动作业数据，四模块工作台补齐帮助、导航与紧凑桌面交互 | API 集成测试、前端 TypeScript、普通构建和统一导航构建通过 |
+| <span class="status-badge status-done">✓</span> | Git 仓库阅读体验 | README 使用安全 Markdown/GFM 渲染，提交历史在独立内框滚动，三列按自身内容高度布局 | README 标题、表格、列表和链接渲染通过；提交内框 `457/2049px` 可滚动，主详情与历史面板不等高，无横向溢出 |
 | <span class="status-badge status-done">✓</span> | Slurm 分区容量可视化 | Overview 使用 128px 主分区 CPU 环图和每行 3-4 个独立分区块展示分配、空闲与占用率，字体和进度条同步放大 | 107 API 返回 7 个真实分区；深浅主题、两个桌面视口、无重复主分区和无横向溢出检查通过，不将账号申请量伪装为平台占用率 |
 | <span class="status-badge status-done">✓</span> | 身份与元数据链路 | SQLite source 隔离、旧表兼容升级、Slurm 状态优先去重合并和 owner 限定查询 | 恢复、跨 owner、来源隔离、旧表升级和合并测试通过 |
 | <span class="status-badge status-done">✓</span> | Native 能力界面 | `/api/runtime` 分别声明提交、日志等能力，前端展示当前 Native 模式并隐藏未开放操作 | TypeScript 检查和 Vite 生产构建通过 |
