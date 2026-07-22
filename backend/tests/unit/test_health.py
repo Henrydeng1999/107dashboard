@@ -13,7 +13,7 @@ def test_health_check() -> None:
     assert response.json()["service"] == "dashboard-api"
 
 
-def test_default_runtime_reports_fixture_capabilities() -> None:
+def test_explicit_test_runtime_reports_fixture_capabilities() -> None:
     response = TestClient(app).get("/api/runtime")
 
     assert response.status_code == 200

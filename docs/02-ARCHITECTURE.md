@@ -148,6 +148,8 @@ Native 全交互部署仍使用同一个 FastAPI 进程、有效 Unix owner 和 
 
 真实基础产品部署与演示回退配置严格分离。`deploy/107-native-interactive.env.example` 固定 `SLURM_DATA_SOURCE=native` 与 `DEMO_FALLBACK_ENABLED=false`，启动检查要求所有可见 Job ID 使用 `slurm-` 前缀；Slurm 查询失败时产品显示 API 错误，不用模拟结果掩盖故障。Fixture 仅保留给本地自动化和单独的演示回退验收，不参与用户判断真实作业状态。
 
+代码级默认数据源同样固定为 `native`。未安装 Slurm 的本地开发机可以打开完整前端布局，但作业、容量、日志和资源区域只显示空态或不可用状态，不自动注入 Fixture 作业。Pytest 在测试入口显式设置 `SLURM_DATA_SOURCE=fixture`，使模拟数据只属于受控自动化测试，而不是产品运行时的隐式回退。
+
 ## 可靠性要求
 
 - Slurm 是作业状态的事实来源，数据库中的状态是缓存和展示数据。

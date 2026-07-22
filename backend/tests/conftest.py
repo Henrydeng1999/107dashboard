@@ -33,6 +33,7 @@ _SETTINGS_ENVIRONMENT_VARIABLES = (
 for variable in _SETTINGS_ENVIRONMENT_VARIABLES:
     os.environ.pop(variable, None)
 os.environ["DATABASE_URL"] = "sqlite://"
+os.environ["SLURM_DATA_SOURCE"] = "fixture"
 
 
 @pytest.fixture(autouse=True)
@@ -40,3 +41,4 @@ def isolate_settings_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     for variable in _SETTINGS_ENVIRONMENT_VARIABLES:
         monkeypatch.delenv(variable, raising=False)
     monkeypatch.setenv("DATABASE_URL", "sqlite://")
+    monkeypatch.setenv("SLURM_DATA_SOURCE", "fixture")

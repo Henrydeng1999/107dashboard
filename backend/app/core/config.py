@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     serve_frontend: bool = False
     frontend_dist_directory: Path = PROJECT_ROOT / "frontend" / "dist"
-    slurm_data_source: Literal["fixture", "native"] = "fixture"
+    slurm_data_source: Literal["fixture", "native"] = "native"
     slurm_fixture_directory: Path = PROJECT_ROOT / "fixtures" / "slurm"
     fixture_job_output_directory: Path = PROJECT_ROOT / "fixtures" / "job-output"
     job_workspace_directory: Path = PROJECT_ROOT / "data" / "jobs"

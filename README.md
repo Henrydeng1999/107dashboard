@@ -142,6 +142,8 @@ backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --rel
 然后访问 `http://127.0.0.1:8000/docs` 查看 API 文档，或在 `frontend` 目录执行
 `npm run dev` 打开前端页面。健康检查接口为 `GET /api/health`。
 
+产品运行默认使用 `SLURM_DATA_SOURCE=native`。在没有 Slurm 的本地电脑上，页面仍会展示完整布局和功能框架，但作业、容量、日志与资源数据会显示为空或不可用，不会自动载入模拟任务。Fixture 仅由自动化测试显式启用，不作为本地产品页面的默认数据源。
+
 正式开发时，前端和后端依赖分别维护在：
 
 - `frontend/package.json`
