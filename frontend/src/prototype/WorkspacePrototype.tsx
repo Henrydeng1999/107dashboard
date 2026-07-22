@@ -5,7 +5,7 @@ import {
   ChartNoAxesCombined,
   ChevronRight,
   GitBranch,
-  LayoutDashboard,
+  House,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
@@ -35,7 +35,7 @@ const modules: NavModule[] = [
   {
     id: "overview",
     label: "总览",
-    icon: LayoutDashboard,
+    icon: House,
     items: [],
   },
   {
