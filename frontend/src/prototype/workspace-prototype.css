@@ -444,10 +444,10 @@
 .prototype-live-form .submit-heading h2 { font-size: 16px; }
 .prototype-live-form .submit-heading p:last-child { font-size: 11px; }
 .prototype-live-form .template-picker { margin-top: 12px; gap: 7px; }
-.prototype-live-form .template-picker button { min-height: 78px; align-content: start; border-color: var(--p-border); border-radius: 7px; background: var(--p-surface-2); padding: 10px; }
+.prototype-live-form .template-picker button { min-height: 82px; align-content: start; border-color: var(--p-border); border-radius: 7px; background: var(--p-surface-2); padding: 10px; }
 .prototype-live-form .template-picker button strong { font-size: 12px; }
 .prototype-live-form .template-picker button span { font-size: 10px; }
-.prototype-live-form .template-placeholder { min-height: 78px; display: grid; align-content: start; gap: 10px; border: 1px solid var(--p-border); border-radius: 7px; background: var(--p-surface-2); padding: 12px; overflow: hidden; }
+.prototype-live-form .template-placeholder { min-height: 82px; display: grid; align-content: start; gap: 10px; border: 1px solid var(--p-border); border-radius: 7px; background: var(--p-surface-2); padding: 12px; overflow: hidden; }
 .prototype-live-form .template-placeholder i { display: block; height: 11px; border-radius: 3px; background: linear-gradient(90deg, var(--p-surface-2) 20%, var(--p-line) 50%, var(--p-surface-2) 80%); background-size: 200% 100%; animation: prototype-template-loading 1.2s ease-in-out infinite; }
 .prototype-live-form .template-placeholder i:first-child { width: 42%; }
 .prototype-live-form .template-placeholder i:last-child { width: 82%; }
