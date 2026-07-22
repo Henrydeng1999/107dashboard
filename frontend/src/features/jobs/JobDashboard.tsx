@@ -504,16 +504,24 @@ export function JobSubmitForm({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [testProjects, setTestProjects] = useState<TestProject[]>([]);
+  const [testProjectsLoading, setTestProjectsLoading] = useState(nativeMode);
   const idempotency = useRef<{ fingerprint: string; key: string } | null>(null);
 
   useEffect(() => {
-    if (!nativeMode) return;
+    if (!nativeMode) {
+      setTestProjectsLoading(false);
+      return;
+    }
     const controller = new AbortController();
+    setTestProjectsLoading(true);
     fetchTestProjects(controller.signal)
       .then(({ items }) => setTestProjects(items))
       .catch((reason: unknown) => {
         if (reason instanceof DOMException && reason.name === "AbortError") return;
         setSubmitError(reason instanceof ApiError ? reason.message : "无法读取验收项目");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setTestProjectsLoading(false);
       });
     return () => controller.abort();
   }, [nativeMode]);
@@ -574,8 +582,10 @@ export function JobSubmitForm({
         <button className="quiet-button" type="button" onClick={onCancel}>关闭</button>
       </div>
 
-      <div className="template-picker" aria-label="常用作业模板">
-        {(testProjects.length > 0 ? testProjects : jobTemplates).map((template) => (
+      <div className={`template-picker${testProjectsLoading ? " is-loading" : ""}`} aria-label={nativeMode ? "服务器验收项目" : "常用作业模板"} aria-busy={testProjectsLoading}>
+        {testProjectsLoading
+          ? Array.from({ length: 4 }, (_, index) => <span className="template-placeholder" key={index} aria-hidden="true"><i /><i /></span>)
+          : (nativeMode ? testProjects : jobTemplates).map((template) => (
           <button
             key={template.id}
             type="button"
