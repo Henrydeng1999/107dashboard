@@ -303,7 +303,7 @@ npm run build:107
 rsync -az --delete dist/ 107:~/107dashboard/frontend/dist/
 ```
 
-`build:107` 先写入临时目录，只有在 HTML 使用 `/107-dashboard/assets/`、前端 API 使用 `/107-dashboard/api` 且不含 `localhost`/`127.0.0.1` 开发地址时才替换现有 `dist/`。`scripts/107-dashboard-service.sh start` 会重复执行相同的前缀门禁。开发机专用地址应放在未跟踪的 `.env.development.local`，不得使用会影响全部 Vite mode 的 `frontend/.env`。
+`build:107` 先写入临时目录，只有在 HTML 使用 `/107-dashboard/assets/`、前端 API 使用 `/107-dashboard/api` 且不含 `localhost`/`127.0.0.1` 开发地址时才替换现有 `dist/`。替换时会保留上一版 `index.html` 直接引用的哈希 JS/CSS，避免已打开的浏览器标签页在发布瞬间请求到被删除的旧资源。服务端对入口 HTML 返回 `Cache-Control: no-cache, must-revalidate`，对哈希资源返回一年期 immutable 缓存。`scripts/107-dashboard-service.sh start` 会重复执行相同的前缀门禁。开发机专用地址应放在未跟踪的 `.env.development.local`，不得使用会影响全部 Vite mode 的 `frontend/.env`。
 
 然后在 107 用户目录拉取代码并启动：
 

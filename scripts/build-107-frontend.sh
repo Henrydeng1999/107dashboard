@@ -30,6 +30,19 @@ if grep -RqsE 'https?://(localhost|127\.0\.0\.1):[0-9]+/api' "${STAGING_DIRECTOR
   exit 1
 fi
 
+# Keep the immediately previous entry assets so already-open tabs survive a release swap.
+if [[ -f "${DIST_DIRECTORY}/index.html" ]]; then
+  while IFS= read -r asset_path; do
+    relative_path="${asset_path#/107-dashboard/}"
+    source_path="${DIST_DIRECTORY}/${relative_path}"
+    target_path="${STAGING_DIRECTORY}/${relative_path}"
+    if [[ -f "${source_path}" && ! -e "${target_path}" ]]; then
+      mkdir -p "$(dirname "${target_path}")"
+      cp -p "${source_path}" "${target_path}"
+    fi
+  done < <(grep -oE '/107-dashboard/assets/[^" ]+' "${DIST_DIRECTORY}/index.html" | sort -u)
+fi
+
 rm -rf "${DIST_DIRECTORY}"
 mv "${STAGING_DIRECTORY}" "${DIST_DIRECTORY}"
 trap - EXIT

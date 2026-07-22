@@ -117,6 +117,11 @@ def create_app(
         request.state.request_id = uuid4().hex
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
+        if settings.serve_frontend:
+            if request.url.path == "/" or request.url.path.endswith("/index.html"):
+                response.headers["Cache-Control"] = "no-cache, must-revalidate"
+            elif "/assets/" in request.url.path or request.url.path.startswith("/assets/"):
+                response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         return response
 
     @application.exception_handler(RequestValidationError)

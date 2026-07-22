@@ -49,7 +49,9 @@ def test_built_frontend_can_be_served_without_hiding_api(tmp_path) -> None:
         )
     )
 
-    assert client.get("/").text == "<h1>Dashboard</h1>"
+    frontend_response = client.get("/")
+    assert frontend_response.text == "<h1>Dashboard</h1>"
+    assert frontend_response.headers["cache-control"] == "no-cache, must-revalidate"
     assert client.get("/api/health").json()["status"] == "ok"
 
 
