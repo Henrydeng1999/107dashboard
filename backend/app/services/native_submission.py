@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
+import logging
 from pathlib import Path
 import re
 from threading import Lock
@@ -14,6 +15,7 @@ from app.repositories.submission import (
     SubmissionRepository,
 )
 from app.schemas.jobs import JobSubmitRequest
+from app.slurm.runner import SlurmCommandFailed
 from app.slurm.submission import (
     SubmissionPlan,
     build_submission_plan,
@@ -46,6 +48,7 @@ class NativeActiveJobLimitError(RuntimeError):
 
 
 _IDEMPOTENCY_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}", re.ASCII)
+_LOGGER = logging.getLogger(__name__)
 
 
 class NativeSubmissionService:
@@ -202,6 +205,16 @@ class NativeSubmissionService:
             )
             return metadata
         except Exception as exc:
+            if isinstance(exc, SlurmCommandFailed):
+                _LOGGER.warning(
+                    "native_submission_sbatch_failed submission_id=%s returncode=%d "
+                    "category=%s output_length=%d output_fingerprint=%s",
+                    plan.submission_id,
+                    exc.returncode,
+                    exc.category,
+                    exc.output_length,
+                    exc.output_fingerprint,
+                )
             try:
                 self._repository.record_event(
                     self._audit(plan, "FAILED", self._safe_failure_code(exc))
@@ -227,5 +240,7 @@ class NativeSubmissionService:
 
     @staticmethod
     def _safe_failure_code(exc: Exception) -> str:
+        if isinstance(exc, SlurmCommandFailed):
+            return f"SBATCH_{exc.category}"
         name = exc.__class__.__name__.upper()
         return name[:64] if name.isascii() and name.replace("_", "").isalnum() else "ERROR"

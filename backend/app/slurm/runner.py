@@ -1,6 +1,8 @@
 import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
+from hashlib import sha256
+import re
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,13 +28,49 @@ class SlurmCommandTimeout(SlurmCommandError):
         self.timeout_seconds = timeout_seconds
 
 
+_SAFE_FAILURE_PATTERNS = (
+    ("CONTROLLER_UNAVAILABLE", re.compile(r"unable to contact slurm controller|socket timed out|connection (?:refused|reset)|controller.*not responding", re.I)),
+    ("ACCOUNT_POLICY", re.compile(r"invalid account|account/partition combination|accounting policy", re.I)),
+    ("QOS_POLICY", re.compile(r"invalid qos|qos not permitted|qos specification|qos policy", re.I)),
+    ("PARTITION_POLICY", re.compile(r"invalid partition|partition.*not (?:available|permitted|allowed)", re.I)),
+    ("RESOURCE_POLICY", re.compile(r"requested node configuration is not available|invalid (?:generic resource|gres)|memory specification can not be satisfied", re.I)),
+    ("SUBMISSION_LIMIT", re.compile(r"maximum number of jobs|job violates accounting/qos policy|association job limit", re.I)),
+    ("AUTHORIZATION", re.compile(r"access denied|permission denied|not authorized|authentication", re.I)),
+    ("TEMPORARY_FAILURE", re.compile(r"temporarily unavailable|resource temporarily unavailable|try again", re.I)),
+)
+
+
+def classify_slurm_failure(output: str) -> str:
+    """Return a stable, non-sensitive category without exposing scheduler output."""
+    for category, pattern in _SAFE_FAILURE_PATTERNS:
+        if pattern.search(output):
+            return category
+    return "UNKNOWN"
+
+
+def fingerprint_slurm_failure(stdout: str, stderr: str) -> tuple[str, int]:
+    """Create a bounded correlation fingerprint without retaining scheduler output."""
+    output = "\n".join(part.strip() for part in (stdout, stderr) if part.strip())
+    return sha256(output.encode("utf-8", errors="replace")).hexdigest()[:16], len(output)
+
+
 class SlurmCommandFailed(SlurmCommandError):
-    def __init__(self, arguments: tuple[str, ...], returncode: int, stderr: str) -> None:
+    def __init__(
+        self,
+        arguments: tuple[str, ...],
+        returncode: int,
+        stderr: str,
+        stdout: str = "",
+    ) -> None:
         detail = stderr.strip() or "no stderr output"
         super().__init__(f"Slurm command {arguments[0]} exited with {returncode}: {detail}")
         self.arguments = arguments
         self.returncode = returncode
         self.stderr = stderr
+        self.stdout = stdout
+        combined_output = "\n".join(part for part in (stdout, stderr) if part)
+        self.category = classify_slurm_failure(combined_output)
+        self.output_fingerprint, self.output_length = fingerprint_slurm_failure(stdout, stderr)
 
 
 class SlurmCommandExecutionError(SlurmCommandError):
@@ -71,5 +109,10 @@ class SubprocessCommandRunner:
             raise SlurmCommandExecutionError(command, exc) from exc
 
         if completed.returncode != 0:
-            raise SlurmCommandFailed(command, completed.returncode, completed.stderr)
+            raise SlurmCommandFailed(
+                command,
+                completed.returncode,
+                completed.stderr,
+                completed.stdout,
+            )
         return CommandResult(stdout=completed.stdout, stderr=completed.stderr)

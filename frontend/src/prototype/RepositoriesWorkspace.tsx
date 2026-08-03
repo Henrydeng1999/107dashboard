@@ -1,3 +1,4 @@
+import { Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -32,6 +33,7 @@ export function RepositoriesWorkspace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [commitsExpanded, setCommitsExpanded] = useState(true);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -102,10 +104,7 @@ export function RepositoriesWorkspace() {
   return (
     <div className="prototype-repository-layout">
       <section className="prototype-panel prototype-panel--flush prototype-repository-sidebar">
-        <div className="prototype-toolbar">
-          <label className="prototype-search"><span aria-hidden="true">⌕</span><input aria-label="搜索仓库" placeholder="搜索仓库、路径或分支" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
-          <span className="prototype-repository-count">{filtered.length}</span>
-        </div>
+        <div className="prototype-repository-list-heading"><strong>仓库</strong><span>{filtered.length}</span></div>
         {error && <div className="prototype-live-error" role="alert">{error}</div>}
         <div className="prototype-repository-list" aria-label="Git 仓库">
           {filtered.map((repository) => (
@@ -120,6 +119,7 @@ export function RepositoriesWorkspace() {
       </section>
 
       <section className="prototype-panel prototype-panel--scroll prototype-repository-main">
+        <div className="prototype-repository-search"><label className="prototype-search"><Search aria-hidden="true" /><input type="search" aria-label="搜索仓库" placeholder="搜索仓库、路径或分支" value={query} onChange={(event) => setQuery(event.target.value)} /></label></div>
         {loading && !detail && <div className="prototype-live-loading">正在读取 Git 元数据…</div>}
         {detail && <>
           <div className="prototype-repository-heading">
@@ -141,24 +141,24 @@ export function RepositoriesWorkspace() {
             <div className="prototype-panel-heading"><div><span className="prototype-kicker">README</span><h2>{detail.readme_name ?? "仓库说明"}</h2></div>{detail.readme_truncated && <span className="prototype-badge prototype-badge--orange">已截断</span>}</div>
             {detail.readme_content ? <div className="prototype-readme"><Markdown remarkPlugins={[remarkGfm]} components={{ a: ({ children, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer">{children}</a> }}>{detail.readme_content}</Markdown></div> : <p className="prototype-repository-empty">仓库根目录没有 README。</p>}
           </section>
+
+          <details className="prototype-repository-commits" open={commitsExpanded} onToggle={(event) => setCommitsExpanded(event.currentTarget.open)}>
+            <summary><span><span className="prototype-kicker">COMMIT HISTORY</span><strong>{commit ? "提交详情" : "最近提交"}</strong></span><small>{detail.commits.length} 个提交</small></summary>
+            <div className="prototype-commit-scroll">{commit ? <div className="prototype-commit-detail">
+              <button className="prototype-secondary" type="button" onClick={() => setCommit(null)}>← 返回历史</button>
+              <code>{commit.hash}</code><h3>{commit.subject}</h3>
+              <p>{commit.author_name} · {formatDate(commit.authored_at)}</p>
+              {commit.body && <pre>{commit.body}</pre>}
+              <div className="prototype-change-list">{commit.files.map((item, index) => <div key={`${item.path}-${index}`}><span>{statusLabel(item.status)}</span><code>{item.path}</code></div>)}</div>
+            </div> : <div className="prototype-commit-list">{detail.commits.map((item) => (
+              <button type="button" key={item.hash} onClick={() => void openCommit(item.hash)}>
+                <span><strong>{item.subject}</strong><small>{item.author_name} · {formatDate(item.authored_at)}</small></span><code>{item.short_hash}</code>
+              </button>
+            ))}</div>}
+            {!loading && detail.commits.length === 0 && <p className="prototype-repository-empty">仓库尚无提交。</p>}</div>
+          </details>
         </>}
       </section>
-
-      <aside className="prototype-panel prototype-commit-panel">
-        <span className="prototype-kicker">COMMIT HISTORY</span><h2>{commit ? "提交详情" : "最近提交"}</h2>
-        <div className="prototype-commit-scroll">{commit ? <div className="prototype-commit-detail">
-          <button className="prototype-secondary" type="button" onClick={() => setCommit(null)}>← 返回历史</button>
-          <code>{commit.hash}</code><h3>{commit.subject}</h3>
-          <p>{commit.author_name} · {formatDate(commit.authored_at)}</p>
-          {commit.body && <pre>{commit.body}</pre>}
-          <div className="prototype-change-list">{commit.files.map((item, index) => <div key={`${item.path}-${index}`}><span>{statusLabel(item.status)}</span><code>{item.path}</code></div>)}</div>
-        </div> : <div className="prototype-commit-list">{detail?.commits.map((item) => (
-          <button type="button" key={item.hash} onClick={() => void openCommit(item.hash)}>
-            <span><strong>{item.subject}</strong><small>{item.author_name} · {formatDate(item.authored_at)}</small></span><code>{item.short_hash}</code>
-          </button>
-        ))}</div>}
-        {!loading && detail?.commits.length === 0 && <p className="prototype-repository-empty">仓库尚无提交。</p>}</div>
-      </aside>
     </div>
   );
 }

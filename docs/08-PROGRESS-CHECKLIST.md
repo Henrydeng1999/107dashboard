@@ -89,18 +89,20 @@
 | <span class="status-badge status-done">✓</span> | Git 仓库阅读体验 | README 使用安全 Markdown/GFM 渲染，提交历史在独立内框滚动，三列按自身内容高度布局 | README 标题、表格、列表和链接渲染通过；提交内框 `457/2049px` 可滚动，主详情与历史面板不等高，无横向溢出 |
 | <span class="status-badge status-done">✓</span> | Slurm 分区容量可视化 | Overview 使用 128px 主分区 CPU 环图和每行 3-4 个独立分区块展示分配、空闲与占用率，字体和进度条同步放大 | 107 API 返回 7 个真实分区；深浅主题、两个桌面视口、无重复主分区和无横向溢出检查通过，不将账号申请量伪装为平台占用率 |
 | <span class="status-badge status-done">✓</span> | 身份与元数据链路 | SQLite source 隔离、旧表兼容升级、Slurm 状态优先去重合并和 owner 限定查询 | 恢复、跨 owner、来源隔离、旧表升级和合并测试通过 |
+| <span class="status-badge status-done">✓</span> | Native 历史状态对账 | 对持久化且超出常规历史窗口的活动 Job ID执行 owner 限定、分批定向 `sacct` 查询，并同步终态或 UNKNOWN 到元数据 | Job ID 格式、100 项上限、50 项分批、跨 owner 过滤、宽限期、终态持久化和缺失记录回归通过 |
 | <span class="status-badge status-done">✓</span> | Native 能力界面 | `/api/runtime` 分别声明提交、日志等能力，前端展示当前 Native 模式并隐藏未开放操作 | TypeScript 检查和 Vite 生产构建通过 |
 | <span class="status-badge status-done">✓</span> | Native 平台验收 | 有效 UID、owner、真实列表、详情和 usage 在 107 运行通过 | 提交 `05a64a3`；用户 `pb24030760`；Job `21482`；`COMPLETED`；`0:0`；脚本退出 0 |
 | <span class="status-badge status-done">✓</span> | Native 提交安全底座 | 窄命令白名单、资源上限、受控目录/脚本、参数数组、Job ID 解析、回执、owner 元数据和脱敏审计；未接入 HTTP | 注入式伪 `sbatch`、攻击字符串、文件边界、审计与授权门测试通过；未调用真实 `sbatch` |
 | <span class="status-badge status-done">✓</span> | Native 最小提交验收 | 固定一次性入口提交 `python3 --version`，持久化 Job ID、owner 元数据、回执和审计；HTTP 保持关闭 | 提交 `88a0147`；用户 `pb24030760`；Job `24011`；`1 CPU / 512 MiB / 0 GPU / 1 分钟`；`COMPLETED`；`0:0` |
 | <span class="status-badge status-done">✓</span> | Native 受控 HTTP 提交 | 默认关闭的部署门、持久化幂等摘要、同键安全重放、异请求冲突、活跃作业上限、稳定 Dashboard ID 和前端幂等重试 | 注入式 API 回归证明相同请求仅调用一次伪 `sbatch`；前端类型检查和生产构建通过；未调用真实 `sbatch` |
+| <span class="status-badge status-done">✓</span> | Slurm 拒绝诊断 | 对控制器、账号、QoS、分区、资源、限额和授权错误返回稳定脱敏分类；原始 stdout/stderr 不进入 API 或日志 | 分类器、输出长度与指纹、API 稳定错误码、敏感路径不回显及审计失败码测试通过 |
 | <span class="status-badge status-done">✓</span> | Native HTTP 门禁验收 | 临时启用提交能力，验证缺少幂等键和非法命令在 `sbatch` 前稳定拒绝，其他写/日志能力继续关闭 | 提交 `0f88ede`；用户 `pb24030760`；`400/422`；`would_invoke_sbatch=false`；开关未持久化 |
 | <span class="status-badge status-done">✓</span> | Native 受控日志 | owner/source 元数据限定、固定 submission 路径、普通文件与符号链接边界、字节偏移读取和默认关闭部署门 | 本地正常/缺失/跨 owner/穿越/文件类型/416/503 回归通过；未读取真实日志 |
 | <span class="status-badge status-done">✓</span> | Native 日志路径预检 | 在不打开文件的前提下校验 Job `24011` 的 owner 元数据及 stdout/stderr 受控目录边界 | 提交 `beb39f7`；用户 `pb24030760`；两个路径均安全；`would_open_log=false`；`would_read_log=false`；开关未持久化 |
 | <span class="status-badge status-done">✓</span> | Native 受控取消与克隆 | 独立门禁、Owner/元数据/状态二次校验、参数数组 scancel、持久化幂等和审计；克隆重新走提交校验与活跃上限 | 注入式闭环只调用一次伪 sbatch，并对来源/克隆各调用一次伪 scancel；未知 Job 不触发命令 |
 | <span class="status-badge status-done">✓</span> | Native 日志集中验收 | 对 Job `24011` 的 stdout/stderr 执行每流最多 4096 字节的受控读取，返回偏移与 EOF，不在验收报告回显正文 | stdout 14 字节、stderr 0 字节；Owner 通过；`raw_content_emitted=false`；开关未持久化 |
 | <span class="status-badge status-done">✓</span> | Native 控制集中验收 | 脚本自建最小来源作业、取消、克隆并再次取消，保持 Owner、幂等与审计链完整 | 提交 `11cd3b4`；Job `24063`、`24064` 均 `CANCELLED by 68311`；`squeue` 无遗留活动作业 |
-| <span class="status-badge status-done">✓</span> | 前端演示体验 | 自适应轮询、页面隐藏暂停、状态变化提示、资源申请/实际对比、安全模板和保守失败排查 | TypeScript 检查、Vite 生产构建及浏览器交互/布局检查通过 |
+| <span class="status-badge status-done">✓</span> | 前端演示体验 | 自适应轮询、URL 页面状态、移动端模块栏、AI 对话跟随、增长型面板、仓库历史折叠、SVG 主题控制和资源申请/实际对比 | TypeScript 检查、Vite 正式构建及浏览器交互/布局检查通过 |
 | <span class="status-badge status-done">✓</span> | 数据源隔离 | 产品代码默认 Native，本地无 Slurm 时展示空态/不可用框架；Fixture 仅由自动化测试或单独演示回退显式启用，回退期间写操作强制关闭 | 测试入口显式设置 Fixture；107 产品 readiness 要求 `fixture_influence=false`，故障、冷却恢复、HTTP 503 与零 Native 写调用回归通过 |
 | <span class="status-badge status-done">✓</span> | 演示部署骨架 | FastAPI 托管预构建前端；正式发布先暂存构建并强制 `/107-dashboard/` 资源/API 前缀，错误前缀或开发地址快速失败 | `build:107` 原子替换、启动双重门禁、Shell 语法和公开入口 HTML/JS/CSS/API 检查通过 |
 | <span class="status-badge status-done">✓</span> | 发布验收脚本 | 一条命令集中验证真实 Native 读取与模拟 Fixture 回退，真实查询降级时拒绝误报通过 | 提交 `b253ac0` 在 107 通过：Native 4 个作业、Fixture 5 个作业、写请求 503、`would_invoke_sbatch=false` |
@@ -109,7 +111,7 @@
 | <span class="status-badge status-active">→</span> | 用户目录基础产品服务 | Native-only 配置、tmux 服务管理、产品启动检查、最新前端标识和真实可运行模板 | 本地配置/检查单测、Shell 语法、前端类型检查及构建通过；107 部署和浏览器基本操作待验收 |
 | <span class="status-badge status-done">✓</span> | 107 干净提交部署 | 提交、Gitee 与服务器 `master` 对齐，服务器侧统一导航构建、Native-only 启动检查和四模块 API 技术检查 | 提交 `6ba4939`；后端 268 passed；本地/服务器构建哈希一致；SQLite `ok`、Slurmctld `UP`、无活动作业；浏览器交互另行验收 |
 | <span class="status-badge status-done">✓</span> | 登记测试项目 | 独立项目根目录、只读清单 API、owner/权限/符号链接/大小校验、submission 私有快照和前端选择；启动门禁要求固定验收集完整并允许追加合法项目 | 候选代码在 107 环境完成项目 API、快照、未知项目、扩展项目与路径安全回归；真实 Job 留待浏览器验收 |
-| <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 107 Python 3.12 环境后端 268 个 pytest 通过，Ruff 与 `pip check` 通过；npm 官方审计 0 个生产依赖漏洞 |
+| <span class="status-badge status-done">✓</span> | 代码质量 | Ruff、pytest、npm audit | 107 Python 3.12 环境后端 286 个 pytest 通过，Ruff 与 `pip check` 通过；npm 官方审计 0 个生产依赖漏洞 |
 | <span class="status-badge status-done">✓</span> | 文档 | 架构、环境、协作、部署、API 契约 | 文档站可直接访问 |
 | <span class="status-badge status-done">✓</span> | 文档体验 | 单章节按需加载、模糊过渡、URL 定位、前进后退和章节筛选 | 浏览器交互检查通过 |
 

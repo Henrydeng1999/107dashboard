@@ -4,9 +4,15 @@ from typing import Any
 
 import pytest
 
-from app.slurm.adapter import FixtureSlurmAdapter, NativeSlurmAdapter
+from app.slurm.adapter import (
+    SACCT_TARGET_MAX_JOB_IDS,
+    FixtureSlurmAdapter,
+    NativeSlurmAdapter,
+)
 from app.slurm.runner import (
     CommandResult,
+    classify_slurm_failure,
+    fingerprint_slurm_failure,
     SlurmCommandExecutionError,
     SlurmCommandFailed,
     SlurmCommandNotFound,
@@ -113,19 +119,70 @@ def test_native_adapter_uses_structured_accounting_and_partition_formats() -> No
     ]
 
 
+def test_native_adapter_batches_bounded_targeted_accounting_queries() -> None:
+    runner = RecordingRunner()
+    adapter = NativeSlurmAdapter(runner)
+    job_ids = [str(job_id) for job_id in range(1, 52)]
+
+    assert adapter.list_accounting_by_job_ids("demo-user", [*job_ids, "1"]) == []
+
+    assert len(runner.calls) == 2
+    assert runner.calls[0][0:5] == [
+        "sacct",
+        "--noheader",
+        "--parsable2",
+        "--allocations",
+        "--user=demo-user",
+    ]
+    assert runner.calls[0][5] == f"--jobs={','.join(job_ids[:50])}"
+    assert runner.calls[1][5] == "--jobs=51"
+    assert all("--starttime=now-7days" not in call for call in runner.calls)
+
+
+def test_native_adapter_rejects_unsafe_or_unbounded_targeted_job_ids() -> None:
+    runner = RecordingRunner()
+    adapter = NativeSlurmAdapter(runner)
+
+    with pytest.raises(ValueError, match="Slurm job identifier"):
+        adapter.list_accounting_by_job_ids("demo-user", ["21482;whoami"])
+    with pytest.raises(ValueError, match="at most 100"):
+        adapter.list_accounting_by_job_ids(
+            "demo-user", [str(job_id) for job_id in range(SACCT_TARGET_MAX_JOB_IDS + 1)]
+        )
+
+    assert runner.calls == []
+
+
+def test_native_adapter_targeted_accounting_filters_unrequested_and_other_owner_rows() -> None:
+    runner = RecordingRunner(
+        "21482|wanted|COMPLETED|demo-user|Students|stu|qos|node|0:0|||||\n"
+        "21483|other-job|FAILED|demo-user|Students|stu|qos|node|1:0|||||\n"
+        "21482|other-owner|FAILED|other-user|Students|stu|qos|node|1:0|||||\n"
+    )
+    adapter = NativeSlurmAdapter(runner)
+
+    jobs = adapter.list_accounting_by_job_ids("demo-user", ["21482"])
+
+    assert [(job.job_id, job.user, job.state) for job in jobs] == [
+        ("21482", "demo-user", "COMPLETED")
+    ]
+
+
 def test_native_adapter_uses_structured_usage_query_and_validates_job_id() -> None:
     runner = RecordingRunner()
     adapter = NativeSlurmAdapter(runner)
 
     adapter.get_usage("21482")
 
-    assert runner.calls == [[
-        "sacct",
-        "--noheader",
-        "--parsable2",
-        "--jobs=21482",
-        "--format=JobIDRaw,JobName,State,Elapsed,Timelimit,AllocCPUS,ReqTRES,AllocTRES,MaxRSS,AveCPU,TotalCPU,ExitCode,TRESUsageInAve,TRESUsageInMax",
-    ]]
+    assert runner.calls == [
+        [
+            "sacct",
+            "--noheader",
+            "--parsable2",
+            "--jobs=21482",
+            "--format=JobIDRaw,JobName,State,Elapsed,Timelimit,AllocCPUS,ReqTRES,AllocTRES,MaxRSS,AveCPU,TotalCPU,ExitCode,TRESUsageInAve,TRESUsageInMax",
+        ]
+    ]
     with pytest.raises(ValueError, match="Slurm job identifier"):
         adapter.get_usage("21482;whoami")
     assert len(runner.calls) == 1
@@ -174,6 +231,34 @@ def test_runner_translates_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
         SubprocessCommandRunner(timeout_seconds=2).run(["sacct"])
 
 
+@pytest.mark.parametrize(
+    ("stderr", "expected"),
+    [
+        ("Unable to contact slurm controller", "CONTROLLER_UNAVAILABLE"),
+        ("Invalid account or account/partition combination specified", "ACCOUNT_POLICY"),
+        ("Invalid qos specification", "QOS_POLICY"),
+        ("Invalid partition name specified", "PARTITION_POLICY"),
+        ("Requested node configuration is not available", "RESOURCE_POLICY"),
+        ("Job violates accounting/QOS policy", "QOS_POLICY"),
+        ("opaque scheduler rejection /private/path", "UNKNOWN"),
+    ],
+)
+def test_slurm_failure_classification_is_bounded(stderr: str, expected: str) -> None:
+    assert classify_slurm_failure(stderr) == expected
+
+
+def test_slurm_failure_fingerprint_does_not_expose_output() -> None:
+    fingerprint, output_length = fingerprint_slurm_failure(
+        "stdout includes /private/source.py",
+        "stderr includes secret-owner",
+    )
+
+    assert len(fingerprint) == 16
+    assert fingerprint.isalnum()
+    assert output_length == 63
+    assert "private" not in fingerprint
+
+
 def test_runner_translates_nonzero_exit(monkeypatch: pytest.MonkeyPatch) -> None:
     def failed(arguments: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(arguments, 1, stdout="", stderr="access denied")
@@ -185,6 +270,26 @@ def test_runner_translates_nonzero_exit(monkeypatch: pytest.MonkeyPatch) -> None
 
     assert error.value.returncode == 1
     assert error.value.stderr == "access denied"
+    assert error.value.category == "AUTHORIZATION"
+
+
+def test_runner_classifies_failure_written_to_stdout(monkeypatch: pytest.MonkeyPatch) -> None:
+    def failed(arguments: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            arguments,
+            255,
+            stdout="Unable to contact slurm controller",
+            stderr="",
+        )
+
+    monkeypatch.setattr(subprocess, "run", failed)
+
+    with pytest.raises(SlurmCommandFailed) as error:
+        SubprocessCommandRunner().run(["sbatch", "job.sh"])
+
+    assert error.value.category == "CONTROLLER_UNAVAILABLE"
+    assert error.value.returncode == 255
+    assert error.value.output_length == 34
 
 
 @pytest.mark.parametrize(

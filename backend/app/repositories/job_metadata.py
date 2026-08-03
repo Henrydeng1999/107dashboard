@@ -91,6 +91,31 @@ class JobMetadataRepository:
             session.flush()
             return self._to_record(model)
 
+    def update_state(
+        self,
+        slurm_job_id: str,
+        *,
+        owner: str,
+        source: str,
+        state: str,
+        finished_at: datetime | None = None,
+    ) -> JobMetadataRecord | None:
+        with self._session_factory.begin() as session:
+            model = session.scalars(
+                select(JobMetadata).where(
+                    JobMetadata.slurm_job_id == slurm_job_id,
+                    JobMetadata.owner == owner,
+                    JobMetadata.source == source,
+                )
+            ).one_or_none()
+            if model is None:
+                return None
+            model.state = state
+            if finished_at is not None:
+                model.finished_at = finished_at
+            session.flush()
+            return self._to_record(model)
+
     def get_by_id(self, job_id: str, *, owner: str) -> JobMetadataRecord | None:
         statement = select(JobMetadata).where(
             JobMetadata.id == job_id, JobMetadata.owner == owner

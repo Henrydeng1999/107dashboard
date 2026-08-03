@@ -70,6 +70,34 @@ const modules: NavModule[] = [
   },
 ];
 
+const defaultActiveItems: Record<ModuleId, string> = {
+  overview: "总览",
+  jobs: "作业总览",
+  reports: "报告总览",
+  projects: "项目总览",
+  repositories: "仓库浏览",
+  ai: "Chat",
+};
+
+function readWorkspaceLocation(): {
+  activeModule: ModuleId;
+  utilityPage: "help" | "settings" | null;
+  activeItems: Record<ModuleId, string>;
+} {
+  const url = new URL(window.location.href);
+  const utility = url.searchParams.get("utility");
+  const utilityPage = utility === "help" || utility === "settings" ? utility : null;
+  const requestedModule = url.searchParams.get("module");
+  const module = modules.find((candidate) => candidate.id === requestedModule);
+  const activeModule = module?.id ?? "overview";
+  const requestedItem = url.searchParams.get("page");
+  const activeItems = { ...defaultActiveItems };
+  if (module && requestedItem && module.items.includes(requestedItem)) {
+    activeItems[module.id] = requestedItem;
+  }
+  return { activeModule, utilityPage, activeItems };
+}
+
 const pageMeta: Record<ModuleId, { eyebrow: string; title: string; description: string }> = {
   overview: {
     eyebrow: "WORKSPACE OVERVIEW",
@@ -112,10 +140,14 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
 }
 
 export function WorkspacePrototype() {
-  const [activeModule, setActiveModule] = useState<ModuleId>("overview");
-  const [utilityPage, setUtilityPage] = useState<"help" | "settings" | null>(null);
-  const [activeItems, setActiveItems] = useState<Record<ModuleId, string>>({ overview: "总览", jobs: "作业总览", reports: "报告总览", projects: "项目总览", repositories: "仓库浏览", ai: "Chat" });
-  const [expandedModules, setExpandedModules] = useState<Set<ModuleId>>(() => new Set(modules.filter((module) => module.items.length > 0).map((module) => module.id)));
+  const initialLocation = useMemo(readWorkspaceLocation, []);
+  const [activeModule, setActiveModule] = useState<ModuleId>(initialLocation.activeModule);
+  const [utilityPage, setUtilityPage] = useState<"help" | "settings" | null>(initialLocation.utilityPage);
+  const [activeItems, setActiveItems] = useState<Record<ModuleId, string>>(initialLocation.activeItems);
+  const [expandedModules, setExpandedModules] = useState<Set<ModuleId>>(() => {
+    const active = modules.find((module) => module.id === initialLocation.activeModule);
+    return active && active.items.length > 0 ? new Set([active.id]) : new Set();
+  });
   const [navQuery, setNavQuery] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarPreview, setSidebarPreview] = useState(false);
@@ -143,13 +175,13 @@ export function WorkspacePrototype() {
     });
   }
 
-  function selectModule(module: NavModule) {
-    scrollWorkspaceToTop();
-    setUtilityPage(null);
-    setActiveModule(module.id);
-  }
-
   function toggleModule(module: NavModule) {
+    if (module.items.length === 0) {
+      scrollWorkspaceToTop();
+      setUtilityPage(null);
+      setActiveModule(module.id);
+      return;
+    }
     setExpandedModules((current) => {
       const next = new Set(current);
       if (next.has(module.id)) next.delete(module.id);
@@ -163,6 +195,12 @@ export function WorkspacePrototype() {
     setUtilityPage(null);
     setActiveModule(module.id);
     setActiveItems((current) => ({ ...current, [module.id]: item }));
+  }
+
+  function selectMobileModule(module: NavModule) {
+    scrollWorkspaceToTop();
+    setUtilityPage(null);
+    setActiveModule(module.id);
   }
 
   function navigate(destination: WorkspaceDestination) {
@@ -203,6 +241,31 @@ export function WorkspacePrototype() {
     scrollWorkspaceToTop();
   }, [activeItems, activeModule, utilityPage]);
 
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("module");
+    url.searchParams.delete("page");
+    url.searchParams.delete("utility");
+    if (utilityPage) {
+      url.searchParams.set("utility", utilityPage);
+    } else if (activeModule !== "overview") {
+      url.searchParams.set("module", activeModule);
+      url.searchParams.set("page", activeItems[activeModule]);
+    }
+    window.history.replaceState({ workspace: true }, "", url);
+  }, [activeItems, activeModule, utilityPage]);
+
+  useEffect(() => {
+    const restoreLocation = () => {
+      const location = readWorkspaceLocation();
+      setActiveModule(location.activeModule);
+      setUtilityPage(location.utilityPage);
+      setActiveItems(location.activeItems);
+    };
+    window.addEventListener("popstate", restoreLocation);
+    return () => window.removeEventListener("popstate", restoreLocation);
+  }, []);
+
   const utilityMeta = utilityPage === "help"
     ? { eyebrow: "DOCUMENTATION", title: "帮助与文档", description: "了解真实能力、操作流程和安全边界。" }
     : { eyebrow: "PREFERENCES", title: "系统设置", description: "管理当前浏览器的外观与功能入口。" };
@@ -220,8 +283,8 @@ export function WorkspacePrototype() {
             const ModuleIcon = module.icon;
             return (
             <div className="prototype-nav-group" key={module.id}>
-              <div className="prototype-nav-row"><button type="button" className={activeModule === module.id ? "is-active" : ""} onClick={() => selectModule(module)} title={!sidebarExpanded ? module.label : undefined}><span><ModuleIcon aria-hidden="true" /></span><em>{module.label}</em></button>{module.items.length > 0 && <button type="button" className="prototype-nav-toggle" aria-label={`${expanded ? "折叠" : "展开"}${module.label}`} aria-expanded={expanded} tabIndex={sidebarExpanded ? 0 : -1} onClick={() => toggleModule(module)}><ChevronIcon expanded={expanded} /></button>}</div>
-              <div className={`prototype-subnav-shell${expanded && sidebarExpanded ? " is-open" : ""}`} aria-hidden={!expanded || !sidebarExpanded}><div className="prototype-subnav">{module.items.map((item) => <button type="button" key={item} tabIndex={sidebarExpanded ? 0 : -1} aria-current={!utilityPage && activeModule === module.id && activeItems[module.id] === item ? "page" : undefined} className={!utilityPage && activeModule === module.id && activeItems[module.id] === item ? "is-current" : ""} onClick={() => selectItem(module, item)}>{item}</button>)}</div></div>
+              <div className="prototype-nav-row"><button type="button" className={!utilityPage && activeModule === module.id && module.items.length === 0 ? "is-active" : ""} onClick={() => toggleModule(module)} title={!sidebarExpanded ? module.label : undefined} aria-expanded={module.items.length > 0 ? expanded : undefined} aria-controls={module.items.length > 0 ? `prototype-subnav-${module.id}` : undefined}><span><ModuleIcon aria-hidden="true" /></span><em>{module.label}</em>{module.items.length > 0 && <span className="prototype-nav-chevron" aria-hidden="true"><ChevronIcon expanded={expanded} /></span>}</button></div>
+              <div id={`prototype-subnav-${module.id}`} className={`prototype-subnav-shell${expanded && sidebarExpanded ? " is-open" : ""}`} aria-hidden={!expanded || !sidebarExpanded}><div className="prototype-subnav">{module.items.map((item) => <button type="button" key={item} tabIndex={expanded && sidebarExpanded ? 0 : -1} aria-current={!utilityPage && activeModule === module.id && activeItems[module.id] === item ? "page" : undefined} className={!utilityPage && activeModule === module.id && activeItems[module.id] === item ? "is-current" : ""} onClick={() => selectItem(module, item)}>{item}</button>)}</div></div>
             </div>
           )})}
           {filteredModules.length === 0 && <p className="prototype-nav-empty">没有匹配页面</p>}
@@ -231,10 +294,16 @@ export function WorkspacePrototype() {
       <main className="prototype-main">
         <header className="prototype-topbar"><div className="prototype-breadcrumb"><span>{utilityPage ? "工作台" : activeModule === "overview" ? "工作空间" : active.label}</span>{(utilityPage || activeModule !== "overview") && <><b>/</b><strong>{utilityPage === "help" ? "帮助与文档" : utilityPage === "settings" ? "系统设置" : activeItems[activeModule]}</strong></>}</div><div className="prototype-top-actions"><div className="prototype-top-account" title="当前 Unix 账号：PB"><span>PB</span><div><strong>当前 Unix 账号</strong><small>Students · stu</small></div></div><ThemeToggle /><button className="prototype-global-refresh" type="button" disabled={runtimeState === "loading"} onClick={() => setRefreshKey((value) => value + 1)}><span aria-hidden="true">↻</span> 刷新数据</button><span className={`prototype-runtime-state is-${runtimeState}`} role="status" aria-live="polite" aria-busy={runtimeState === "loading"}><StatusDot tone={runtimeState === "connected" ? "green" : runtimeState === "loading" ? "blue" : "orange"} />{runtimeState === "connected" ? "107 已连接" : runtimeState === "degraded" ? "数据已降级" : runtimeState === "unavailable" ? "状态不可用" : "正在连接"}</span></div></header>
         <div className="prototype-content">
+          <nav className="prototype-mobile-module-navigation" aria-label="工作空间模块">
+            {modules.map((module) => {
+              const ModuleIcon = module.icon;
+              return <button type="button" key={module.id} aria-current={!utilityPage && activeModule === module.id ? "page" : undefined} className={!utilityPage && activeModule === module.id ? "is-current" : ""} onClick={() => selectMobileModule(module)}><ModuleIcon aria-hidden="true" /><span>{module.label}</span></button>;
+            })}
+          </nav>
           <nav className={`prototype-mobile-navigation${activeModule === "overview" && !utilityPage ? " is-overview" : ""}`} aria-label="当前模块导航">
             {!utilityPage && active.items.map((item) => <button type="button" key={item} aria-current={activeItems[activeModule] === item ? "page" : undefined} className={activeItems[activeModule] === item ? "is-current" : ""} onClick={() => selectItem(active, item)}>{item}</button>)}
-            <button type="button" aria-current={utilityPage === "help" ? "page" : undefined} className={utilityPage === "help" ? "is-current" : ""} onClick={() => navigate({ kind: "utility", page: "help" })}>帮助</button>
-            <button type="button" aria-current={utilityPage === "settings" ? "page" : undefined} className={utilityPage === "settings" ? "is-current" : ""} onClick={() => navigate({ kind: "utility", page: "settings" })}>设置</button>
+            <button type="button" aria-current={utilityPage === "help" ? "page" : undefined} className={`prototype-mobile-utility${utilityPage === "help" ? " is-current" : ""}`} onClick={() => navigate({ kind: "utility", page: "help" })}>帮助</button>
+            <button type="button" aria-current={utilityPage === "settings" ? "page" : undefined} className={`prototype-mobile-utility${utilityPage === "settings" ? " is-current" : ""}`} onClick={() => navigate({ kind: "utility", page: "settings" })}>设置</button>
           </nav>
           <div className="prototype-page-header"><div><span>{utilityPage ? utilityMeta.eyebrow : meta.eyebrow}</span><h1>{utilityPage ? utilityMeta.title : meta.title}</h1><p>{utilityPage ? utilityMeta.description : meta.description}</p></div><div className="prototype-page-actions">{!utilityPage && activeModule === "jobs" && <button className="prototype-primary" type="button" onClick={() => setActiveItems((current) => ({ ...current, jobs: "新建作业" }))}>＋ 新建作业</button>}</div></div>
           <div className="prototype-workspace">

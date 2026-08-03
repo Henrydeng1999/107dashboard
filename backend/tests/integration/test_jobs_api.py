@@ -8,8 +8,8 @@ from app.core.config import Settings
 from app.core.identity import TrustedIdentityError
 from app.main import create_app
 from app.services.job_catalog import JobCatalog, build_job_catalog
-from app.slurm import SlurmCommandFailed, SlurmJob, SlurmPartition, SlurmResources, SlurmUsageRecord
-from app.slurm.runner import CommandResult
+from app.slurm import SlurmJob, SlurmPartition, SlurmResources, SlurmUsageRecord
+from app.slurm.runner import CommandResult, SlurmCommandFailed
 
 
 class FailingAdapter:
@@ -503,6 +503,36 @@ def test_native_submit_api_requires_idempotency_and_replays_without_sbatch(
     assert conflict.status_code == 409
     assert conflict.json()["error"]["code"] == "JOB_IDEMPOTENCY_CONFLICT"
     assert client.post("/api/jobs/slurm-24012/cancel").status_code == 503
+
+
+def test_native_submit_api_returns_safe_sbatch_diagnostic(
+    tmp_path: Path, monkeypatch, caplog
+) -> None:
+    client, _ = _native_submit_client(tmp_path, monkeypatch)
+    sensitive_stderr = "Invalid account or account/partition combination specified: /secret/path"
+
+    def reject(self: object, arguments: list[str] | tuple[str, ...]) -> CommandResult:
+        del self
+        raise SlurmCommandFailed(tuple(arguments), 1, sensitive_stderr)
+
+    monkeypatch.setattr("app.slurm.runner.SubprocessCommandRunner.run", reject)
+    with caplog.at_level("WARNING"):
+        response = client.post(
+            "/api/jobs",
+            json=_valid_submission(),
+            headers={"Idempotency-Key": "api-sbatch-reject-0001"},
+        )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "SLURM_ACCOUNT_POLICY_REJECTED"
+    assert response.json()["error"]["message"] == (
+        "Slurm rejected the selected account or account/partition combination"
+    )
+    assert sensitive_stderr not in response.text
+    assert "/secret/path" not in caplog.text
+    assert "returncode=1 category=ACCOUNT_POLICY" in caplog.text
+    assert "output_length=" in caplog.text
+    assert "output_fingerprint=" in caplog.text
 
 
 def test_native_submit_api_enforces_active_limit_before_sbatch(

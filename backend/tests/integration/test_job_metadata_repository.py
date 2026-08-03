@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -11,14 +12,25 @@ from app.slurm import SlurmJob, SlurmResources, SlurmUsageRecord
 
 
 class EmptyAdapter:
-    def __init__(self, accounting: list[SlurmJob] | None = None) -> None:
+    def __init__(
+        self,
+        accounting: list[SlurmJob] | None = None,
+        targeted_accounting: list[SlurmJob] | None = None,
+    ) -> None:
         self.accounting = accounting or []
+        self.targeted_accounting = targeted_accounting or []
+        self.targeted_calls: list[tuple[str, ...]] = []
 
     def list_queue(self, user: str) -> list[SlurmJob]:
         return []
 
     def list_accounting(self, user: str) -> list[SlurmJob]:
         return self.accounting
+
+    def list_accounting_by_job_ids(self, user: str, job_ids: tuple[str, ...]) -> list[SlurmJob]:
+        self.targeted_calls.append(tuple(job_ids))
+        requested = set(job_ids)
+        return [job for job in self.targeted_accounting if job.job_id in requested]
 
     def list_partitions(self) -> list[object]:
         return []
@@ -178,11 +190,16 @@ def test_repository_filters_fixture_and_native_metadata_sources(
     assert repository.list_by_owner("student_user", source="native") == [native_record]
 
 
-def test_native_catalog_merges_metadata_without_duplicating_slurm_job(
+def test_native_catalog_uses_slurm_terminal_state_and_syncs_pending_metadata(
     repository: JobMetadataRepository,
 ) -> None:
     repository.upsert(
-        build_record(id="submission-legacy-native", source="native", memory_mb=4096)
+        build_record(
+            id="submission-legacy-native",
+            source="native",
+            state="PENDING",
+            memory_mb=4096,
+        )
     )
     adapter = EmptyAdapter(
         accounting=[
@@ -215,6 +232,107 @@ def test_native_catalog_merges_metadata_without_duplicating_slurm_job(
     assert merged.resources.cpus == 2
     assert merged.resources.memory_mb == 4096
     assert merged.exit_code == "0:0"
+    persisted = repository.get_by_slurm_job_id("21482", owner="student_user")
+    assert persisted is not None
+    assert persisted.state == "COMPLETED"
+
+
+def test_native_catalog_reconciles_terminal_job_outside_normal_history_window(
+    repository: JobMetadataRepository,
+) -> None:
+    repository.upsert(
+        build_record(
+            id="submission-old-native",
+            source="native",
+            state="PENDING",
+            submitted_at=datetime.now(UTC) - timedelta(days=8),
+        )
+    )
+    adapter = EmptyAdapter(
+        targeted_accounting=[
+            SlurmJob(
+                job_id="21482",
+                user="student_user",
+                name="archived-training",
+                state="COMPLETED",
+                partition="Students",
+                exit_code="0:0",
+            )
+        ]
+    )
+    catalog = JobCatalog(
+        adapter=adapter,
+        owner="student_user",
+        metadata_repository=repository,
+        metadata_source="native",
+    )
+
+    response = catalog.list_jobs(None, 1, 20)
+
+    assert adapter.targeted_calls == [("21482",)]
+    assert response.total == 1
+    assert response.items[0].state == JobState.COMPLETED
+    assert response.items[0].command == "python train.py"
+    assert response.items[0].exit_code == "0:0"
+    persisted = repository.get_by_slurm_job_id("21482", owner="student_user")
+    assert persisted is not None
+    assert persisted.state == "COMPLETED"
+
+
+def test_native_catalog_marks_stale_missing_target_as_unknown(
+    repository: JobMetadataRepository,
+) -> None:
+    repository.upsert(
+        build_record(
+            id="submission-old-native",
+            source="native",
+            state="PENDING",
+            submitted_at=datetime.now(UTC) - timedelta(days=8),
+        )
+    )
+    catalog = JobCatalog(
+        adapter=EmptyAdapter(),
+        owner="student_user",
+        metadata_repository=repository,
+        metadata_source="native",
+    )
+
+    response = catalog.list_jobs(None, 1, 20)
+
+    assert response.total == 1
+    assert response.items[0].state == JobState.UNKNOWN
+    assert catalog.get_job("slurm-21482") is not None
+    persisted = repository.get_by_slurm_job_id("21482", owner="student_user")
+    assert persisted is not None
+    assert persisted.state == "UNKNOWN"
+
+
+def test_native_catalog_briefly_shows_new_submission_before_slurm_observes_it(
+    repository: JobMetadataRepository,
+) -> None:
+    submitted_at = datetime.now(UTC)
+    repository.upsert(
+        build_record(
+            id="submission-new-native",
+            source="native",
+            state="PENDING",
+            submitted_at=submitted_at,
+        )
+    )
+    catalog = JobCatalog(
+        adapter=EmptyAdapter(),
+        owner="student_user",
+        metadata_repository=repository,
+        metadata_source="native",
+    )
+
+    response = catalog.list_jobs(None, 1, 20)
+
+    assert response.total == 1
+    assert response.items[0].id == "slurm-21482"
+    assert response.items[0].state == JobState.PENDING
+    assert response.items[0].submitted_at == submitted_at
+    assert catalog.adapter.targeted_calls == []
 
 
 def test_repository_upgrades_initial_sqlite_schema_without_deleting_data(tmp_path: Path) -> None:

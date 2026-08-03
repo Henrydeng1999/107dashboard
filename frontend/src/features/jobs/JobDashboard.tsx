@@ -191,7 +191,15 @@ function UsageComparison({
   );
 }
 
-function JobUsagePanel({ jobId, refreshToken }: { jobId: string; refreshToken: string }) {
+function JobUsagePanel({
+  jobId,
+  refreshToken,
+  compact = false,
+}: {
+  jobId: string;
+  refreshToken: string;
+  compact?: boolean;
+}) {
   const [usage, setUsage] = useState<JobUsageResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -222,7 +230,7 @@ function JobUsagePanel({ jobId, refreshToken }: { jobId: string; refreshToken: s
     : [];
 
   return (
-    <section className="usage-panel" aria-labelledby="usage-title">
+    <section className={`usage-panel ${compact ? "usage-panel--compact" : ""}`} aria-labelledby="usage-title">
       <div className="usage-heading">
         <div>
           <p className="section-kicker">资源统计</p>
@@ -454,8 +462,8 @@ export function JobDetail({
           </div>
         ))}
       </dl>
+      {capabilities.usage && <JobUsagePanel jobId={job.id} refreshToken={job.updated_at} compact />}
       <JobDiagnosticPanel job={job} />
-      {capabilities.usage && <JobUsagePanel jobId={job.id} refreshToken={job.updated_at} />}
       {capabilities.logs
         ? <JobLogPanel jobId={job.id} />
         : <div className="mode-notice compact">Native 只读阶段暂不开放日志路径读取。</div>}

@@ -236,12 +236,12 @@ def submit_job(
             "JOB_ACTIVE_LIMIT_REACHED",
             "The active job limit has been reached",
         )
-    except JobSubmissionUnavailable:
+    except JobSubmissionUnavailable as exc:
         return _error_response(
             request,
             503,
-            "JOB_SUBMISSION_UNAVAILABLE",
-            "Job submission is temporarily unavailable",
+            exc.code,
+            exc.client_message,
         )
 
 

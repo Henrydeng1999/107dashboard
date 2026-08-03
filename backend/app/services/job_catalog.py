@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import os
 from pathlib import Path
 import re
@@ -38,7 +38,7 @@ from app.slurm import (
     SlurmParseError,
     SlurmResources,
 )
-from app.slurm.runner import SubprocessCommandRunner
+from app.slurm.runner import SlurmCommandFailed, SubprocessCommandRunner
 from app.slurm.control import NativeSlurmCanceller
 from app.slurm.submission import (
     NativeSlurmSubmitter,
@@ -61,6 +61,14 @@ from app.services.native_control import (
 )
 
 _DASHBOARD_ID_PREFIX = "slurm-"
+_NATIVE_SUBMISSION_VISIBILITY_GRACE = timedelta(seconds=30)
+_NATIVE_TARGETED_RECONCILIATION_LIMIT = 100
+_TERMINAL_JOB_STATES = {
+    JobState.COMPLETED,
+    JobState.FAILED,
+    JobState.CANCELLED,
+    JobState.TIMEOUT,
+}
 _TIME_LIMIT_PATTERN = re.compile(
     r"(?:(?P<days>\d+)-)?(?P<hours>\d+):(?P<minutes>\d+):(?P<seconds>\d+)"
 )
@@ -71,7 +79,18 @@ class JobCatalogUnavailable(RuntimeError):
 
 
 class JobSubmissionUnavailable(RuntimeError):
-    """Submission is unavailable for the configured data source."""
+    """Submission is unavailable with a safe client-facing diagnostic."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "JOB_SUBMISSION_UNAVAILABLE",
+        client_message: str = "Job submission is temporarily unavailable",
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.client_message = client_message
 
 
 class JobIdempotencyRequired(RuntimeError):
@@ -506,37 +525,110 @@ class JobCatalog:
             for job in jobs
             if job.owner == self.owner
         }
+        now = datetime.now(UTC)
         for metadata_job in submitted:
             if metadata_job.owner != self.owner:
                 continue
             observed_job = visible_jobs.get(metadata_job.id)
-            visible_jobs[metadata_job.id] = (
-                _merge_job_metadata(observed_job, metadata_job)
-                if observed_job is not None
-                else metadata_job
-            )
+            if observed_job is not None:
+                merged_job = _merge_job_metadata(observed_job, metadata_job)
+                visible_jobs[metadata_job.id] = merged_job
+                if (
+                    self.metadata_source == "native"
+                    and observed_job.state in _TERMINAL_JOB_STATES
+                    and observed_job.state != metadata_job.state
+                ):
+                    self._sync_native_state(merged_job)
+                continue
+            if (
+                self.metadata_source == "native"
+                and metadata_job.state in {JobState.PENDING, JobState.RUNNING}
+                and not self._within_native_submission_grace(metadata_job, now)
+            ):
+                continue
+            visible_jobs[metadata_job.id] = metadata_job
         return sorted(
             visible_jobs.values(),
             key=lambda job: _job_sort_key(SlurmJob(job_id=job.slurm_job_id)),
             reverse=True,
         )
 
+    @staticmethod
+    def _within_native_submission_grace(job: Job, now: datetime) -> bool:
+        submitted_at = job.submitted_at
+        if submitted_at is None:
+            return False
+        if submitted_at.tzinfo is None:
+            submitted_at = submitted_at.replace(tzinfo=UTC)
+        age = now - submitted_at.astimezone(UTC)
+        return timedelta(0) <= age <= _NATIVE_SUBMISSION_VISIBILITY_GRACE
+
+    def _sync_native_state(self, job: Job) -> None:
+        if self.metadata_repository is None:
+            return
+        try:
+            updated = self.metadata_repository.update_state(
+                job.slurm_job_id,
+                owner=self.owner,
+                source="native",
+                state=job.state.value,
+                finished_at=job.finished_at,
+            )
+        except SQLAlchemyError as exc:
+            raise JobCatalogUnavailable("Job metadata is unavailable") from exc
+        if updated is not None:
+            with self._cache_condition:
+                self._submitted_jobs[job.id] = job
+
     def _query_jobs(self, observed_at: datetime) -> tuple[Job, ...]:
         try:
             queue_jobs = self.adapter.list_queue(self.owner)
             accounting_jobs = self.adapter.list_accounting(self.owner)
-        except (SlurmCommandError, SlurmParseError, OSError, UnicodeError) as exc:
+
+            merged: dict[str, SlurmJob] = {}
+            for job in queue_jobs:
+                if job.user == self.owner:
+                    merged[job.job_id] = job
+            for job in accounting_jobs:
+                if job.user != self.owner:
+                    continue
+                queue_job = merged.get(job.job_id)
+                merged[job.job_id] = (
+                    _merge_slurm_job(queue_job, job) if queue_job is not None else job
+                )
+
+            if self.metadata_source == "native":
+                with self._cache_condition:
+                    submitted = tuple(self._submitted_jobs.values())
+                targeted_ids = tuple(
+                    job.slurm_job_id
+                    for job in submitted
+                    if job.owner == self.owner
+                    and job.state in {JobState.PENDING, JobState.RUNNING}
+                    and job.slurm_job_id not in merged
+                    and not self._within_native_submission_grace(job, observed_at)
+                )[:_NATIVE_TARGETED_RECONCILIATION_LIMIT]
+                if targeted_ids:
+                    targeted_jobs = {
+                        job.job_id: job
+                        for job in self.adapter.list_accounting_by_job_ids(self.owner, targeted_ids)
+                        if job.user == self.owner and job.job_id in targeted_ids
+                    }
+                    merged.update(targeted_jobs)
+                    missing_ids = set(targeted_ids) - targeted_jobs.keys()
+                    for metadata_job in submitted:
+                        if metadata_job.slurm_job_id in missing_ids:
+                            self._sync_native_state(
+                                metadata_job.model_copy(
+                                    update={
+                                        "state": JobState.UNKNOWN,
+                                        "updated_at": observed_at,
+                                    }
+                                )
+                            )
+        except (SlurmCommandError, SlurmParseError, OSError, UnicodeError, ValueError) as exc:
             raise JobCatalogUnavailable("Job data source is unavailable") from exc
 
-        merged: dict[str, SlurmJob] = {}
-        for job in queue_jobs:
-            if job.user == self.owner:
-                merged[job.job_id] = job
-        for job in accounting_jobs:
-            if job.user != self.owner:
-                continue
-            queue_job = merged.get(job.job_id)
-            merged[job.job_id] = _merge_slurm_job(queue_job, job) if queue_job is not None else job
         ordered = sorted(merged.values(), key=_job_sort_key, reverse=True)[: self.max_jobs]
         return tuple(_to_job(job, self.owner, observed_at) for job in ordered)
 
@@ -760,6 +852,51 @@ class JobCatalog:
             raise JobSubmissionInvalid("Native command policy rejected submission") from exc
         except JobCatalogUnavailable as exc:
             raise JobSubmissionUnavailable("Native active jobs are unavailable") from exc
+        except SlurmCommandFailed as exc:
+            diagnostics = {
+                "CONTROLLER_UNAVAILABLE": (
+                    "SLURM_CONTROLLER_UNAVAILABLE",
+                    "Slurm controller is temporarily unavailable; please try again later",
+                ),
+                "ACCOUNT_POLICY": (
+                    "SLURM_ACCOUNT_POLICY_REJECTED",
+                    "Slurm rejected the selected account or account/partition combination",
+                ),
+                "QOS_POLICY": (
+                    "SLURM_QOS_POLICY_REJECTED",
+                    "Slurm rejected the selected QoS policy",
+                ),
+                "PARTITION_POLICY": (
+                    "SLURM_PARTITION_POLICY_REJECTED",
+                    "Slurm rejected the selected partition",
+                ),
+                "RESOURCE_POLICY": (
+                    "SLURM_RESOURCE_POLICY_REJECTED",
+                    "Slurm rejected the requested resource combination",
+                ),
+                "SUBMISSION_LIMIT": (
+                    "SLURM_SUBMISSION_LIMIT_REACHED",
+                    "Slurm rejected the job because an account or QoS submission limit was reached",
+                ),
+                "AUTHORIZATION": (
+                    "SLURM_AUTHORIZATION_FAILED",
+                    "Slurm authorization failed for the Dashboard service identity",
+                ),
+                "TEMPORARY_FAILURE": (
+                    "SLURM_TEMPORARY_FAILURE",
+                    "Slurm temporarily rejected the submission; please try again later",
+                ),
+                "UNKNOWN": (
+                    "SLURM_SUBMISSION_REJECTED",
+                    "Slurm rejected the submission; contact the administrator with the request ID",
+                ),
+            }
+            code, client_message = diagnostics[exc.category]
+            raise JobSubmissionUnavailable(
+                "Native sbatch submission was rejected",
+                code=code,
+                client_message=client_message,
+            ) from exc
         except (
             SlurmCommandError,
             SlurmParseError,
@@ -814,7 +951,9 @@ class JobCatalog:
             except NativeControlIdempotencyRequired as exc:
                 raise JobIdempotencyRequired("A valid Idempotency-Key is required") from exc
             except NativeControlIdempotencyConflict as exc:
-                raise JobIdempotencyConflict("Idempotency-Key conflicts with prior request") from exc
+                raise JobIdempotencyConflict(
+                    "Idempotency-Key conflicts with prior request"
+                ) from exc
             except NativeControlStateConflict as exc:
                 raise JobOperationConflict("Job cannot be cancelled in its current state") from exc
             except (

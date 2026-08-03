@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -62,7 +62,7 @@ export function ReportsWorkspace() {
 
   return (
     <div className="prototype-split">
-      <section className="prototype-panel prototype-panel--scroll">
+      <section className="prototype-panel prototype-growth-pane prototype-report-pane">
         <div className="prototype-panel-heading">
           <div>
             <span className="prototype-kicker">RULES V1</span>
@@ -94,7 +94,7 @@ export function ReportsWorkspace() {
         )}
       </section>
 
-      <aside className="prototype-panel prototype-panel--scroll">
+      <aside className="prototype-panel prototype-panel--scroll prototype-growth-pane">
         {selected ? (
           <>
             <span className="prototype-kicker">EVIDENCE REPORT</span>
@@ -177,7 +177,7 @@ export function ProjectsWorkspace() {
 
   return (
     <div className="prototype-split">
-      <section className="prototype-panel prototype-panel--scroll">
+      <section className="prototype-panel prototype-panel--scroll prototype-growth-pane">
         <div className="prototype-panel-heading">
           <div>
             <span className="prototype-kicker">PROJECT EVALUATION</span>
@@ -201,7 +201,7 @@ export function ProjectsWorkspace() {
             onChange={(event) => setDescription(event.target.value)}
           /></label>
           <p className="prototype-field-hint">至少选择一个作业，评价将依据现有诊断事实生成。</p>
-          <div>
+          <div className="prototype-project-job-list">
             {jobs.map((job) => (
               <label key={job.id}>
                 <input
@@ -228,20 +228,22 @@ export function ProjectsWorkspace() {
         </form>
       </section>
 
-      <aside className="prototype-panel prototype-panel--scroll">
+      <aside className="prototype-panel prototype-growth-pane prototype-evaluation-pane">
         <span className="prototype-kicker">EVALUATION RESULTS</span>
         <h2>评价结果</h2>
-        {projects.map((project) => (
-          <article className="prototype-evaluation-card" key={project.id}>
-            <div><strong>{project.name}</strong><b>{project.grade}</b></div>
-            <p>{project.summary}</p>
-            <span>综合 {project.score}/100 · 证据覆盖 {project.evidence_coverage_percent}%</span>
-            <ul>{project.recommendations.map((item) => <li key={item}>{item}</li>)}</ul>
-          </article>
-        ))}
-        {projects.length === 0 && (
-          <div className="prototype-live-empty"><h2>尚未创建评价项目</h2></div>
-        )}
+        <div className="prototype-evaluation-list">
+          {projects.map((project) => (
+            <article className="prototype-evaluation-card" key={project.id}>
+              <div><strong>{project.name}</strong><b>{project.grade}</b></div>
+              <p>{project.summary}</p>
+              <span>综合 {project.score}/100 · 证据覆盖 {project.evidence_coverage_percent}%</span>
+              <ul>{project.recommendations.map((item) => <li key={item}>{item}</li>)}</ul>
+            </article>
+          ))}
+          {projects.length === 0 && (
+            <div className="prototype-live-empty"><h2>尚未创建评价项目</h2></div>
+          )}
+        </div>
       </aside>
     </div>
   );
@@ -275,6 +277,8 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
   const [providerForm, setProviderForm] = useState(schoolPreset);
   const [chat, setChat] = useState({ provider_id: "school", model: "deepseek-v4-pro", message: "", template_id: "job-diagnosis" as string | null });
   const [newTemplate, setNewTemplate] = useState({ id: "", name: "", description: "", system_prompt: "" });
+  const chatThreadRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScrollRef = useRef(true);
   const suggestions = [
     "总结这个作业的异常发现",
     "对比这两个作业的资源效率",
@@ -355,6 +359,17 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
     return () => window.clearInterval(timer);
   }, [chatStartedAt]);
 
+  useEffect(() => {
+    const thread = chatThreadRef.current;
+    if (thread && shouldAutoScrollRef.current) thread.scrollTop = thread.scrollHeight;
+  }, [messages, chatStartedAt]);
+
+  const trackChatScroll = () => {
+    const thread = chatThreadRef.current;
+    if (!thread) return;
+    shouldAutoScrollRef.current = thread.scrollHeight - thread.scrollTop - thread.clientHeight <= 80;
+  };
+
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
@@ -402,6 +417,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
 
   const openSession = async (id: string) => {
     setError(null);
+    shouldAutoScrollRef.current = true;
     try {
       const selected = await fetchAiSession(id);
       setSessionId(id);
@@ -410,7 +426,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
     } catch (reason) { setError(message(reason)); }
   };
 
-  const startSession = () => { setSessionId(null); setMessages([]); setError(null); };
+  const startSession = () => { shouldAutoScrollRef.current = true; setSessionId(null); setMessages([]); setError(null); };
 
   const testProvider = async () => {
     setError(null);
@@ -522,18 +538,18 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
 
   if (subpage === "调用记录") {
     return (
-      <section className="prototype-panel prototype-panel--scroll">
+      <section className="prototype-panel prototype-growth-pane">
         {heading}
-        <table className="prototype-table">
+        <div className="prototype-table-wrap prototype-growth-scroll prototype-call-history"><table className="prototype-table">
           <thead><tr><th>时间</th><th>Provider</th><th>模型</th><th>状态</th><th>请求</th></tr></thead>
           <tbody>{calls.map((call) => (
             <tr key={call.id}>
-              <td>{new Date(call.created_at).toLocaleString()}</td>
-              <td>{call.provider_id}</td><td>{call.model}</td><td>{call.status}</td>
-              <td>{call.prompt_preview}</td>
+              <td data-label="时间">{new Date(call.created_at).toLocaleString()}</td>
+              <td data-label="Provider">{call.provider_id}</td><td data-label="模型">{call.model}</td><td data-label="状态"><span className={`prototype-call-status is-${call.status.toLocaleLowerCase()}`}>{call.status}</span></td>
+              <td data-label="请求">{call.prompt_preview}</td>
             </tr>
           ))}</tbody>
-        </table>
+        </table></div>
       </section>
     );
   }
@@ -561,7 +577,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
       catch (reason) { setError(message(reason)); } finally { setBusy(false); }
     };
     return (
-      <section className="prototype-panel prototype-panel--scroll">
+      <section className="prototype-panel prototype-panel--scroll prototype-growth-pane">
         {heading}
         {error && <div className="prototype-live-error">{error}</div>}
         <details className="prototype-collapsible" open>
@@ -600,7 +616,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
   if (subpage === "接入设置") {
     return (
       <div className="prototype-split">
-        <section className="prototype-panel prototype-panel--scroll">
+        <section className="prototype-panel prototype-panel--scroll prototype-growth-pane">
           {heading}
           <p className="prototype-page-description">学校服务已设为默认预设。API Key 仅保存在后端；获取模型会同时验证接口与密钥。</p>
           {error && <div className="prototype-live-error">{error}</div>}
@@ -642,7 +658,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
             </div>
           )}
         </section>
-        <aside className="prototype-panel prototype-panel--scroll">
+        <aside className="prototype-panel prototype-panel--scroll prototype-growth-pane">
           <span className="prototype-kicker">CONFIGURED</span><h2>已配置 Provider</h2>
           <p className="prototype-panel-hint">管理已添加模型，设置 Chat 默认项或删除不用的模型</p>
           {providers.map((provider) => (
@@ -675,7 +691,7 @@ export function AiWorkspace({ subpage }: { subpage: string }) {
         {heading}
         <div className="prototype-chat-body">
           {messages.length > 0 ? (
-            <div className="prototype-chat-thread">
+            <div className="prototype-chat-thread" ref={chatThreadRef} onScroll={trackChatScroll}>
               {messages.map((item) => item.role === "USER" ? <div className="prototype-user-message" key={item.id}>{item.content}</div> : (
                 <div className="prototype-ai-answer" key={item.id}>
                   <Markdown

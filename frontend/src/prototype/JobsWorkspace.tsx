@@ -231,7 +231,7 @@ export function JobsWorkspace({
 
   return (
     <div className="prototype-split prototype-jobs-live">
-      <section className="prototype-panel prototype-panel--flush">
+      <section className="prototype-panel prototype-panel--flush prototype-growth-pane">
         <div className="prototype-live-mode" role="status">
           <span className={runtime?.degraded || runtimeError ? "is-warning" : ""}><StatusDot tone={runtime?.degraded || runtimeError ? "orange" : "green"} />{runtimeLabel(runtime, runtimeError)}</span>
           <small>{runtime?.degraded ? "当前为脱敏 Fixture，写操作已关闭" : runtime?.serving_source === "native" ? "当前只展示本 Unix 账号的真实 Slurm 作业" : "本地开发数据，不会调用 Slurm"}</small>
