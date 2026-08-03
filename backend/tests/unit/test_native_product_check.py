@@ -1,5 +1,6 @@
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -92,4 +93,42 @@ def test_product_payloads_reject_fixture_or_non_native_jobs() -> None:
             {"total": 1, "items": [{"id": "fixture-123"}]},
             summary,
             manifest,
+        )
+
+
+def test_product_settings_allow_extra_registered_test_projects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script = load_script()
+    monkeypatch.setattr(script, "resolve_effective_unix_username", lambda: "demo-user")
+    monkeypatch.setattr(script.shutil, "which", lambda command: f"/usr/bin/{command}")
+
+    class Catalog:
+        def __init__(self, root: Path) -> None:
+            del root
+
+        def list_projects(self) -> list[SimpleNamespace]:
+            return [
+                SimpleNamespace(id=project_id)
+                for project_id in sorted(script.REQUIRED_TEST_PROJECTS | {"cpu-sleep-10m"})
+            ]
+
+    monkeypatch.setattr(script, "TestProjectCatalog", Catalog)
+    result = script.validate_product_settings(
+        product_settings(tmp_path, test_project_directory=tmp_path)
+    )
+
+    assert "cpu-sleep-10m" in result["test_projects"]
+
+    monkeypatch.setattr(
+        Catalog,
+        "list_projects",
+        lambda self: [
+            SimpleNamespace(id=project_id)
+            for project_id in sorted(script.REQUIRED_TEST_PROJECTS - {"log-stream"})
+        ],
+    )
+    with pytest.raises(RuntimeError, match="complete registered test project set"):
+        script.validate_product_settings(
+            product_settings(tmp_path, test_project_directory=tmp_path)
         )

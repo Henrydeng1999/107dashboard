@@ -82,7 +82,7 @@ def validate_product_settings(settings: Settings) -> dict[str, object]:
             ]
         except TestProjectError as exc:
             raise RuntimeError("registered test projects are invalid") from exc
-        if set(test_projects) != REQUIRED_TEST_PROJECTS:
+        if not REQUIRED_TEST_PROJECTS.issubset(test_projects):
             raise RuntimeError("the complete registered test project set is required")
     return {
         "owner": owner,
