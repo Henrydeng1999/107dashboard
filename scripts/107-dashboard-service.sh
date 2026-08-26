@@ -33,8 +33,12 @@ configure() {
     cp -p "${ENV_FILE}" "${backup}"
     echo "Previous configuration backed up to ${backup}"
   fi
+  project_root_replacement="${PROJECT_ROOT//&/\\&}"
+  home_replacement="${HOME//&/\\&}"
   sed \
-    -e "s|/home/scc/USERNAME/107dashboard|${PROJECT_ROOT}|g" \
+    -e "s|/home/scc/USERNAME/107dashboard|${project_root_replacement}|g" \
+    -e "s|/home/scc/USERNAME/dashboard-test-projects|${home_replacement}/dashboard-test-projects|g" \
+    -e "s|/home/scc/USERNAME|${home_replacement}|g" \
     -e "s|USERNAME|$(id -un)|g" \
     "${ENV_TEMPLATE}" >"${ENV_FILE}"
   chmod 600 "${ENV_FILE}"

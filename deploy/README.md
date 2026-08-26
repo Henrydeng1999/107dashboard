@@ -5,9 +5,25 @@
 ```text
 systemd/   用户级 systemd service 模板
 proxy/     可选的反向代理配置
+release/   Linux 发布包安装与完整性校验
 ```
 
 当前默认部署是算力平台 Python 虚拟环境加前端静态产物。Docker 配置不是比赛 MVP 的前置条件。
+
+## 发布包
+
+在开发电脑运行以下命令，可生成不包含运行数据和密钥的 Linux 部署包：
+
+```powershell
+backend/.venv/Scripts/python.exe scripts/build-release.py
+```
+
+输出位于未跟踪的 `data/releases/`。正式交付使用 `--require-clean`，本地试打包可省略。
+包内已经包含 `/107-dashboard/` 前缀的前端静态产物，Linux 平台不需要安装 Node.js。
+解压后执行 `bash deploy/release/install.sh`，详细限制和参数见 `deploy/release/README.md`。
+
+`proxy/107-dashboard.nginx.conf.example` 是供平台管理员使用的入口模板。应用继续只监听
+`127.0.0.1:8000`；反向代理必须在开放给 Windows 用户前配置认证、VPN 或 IP 白名单。
 
 ## 比赛演示配置
 
