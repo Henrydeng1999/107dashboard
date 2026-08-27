@@ -118,6 +118,7 @@ def main() -> int:
         "--self-contained",
         "true",
         "-p:PublishSingleFile=true",
+        "-p:EnableCompressionInSingleFile=true",
         "-p:IncludeNativeLibrariesForSelfExtract=true",
         "-p:DebugType=None",
         "-p:DebugSymbols=false",
