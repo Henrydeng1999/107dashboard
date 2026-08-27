@@ -38,5 +38,7 @@ and starts the existing single-worker tmux service.
 Use `--no-start` to prepare without starting, `--skip-tests` to skip pytest, or
 `--refresh-test-projects` to back up and replace existing acceptance projects.
 
-The service remains bound to `127.0.0.1:8000`. A platform administrator must place a protected
-reverse proxy in front of it before Windows users receive the URL.
+The standalone installer leaves the service bound to `127.0.0.1:8000`. The Windows client may
+replace the port with a dynamically selected loopback port and reach it through its authenticated
+SSH tunnel. A protected reverse proxy is required only when the platform provides a shared URL
+instead of per-user SSH tunnel access.

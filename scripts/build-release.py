@@ -22,6 +22,8 @@ LOCAL_RELEASE_PATHS = (
     Path("scripts/build-release.py"),
 )
 FORBIDDEN_PARTS = {".git", ".venv", "node_modules", "data", "__pycache__"}
+CLIENT_ONLY_ROOTS = {"windows-client"}
+CLIENT_ONLY_PATHS = {Path("scripts/build-windows-client.py")}
 ALLOWED_ENV_FILES = {".env.example", "frontend/.env.navigation"}
 
 
@@ -104,6 +106,8 @@ def release_files() -> list[Path]:
     normalized: list[Path] = []
     for path in sorted(files, key=lambda item: item.as_posix()):
         posix = PurePosixPath(path.as_posix())
+        if path in CLIENT_ONLY_PATHS or (posix.parts and posix.parts[0] in CLIENT_ONLY_ROOTS):
+            continue
         if any(part in FORBIDDEN_PARTS for part in posix.parts):
             raise RuntimeError(f"forbidden runtime path selected for release: {posix}")
         if path.name.startswith(".env") and path.as_posix() not in ALLOWED_ENV_FILES:

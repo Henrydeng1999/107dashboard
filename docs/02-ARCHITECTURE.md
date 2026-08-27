@@ -25,6 +25,20 @@ Slurm 接口
 
 ## 部署集成边界
 
+Windows 比赛交付增加一个本地启动器。它不是 Slurm 代理，也不在 Windows 上运行
+FastAPI 或计算任务；它只使用用户自己的 SSH 公钥和动态验证码登录同一 Unix 账号，
+部署经过哈希验证的 Linux 服务包，并建立回环端口隧道：
+
+```text
+Windows 客户端 -> SSH/SFTP -> 用户目录 Dashboard -> Native Slurm
+       |
+       +-> 127.0.0.1 本地隧道 -> 浏览器
+```
+
+客户端不保存私钥口令、动态验证码或 TOTP secret。首次主机指纹必须由用户核对并确认，
+后续发生变化时必须再次明确确认。远端服务仍只监听 `127.0.0.1`，HTTP 不接受 Slurm
+用户名，后端继续从有效 Unix UID 得出唯一 owner。
+
 Dashboard 是独立的作业管理和可视化产品。现有 `gpu-*` 命令、SSH ControlMaster 和 tmux 只用于开发阶段验证算力平台行为，以及作为平台运维脚本的参考，不属于 Dashboard 的产品功能，也不应暴露给学生。
 
 Dashboard 后端部署在算力平台服务器上时，最终应通过受控的 Slurm 集成层访问作业系统：

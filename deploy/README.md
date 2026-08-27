@@ -22,8 +22,14 @@ backend/.venv/Scripts/python.exe scripts/build-release.py
 包内已经包含 `/107-dashboard/` 前缀的前端静态产物，Linux 平台不需要安装 Node.js。
 解压后执行 `bash deploy/release/install.sh`，详细限制和参数见 `deploy/release/README.md`。
 
-`proxy/107-dashboard.nginx.conf.example` 是供平台管理员使用的入口模板。应用继续只监听
-`127.0.0.1:8000`；反向代理必须在开放给 Windows 用户前配置认证、VPN 或 IP 白名单。
+Windows 一键交付使用 `scripts/build-windows-client.py`。该脚本先生成同一 Linux 发布包，
+再运行客户端测试并把服务包嵌入自包含 `win-x64` EXE；产物同样位于未跟踪的
+`data/releases/`。客户端通过 SFTP 上传、SHA-256 校验和版本目录安装，不要求普通用户
+拥有 Gitee 凭据。
+
+`proxy/107-dashboard.nginx.conf.example` 是供平台管理员使用的共享入口模板。应用继续只监听
+回环地址；Windows 客户端默认通过用户自己的 SSH 隧道访问，不要求共享反向代理。若平台改为
+提供统一 URL，反向代理仍必须配置认证、VPN 或 IP 白名单。
 
 ## 比赛演示配置
 

@@ -47,6 +47,7 @@
 ├── scripts/
 ├── tests/
 │   └── e2e/
+├── windows-client/        # Windows SSH deployment and tunnel client
 ├── README.md
 └── .gitignore
 ```
@@ -76,6 +77,13 @@
 - `tests/e2e/` 测试提交到查看日志的完整流程；
 - `fixtures/` 保存脱敏后的 Slurm 输出和作业日志；
 - `examples/` 保存可以公开展示的示例作业脚本。
+
+## Windows 客户端边界
+
+- `windows-client/src/` 保存 WPF 客户端、SSH 双因素交互、发布上传、服务控制和本地隧道；
+- `windows-client/tests/` 保存不连接真实平台的输入、发布元数据和命令边界测试；
+- 客户端只部署当前用户自己的单 Unix 账号服务，不实现账号委托或跨 owner 分析；
+- EXE 和临时服务包属于未跟踪构建产物，统一写入 `data/`。
 
 ## 运行时文件
 

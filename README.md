@@ -162,6 +162,21 @@ backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --rel
                              └-------> 数据库
 ```
 
+## Windows 客户端
+
+比赛交付可生成一个自包含 `win-x64` EXE。客户端使用每位用户自己的 SSH 公钥与
+Google Authenticator 动态验证码登录 107，按版本安装或更新 Linux 服务包，通过 tmux
+启动只监听回环地址的服务，再建立本地 SSH 隧道并打开 `/107-dashboard/`。客户端不保存
+私钥口令、动态验证码或 TOTP secret。
+
+```powershell
+$env:DOTNET_EXE = "$env:USERPROFILE\.dotnet\dotnet.exe"
+backend/.venv/Scripts/python.exe scripts/build-windows-client.py
+```
+
+EXE 与 SHA-256 文件写入未跟踪的 `data/releases/`。详细构建和验收边界见
+`windows-client/README.md`。
+
 ## 当前状态
 
 当前仓库已经完成前后端最小骨架、完整 Fixture MVP 故事，以及受有效 Unix UID、部署 owner 和 Slurm user 三层约束的 Native 查询链路。提交 `05a64a3` 已于 2026-07-18 在 107 完成正式只读验收；提交安全底座随后在 `88a0147` 上完成唯一一次最小真实作业验收，Job `24011` 正常完成并返回 `0:0`。Native `POST /api/jobs` 在 `0f88ede` 完成 107 无 `sbatch` 门禁检查。提交 `beb39f7` 的日志路径预检及提交 `11cd3b4` 的日志/控制集中验收也已通过：Job `24011` 仅限量读取且未回显正文，测试 Job `24063`、`24064` 均由脚本创建并取消，无活动作业遗留。Native 日志、取消和克隆均有独立默认关闭门禁，长期开关保持关闭。前端已加入自适应刷新、资源对比、常用模板和保守排障提示；Native 读取异常时可显式启用只读 Fixture 演示回退，界面会标注降级状态且所有写能力自动关闭。按章节顺序阅读：[01 开发计划](docs/01-PLAN.md)、[02 系统架构](docs/02-ARCHITECTURE.md)、[03 环境检查](docs/03-ENVIRONMENT_CHECK.md)、[04 团队协作](docs/04-COLLABORATION.md)、[05 目录规范](docs/05-DIRECTORY-STRUCTURE.md)、[06 平台部署](docs/06-PLATFORM-DEPLOYMENT.md)、[07 MVP API 设计](docs/07-MVP-API-DESIGN.md)。
