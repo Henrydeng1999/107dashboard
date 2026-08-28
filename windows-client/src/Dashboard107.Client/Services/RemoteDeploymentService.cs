@@ -233,7 +233,10 @@ public sealed class RemoteDeploymentService
             Bash("ROOT=\"$HOME/.local/share/107dashboard\"; [ -x \"$ROOT/current/scripts/107-dashboard-service.sh\" ] && bash \"$ROOT/current/scripts/107-dashboard-service.sh\" logs"),
             cancellationToken);
 
-    private static string Bash(string script) => $"bash -lc {ShellQuote.Posix(script)}";
+    internal static string NormalizeBashScript(string script) => script.ReplaceLineEndings("\n");
+
+    private static string Bash(string script) =>
+        $"bash -lc {ShellQuote.Posix(NormalizeBashScript(script))}";
 
     private static async Task<string> RunCheckedAsync(
         SshClient client,

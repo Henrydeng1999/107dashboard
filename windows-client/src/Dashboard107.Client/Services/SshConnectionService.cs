@@ -5,6 +5,8 @@ namespace Dashboard107.Client.Services;
 
 public sealed class SshConnectionService
 {
+    internal static readonly TimeSpan ConnectionTimeout = TimeSpan.FromSeconds(60);
+
     public async Task<SshClient> ConnectSshAsync(
         ConnectionOptions options,
         Func<string, string?> promptSecret,
@@ -71,7 +73,7 @@ public sealed class SshConnectionService
             publicKey,
             interactive)
         {
-            Timeout = TimeSpan.FromSeconds(20),
+            Timeout = ConnectionTimeout,
         };
     }
 

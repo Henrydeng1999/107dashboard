@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using Dashboard107.Client.Models;
 using Dashboard107.Client.Services;
@@ -14,19 +15,24 @@ public partial class MainWindow : Window
     private readonly SshConnectionService _connectionService = new();
     private readonly RemoteDeploymentService _deploymentService = new();
     private ClientSettings _settings;
+    private string _privateKeyPath = string.Empty;
     private SshClient? _sshClient;
     private DashboardTunnel? _tunnel;
     private string? _dashboardUrl;
     private string? _acceptedFingerprint;
+    private string? _pendingVerificationCode;
+    private string? _authenticationStage;
+    private DateTime _authenticationDeadlineUtc;
 
     public MainWindow()
     {
         InitializeComponent();
         _settings = _settingsStore.Load();
+        _privateKeyPath = ResolvePrivateKeyPath(_settings.PrivateKeyPath);
         HostTextBox.Text = _settings.Host;
         PortTextBox.Text = _settings.Port.ToString();
         UsernameTextBox.Text = _settings.Username;
-        PrivateKeyTextBox.Text = _settings.PrivateKeyPath;
+        UpdatePrivateKeyDisplay();
         AppendActivity("等待连接 107 平台。");
     }
 
@@ -38,6 +44,8 @@ public partial class MainWindow : Window
 
     private async Task ConnectAndOpenAsync(bool forceDeployment)
     {
+        _pendingVerificationCode = ReadPreenteredVerificationCode();
+        BeginAuthenticationStage("SSH 主连接");
         SetBusy(true, "正在连接 SSH...");
         try
         {
@@ -66,6 +74,8 @@ public partial class MainWindow : Window
             {
                 SetStatus("正在验证文件传输连接...");
                 AppendActivity($"准备部署服务端 {package.Info.ReleaseId}");
+                BeginAuthenticationStage("首次安装/更新服务");
+                AppendActivity("首次安装或更新服务需要第二次认证，稍后可能再次要求动态验证码。");
                 using var sftp = await _connectionService.ConnectSftpAsync(
                     options with { TrustedHostFingerprint = _settings.TrustedHostFingerprint },
                     PromptSecret,
@@ -112,6 +122,8 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _pendingVerificationCode = null;
+            _authenticationStage = null;
             SetBusy(false, StatusText.Text);
         }
     }
@@ -181,7 +193,8 @@ public partial class MainWindow : Window
         };
         if (dialog.ShowDialog(this) == true)
         {
-            PrivateKeyTextBox.Text = dialog.FileName;
+            _privateKeyPath = dialog.FileName;
+            UpdatePrivateKeyDisplay();
         }
     }
 
@@ -199,17 +212,37 @@ public partial class MainWindow : Window
             HostTextBox.Text.Trim(),
             port,
             UsernameTextBox.Text.Trim(),
-            PrivateKeyTextBox.Text.Trim(),
-            PrivateKeyPassphraseBox.Password,
+            _privateKeyPath,
+            string.Empty,
             fingerprint);
     }
 
     private string? PromptSecret(string prompt)
     {
+        var preenteredCode = Interlocked.Exchange(ref _pendingVerificationCode, null);
+        if (!string.IsNullOrWhiteSpace(preenteredCode))
+        {
+            AppendActivity("已使用预输入动态验证码。下次认证如再次要求验证码，将弹出输入框。");
+            return preenteredCode;
+        }
+
+        var remaining = _authenticationDeadlineUtc - DateTime.UtcNow;
+        if (remaining <= TimeSpan.Zero)
+        {
+            AppendActivity("动态验证码等待已超时，已取消本次认证。");
+            return null;
+        }
+
         return Dispatcher.Invoke(() =>
         {
-            var dialog = new SecretPromptWindow(prompt) { Owner = this };
-            return dialog.ShowDialog() == true ? dialog.Secret : null;
+            var dialog = new SecretPromptWindow(BuildSecretPrompt(prompt), remaining) { Owner = this };
+            var result = dialog.ShowDialog();
+            if (dialog.TimedOut)
+            {
+                AppendActivity("动态验证码输入超时，已自动关闭窗口。");
+            }
+
+            return result == true ? dialog.Secret : null;
         });
     }
 
@@ -250,6 +283,55 @@ public partial class MainWindow : Window
             TrustedHostFingerprint = _acceptedFingerprint ?? options.TrustedHostFingerprint,
         };
         _settingsStore.Save(_settings);
+    }
+
+    private static string ResolvePrivateKeyPath(string configuredPath)
+    {
+        if (!string.IsNullOrWhiteSpace(configuredPath) && File.Exists(configuredPath))
+        {
+            return configuredPath;
+        }
+
+        var sshDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".ssh");
+        var candidates = new[] { "id_ed25519", "id_rsa", "id_ecdsa", "id_dsa" };
+        return candidates
+            .Select(name => Path.Combine(sshDirectory, name))
+            .FirstOrDefault(File.Exists)
+            ?? string.Empty;
+    }
+
+    private void UpdatePrivateKeyDisplay()
+    {
+        var hasKey = !string.IsNullOrWhiteSpace(_privateKeyPath);
+        PrivateKeyPathTextBlock.Text = hasKey
+            ? Path.GetFileName(_privateKeyPath)
+            : "未检测到 SSH 私钥，请点击右侧按钮选择";
+        PrivateKeyPathTextBlock.ToolTip = hasKey ? _privateKeyPath : "自动扫描 .ssh 目录未找到私钥";
+    }
+
+    private void BeginAuthenticationStage(string stage)
+    {
+        _authenticationStage = stage;
+        _authenticationDeadlineUtc = DateTime.UtcNow + SshConnectionService.ConnectionTimeout;
+    }
+
+    private string BuildSecretPrompt(string prompt)
+    {
+        var instruction = _authenticationStage == "首次安装/更新服务"
+            ? "首次安装或更新服务需要第二次认证，请再次输入动态验证码。"
+            : "请输入 SSH 动态验证码。";
+        return string.IsNullOrWhiteSpace(prompt)
+            ? instruction
+            : $"{instruction}\n\n服务器提示：{prompt.Trim()}";
+    }
+
+    private string? ReadPreenteredVerificationCode()
+    {
+        var code = VerificationCodeTextBox.Text.Trim();
+        VerificationCodeTextBox.Clear();
+        return string.IsNullOrEmpty(code) ? null : code;
     }
 
     private void ShowRemoteState(RemoteDashboardState state)

@@ -42,6 +42,25 @@ Use `--skip-frontend-build` only when `frontend/dist/` already contains a valida
 empty `data/` directory, and a SHA-256 file for each artifact. Keep `data/` when replacing a
 portable client with a newer ZIP.
 
+## 快速预览界面
+
+界面调试不需要先发布 EXE。仓库根目录执行下面的命令，会直接以 Debug 配置启动 WPF
+窗口；它只使用 `bin/` 和 `obj/` 中的构建缓存，不会写入 `data/`，也不会替换便携版客户端：
+
+```powershell
+.\scripts\run-windows-client.ps1
+```
+
+如果本机没有把 `dotnet.exe` 加入 PATH，可以先指定 SDK 路径：
+
+```powershell
+$env:DOTNET_EXE = "$env:USERPROFILE\.dotnet\dotnet.exe"
+.\scripts\run-windows-client.ps1
+```
+
+也可以直接打开 `windows-client/107Dashboard.Client.sln`，按 F5 启动并调试。修改
+`MainWindow.xaml` 后重新启动即可观察布局；只有需要交付给用户时才运行上面的发布构建命令。
+
 Remote updates are installed into immutable version directories. The client switches `current`
 only after installation and startup succeed, keeps `previous` for rollback, and removes releases
 older than those two versions. Runtime data remains under the remote `runtime/` directory.

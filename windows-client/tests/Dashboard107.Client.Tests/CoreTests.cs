@@ -44,7 +44,7 @@ public sealed class CoreTests
                     """;
                 var entry = new PaxTarEntry(
                     TarEntryType.RegularFile,
-                    "107dashboard-0.1.0/release-manifest.json")
+                    $"107dashboard-0.1.0/{new string('a', 120)}/release-manifest.json")
                 {
                     DataStream = new MemoryStream(Encoding.UTF8.GetBytes(manifest)),
                 };
@@ -122,5 +122,15 @@ public sealed class CoreTests
         Assert.Contains("\"$path\" != \"$TARGET\"", script);
         Assert.Contains("\"$path\" != \"$PREVIOUS\"", script);
         Assert.DoesNotContain("rm -rf -- \"$ROOT/runtime\"", script);
+    }
+
+    [Fact]
+    public void NormalizeBashScript_UsesUnixLineEndings()
+    {
+        var script = "set -e\r\nif true; then\r\n  echo ok\r\nfi\r";
+
+        Assert.Equal(
+            "set -e\nif true; then\n  echo ok\nfi\n",
+            RemoteDeploymentService.NormalizeBashScript(script));
     }
 }

@@ -51,3 +51,10 @@ def test_validate_shell_line_endings_rejects_carriage_returns(tmp_path: Path) ->
         assert "nested/service.sh" in str(error)
     else:
         raise AssertionError("expected CRLF shell script to be rejected")
+
+
+def test_windows_client_only_sources_are_marked_for_exclusion() -> None:
+    script = _load_script()
+
+    assert Path("scripts/build-windows-client.py") in script.CLIENT_ONLY_PATHS
+    assert Path("backend/tests/unit/test_build_windows_client.py") in script.CLIENT_ONLY_PATHS

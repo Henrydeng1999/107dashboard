@@ -46,9 +46,26 @@ public sealed partial class ReleasePackage
         using var archive = new TarReader(gzip);
         while (archive.GetNextEntry() is { } entry)
         {
-            var parts = entry.Name.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            // Python's tarfile uses PAX metadata. Some .NET 8 runtimes expose
+            // those records as NUL-prefixed names instead of hiding them.
+            if (entry.EntryType is TarEntryType.ExtendedAttributes or TarEntryType.GlobalExtendedAttributes
+                || entry.Name.Equals("././@PaxHeader", StringComparison.Ordinal))
+            {
+                entry.DataStream?.CopyTo(Stream.Null);
+                continue;
+            }
+
+            var entryName = entry.Name.TrimStart('\0');
+            if (entryName.Equals("././@PaxHeader", StringComparison.Ordinal))
+            {
+                entry.DataStream?.CopyTo(Stream.Null);
+                continue;
+            }
+
+            var parts = entryName.Split('/', StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length == 0)
             {
+                entry.DataStream?.CopyTo(Stream.Null);
                 continue;
             }
 
@@ -58,9 +75,10 @@ public sealed partial class ReleasePackage
                 throw new InvalidDataException("服务包必须只包含一个顶层目录。");
             }
 
-            if (!entry.Name.EndsWith("/release-manifest.json", StringComparison.Ordinal)
+            if (!entryName.EndsWith("/release-manifest.json", StringComparison.Ordinal)
                 || entry.DataStream is null)
             {
+                entry.DataStream?.CopyTo(Stream.Null);
                 continue;
             }
 
