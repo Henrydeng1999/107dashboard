@@ -45,3 +45,24 @@ def test_build_portable_bundle_contains_executable_data_and_metadata(tmp_path: P
         "architecture": "win-x64",
         "portable_data_directory": "data",
     }
+
+
+def test_build_script_disables_and_cleans_persistent_dotnet_servers() -> None:
+    source = SCRIPT_PATH.read_text(encoding="utf-8")
+
+    assert '"--disable-build-servers"' in source
+    assert '"build-server", "shutdown"' in source
+
+
+def test_frontend_release_entry_uses_native_shell_per_platform() -> None:
+    package = json.loads((PROJECT_ROOT / "frontend" / "package.json").read_text(encoding="utf-8"))
+    powershell_script = (PROJECT_ROOT / "scripts" / "build-107-frontend.ps1").read_text(encoding="utf-8")
+    bash_script = (PROJECT_ROOT / "scripts" / "build-107-frontend.sh").read_text(encoding="utf-8")
+
+    assert package["scripts"]["build:107"] == "node ../scripts/build-107-frontend.mjs"
+    assert package["scripts"]["build:107:windows"].startswith("pwsh ")
+    assert package["scripts"]["build:107:linux"] == "bash ../scripts/build-107-frontend.sh"
+    assert "Remove-Item" in powershell_script
+    assert "Move-Item" in powershell_script
+    assert "bash" not in powershell_script.lower()
+    assert "rm -rf" in bash_script

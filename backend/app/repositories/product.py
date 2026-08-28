@@ -192,7 +192,7 @@ class ProductRepository:
     def list_chat_messages(self, owner: str, session_id: str) -> list[dict]:
         with self._lock:
             rows = self._connection.execute(
-                "SELECT * FROM ai_chat_messages WHERE owner=? AND session_id=? ORDER BY created_at, id",
+                "SELECT * FROM ai_chat_messages WHERE owner=? AND session_id=? ORDER BY created_at, rowid",
                 (owner, session_id),
             ).fetchall()
         return [{**dict(row), "evidence_job_ids": json.loads(row["evidence_job_ids_json"]), "evidence_repository_ids": json.loads(row["evidence_repository_ids_json"])} for row in rows]

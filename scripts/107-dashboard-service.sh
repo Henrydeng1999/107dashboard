@@ -40,7 +40,7 @@ configure() {
     -e "s|/home/scc/USERNAME/dashboard-test-projects|${home_replacement}/dashboard-test-projects|g" \
     -e "s|/home/scc/USERNAME|${home_replacement}|g" \
     -e "s|USERNAME|$(id -un)|g" \
-    "${ENV_TEMPLATE}" >"${ENV_FILE}"
+    "${ENV_TEMPLATE}" | tr -d '\r' >"${ENV_FILE}"
   chmod 600 "${ENV_FILE}"
   echo "Wrote real Native product configuration to ${ENV_FILE}"
 }

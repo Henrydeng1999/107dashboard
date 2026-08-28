@@ -1,3 +1,4 @@
+using System.IO;
 using System.Globalization;
 using System.Text;
 using Dashboard107.Client.Models;
@@ -67,6 +68,7 @@ public sealed class RemoteDeploymentService
         SftpClient sftpClient,
         ReleasePackage package,
         IProgress<double>? progress = null,
+        IProgress<string>? output = null,
         CancellationToken cancellationToken = default)
     {
         var info = package.Info;
@@ -88,10 +90,12 @@ public sealed class RemoteDeploymentService
                 cancellationToken);
         }
 
+        output?.Report("服务包已上传，开始校验并安装。");
         return await RunCheckedAsync(
             sshClient,
             Bash(BuildDeploymentScript(info, uploadName)),
-            cancellationToken);
+            cancellationToken,
+            output);
     }
 
     internal static string BuildDeploymentScript(ReleaseInfo info, string uploadName)
@@ -119,22 +123,29 @@ public sealed class RemoteDeploymentService
             STAGE=""
             cleanup() {
               if [ -n "$STAGE" ]; then
-                rm -rf -- "$STAGE"
+                rm -rf -- "$STAGE" || true
               fi
               if [ -e "$UPLOADED_ARCHIVE" ]; then
-                rm -f -- "$UPLOADED_ARCHIVE"
+                rm -f -- "$UPLOADED_ARCHIVE" || true
               fi
+              flock -u 9 2>/dev/null || true
+              exec 9>&- || true
             }
             trap cleanup EXIT
+            echo '校验服务包 SHA-256...'
             [ -f "$UPLOADED_ARCHIVE" ] || { echo '临时服务包不存在' >&2; exit 19; }
             ACTUAL_SHA="$(sha256sum "$UPLOADED_ARCHIVE" | awk '{print $1}')"
             [ "$ACTUAL_SHA" = "$EXPECTED_SHA" ] || { echo '服务包 SHA-256 校验失败' >&2; exit 20; }
+            echo '服务包校验通过，准备解包。'
             mv -f -- "$UPLOADED_ARCHIVE" "$ARCHIVE"
             if [ ! -d "$TARGET" ]; then
+              echo '正在解包新版本。'
               STAGE="$(mktemp -d "$ROOT/releases/.staging-XXXXXX")"
               tar -xzf "$ARCHIVE" -C "$STAGE"
               [ -d "$STAGE/$ARCHIVE_ROOT" ] || { echo '服务包顶层目录不正确' >&2; exit 21; }
               mv "$STAGE/$ARCHIVE_ROOT" "$TARGET"
+            else
+              echo '版本目录已存在，复用已解包文件。'
             fi
             if [ ! -e "$TARGET/data" ]; then
               ln -s "$ROOT/runtime" "$TARGET/data"
@@ -144,7 +155,8 @@ public sealed class RemoteDeploymentService
             else
               PYTHON_BIN=/public/app/python3.12/3.12/bin/python3
             fi
-            PYTHON_BIN="$PYTHON_BIN" bash "$TARGET/deploy/release/install.sh" --no-start
+            echo '正在执行服务安装和轻量校验。'
+            PYTHON_BIN="$PYTHON_BIN" bash "$TARGET/deploy/release/install.sh" --no-start --skip-tests
             PREVIOUS="$(readlink -f "$ROOT/current" 2>/dev/null || true)"
             if [ -z "$PREVIOUS" ] || [ ! -d "$PREVIOUS" ] || [[ "$PREVIOUS" != "$ROOT/releases/"* ]]; then
               PREVIOUS=""
@@ -161,14 +173,16 @@ public sealed class RemoteDeploymentService
             PY
             )"
             sed -i -E "s/^APP_PORT=.*/APP_PORT=$PORT/" "$TARGET/data/107dashboard.env"
-            if ! bash "$ROOT/current/scripts/107-dashboard-service.sh" start; then
+            echo "服务配置完成，端口 $PORT，正在启动并执行健康检查。"
+            if ! bash "$ROOT/current/scripts/107-dashboard-service.sh" start 9>&-; then
               if [ -n "$PREVIOUS" ] && [ -d "$PREVIOUS" ]; then
                 ln -sfnT "$PREVIOUS" "$ROOT/current"
-                bash "$ROOT/current/scripts/107-dashboard-service.sh" start || true
+                bash "$ROOT/current/scripts/107-dashboard-service.sh" start 9>&- || true
               fi
               echo '新版本启动失败，已尝试恢复上一版本' >&2
               exit 22
             fi
+            echo '远程服务启动并通过健康检查。'
             if [ -n "$PREVIOUS" ]; then
               ln -sfnT "$PREVIOUS" "$ROOT/previous"
             else
@@ -203,22 +217,26 @@ public sealed class RemoteDeploymentService
         SshClient client,
         CancellationToken cancellationToken = default)
     {
-        const string script = """
+        var output = await RunCheckedAsync(client, Bash(BuildEnsureStartedScript()), cancellationToken);
+        var values = ParseKeyValues(output);
+        return int.TryParse(values.GetValueOrDefault("PORT"), out var port)
+            ? port
+            : throw new InvalidOperationException("未能读取远程服务端口。");
+    }
+
+    internal static string BuildEnsureStartedScript()
+    {
+        return """
             set -euo pipefail
             ROOT="$HOME/.local/share/107dashboard"
             [ -x "$ROOT/current/scripts/107-dashboard-service.sh" ] || { echo '服务尚未安装' >&2; exit 30; }
             if ! tmux has-session -t '=107dashboard' 2>/dev/null; then
-              bash "$ROOT/current/scripts/107-dashboard-service.sh" start
+              bash "$ROOT/current/scripts/107-dashboard-service.sh" start 9>&-
             fi
             PORT="$(sed -n 's/^APP_PORT=//p' "$ROOT/current/data/107dashboard.env")"
             case "$PORT" in (*[!0-9]*|'') echo '远程服务端口无效' >&2; exit 31;; esac
             printf 'PORT=%s\n' "$PORT"
             """;
-        var output = await RunCheckedAsync(client, Bash(script), cancellationToken);
-        var values = ParseKeyValues(output);
-        return int.TryParse(values.GetValueOrDefault("PORT"), out var port)
-            ? port
-            : throw new InvalidOperationException("未能读取远程服务端口。");
     }
 
     public Task<string> StopAsync(SshClient client, CancellationToken cancellationToken = default) =>
@@ -241,9 +259,10 @@ public sealed class RemoteDeploymentService
     private static async Task<string> RunCheckedAsync(
         SshClient client,
         string command,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IProgress<string>? output = null)
     {
-        var result = await RunAsync(client, command, cancellationToken);
+        var result = await RunAsync(client, command, cancellationToken, output);
         if (result.ExitStatus != 0)
         {
             throw new InvalidOperationException(
@@ -256,17 +275,58 @@ public sealed class RemoteDeploymentService
     private static async Task<CommandResult> RunAsync(
         SshClient client,
         string command,
+        CancellationToken cancellationToken,
+        IProgress<string>? output = null)
+    {
+        using var remote = client.CreateCommand(command, Encoding.UTF8);
+        remote.CommandTimeout = TimeSpan.FromMinutes(10);
+        var stdout = new StringBuilder();
+        var stderr = new StringBuilder();
+        var asyncResult = remote.BeginExecute();
+        var stdoutTask = ReadStreamAsync(remote.OutputStream, stdout, output, cancellationToken);
+        var stderrTask = ReadStreamAsync(remote.ExtendedOutputStream, stderr, output, cancellationToken);
+        var completionTask = Task.Run(() => asyncResult.AsyncWaitHandle.WaitOne());
+        using var cancellationRegistration = cancellationToken.Register(() =>
+        {
+            try
+            {
+                remote.CancelAsync(forceKill: false, millisecondsTimeout: 1000);
+            }
+            catch (InvalidOperationException)
+            {
+                // The command may have completed while cancellation was being dispatched.
+            }
+        });
+
+        await Task.WhenAll(completionTask, stdoutTask, stderrTask).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        remote.EndExecute(asyncResult);
+        return new CommandResult(remote.ExitStatus ?? -1, stdout.ToString(), stderr.ToString());
+    }
+
+    private static async Task ReadStreamAsync(
+        Stream stream,
+        StringBuilder buffer,
+        IProgress<string>? output,
         CancellationToken cancellationToken)
     {
-        return await Task.Run(
-            () =>
+        using var reader = new StreamReader(
+            stream,
+            Encoding.UTF8,
+            detectEncodingFromByteOrderMarks: true,
+            bufferSize: 4096,
+            leaveOpen: true);
+        while (true)
+        {
+            var line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+            if (line is null)
             {
-                using var remote = client.CreateCommand(command, Encoding.UTF8);
-                remote.CommandTimeout = TimeSpan.FromMinutes(10);
-                var output = remote.Execute();
-                return new CommandResult(remote.ExitStatus ?? -1, output, remote.Error);
-            },
-            cancellationToken);
+                return;
+            }
+
+            buffer.AppendLine(line);
+            output?.Report(line);
+        }
     }
 
     private static Dictionary<string, string> ParseKeyValues(string output)

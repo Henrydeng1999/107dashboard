@@ -103,6 +103,58 @@ public sealed class CoreTests
     }
 
     [Fact]
+    public void DeploymentCacheStoreOnlyMatchesTargetAndEmbeddedRelease()
+    {
+        var applicationDirectory = Path.Combine(Path.GetTempPath(), $"107dashboard-{Guid.NewGuid():N}");
+        var options = new ConnectionOptions("107.ustc.edu.cn", 22, "pb24030760", "", "", "");
+        var store = new DeploymentCacheStore(applicationDirectory);
+
+        try
+        {
+            store.Save(new DeploymentCache
+            {
+                Host = options.Host,
+                Port = options.Port,
+                Username = options.Username,
+                ReleaseId = "0.1.0-aaaaaaaa-11111111",
+                RemotePort = 38123,
+                LastValidatedUtc = DateTimeOffset.UtcNow,
+            });
+
+            Assert.True(store.TryLoad(options, "0.1.0-aaaaaaaa-11111111", out var cache));
+            Assert.Equal(38123, cache!.RemotePort);
+            Assert.False(store.TryLoad(options with { Username = "other" }, cache.ReleaseId, out _));
+            Assert.False(store.TryLoad(options with { Port = 2222 }, cache.ReleaseId, out _));
+            Assert.False(store.TryLoad(options, "0.1.0-bbbbbbbb-22222222", out _));
+        }
+        finally
+        {
+            Directory.Delete(applicationDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void DeploymentCacheStoreRejectsCorruptCache()
+    {
+        var applicationDirectory = Path.Combine(Path.GetTempPath(), $"107dashboard-{Guid.NewGuid():N}");
+        var options = new ConnectionOptions("107.ustc.edu.cn", 22, "pb24030760", "", "", "");
+        var dataDirectory = Path.Combine(applicationDirectory, "data");
+        Directory.CreateDirectory(dataDirectory);
+        File.WriteAllText(Path.Combine(dataDirectory, "deployment-cache.json"), "{broken");
+
+        try
+        {
+            var store = new DeploymentCacheStore(applicationDirectory);
+
+            Assert.False(store.TryLoad(options, "0.1.0-aaaaaaaa-11111111", out _));
+        }
+        finally
+        {
+            Directory.Delete(applicationDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void DeploymentScriptSerializesLockedRollbackAndCleanupFlow()
     {
         var script = RemoteDeploymentService.BuildDeploymentScript(
@@ -116,12 +168,24 @@ public sealed class CoreTests
 
         Assert.Contains("exec 9>\"$ROOT/update.lock\"", script);
         Assert.Contains("flock -n 9", script);
+        Assert.Contains("flock -u 9", script);
+        Assert.Contains("exec 9>&-", script);
         Assert.Contains("mv -f -- \"$UPLOADED_ARCHIVE\" \"$ARCHIVE\"", script);
         Assert.Contains("ln -sfnT \"$PREVIOUS\" \"$ROOT/previous\"", script);
         Assert.Contains("cleanup_old_versions()", script);
         Assert.Contains("\"$path\" != \"$TARGET\"", script);
         Assert.Contains("\"$path\" != \"$PREVIOUS\"", script);
+        Assert.Contains("bash \"$ROOT/current/scripts/107-dashboard-service.sh\" start 9>&-", script);
+        Assert.Contains("install.sh\" --no-start --skip-tests", script);
         Assert.DoesNotContain("rm -rf -- \"$ROOT/runtime\"", script);
+    }
+
+    [Fact]
+    public void EnsureStartedScriptDoesNotLeakUpdateLockDescriptor()
+    {
+        var script = RemoteDeploymentService.BuildEnsureStartedScript();
+
+        Assert.Contains("bash \"$ROOT/current/scripts/107-dashboard-service.sh\" start 9>&-", script);
     }
 
     [Fact]

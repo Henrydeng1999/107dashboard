@@ -39,7 +39,7 @@ require_command() {
 [[ "$(id -u)" -ne 0 ]] || { echo "Install as the trusted Slurm user, not root." >&2; exit 1; }
 [[ "${PROJECT_ROOT}" != *[[:space:]]* ]] || { echo "The installation path must not contain whitespace." >&2; exit 1; }
 
-for command in "${PYTHON_BIN}" git tmux sbatch scancel squeue sacct; do
+for command in "${PYTHON_BIN}" git tmux sbatch scancel squeue sacct sha256sum flock; do
   require_command "${command}"
 done
 
@@ -58,14 +58,89 @@ grep -q '/107-dashboard/assets/' frontend/dist/index.html || {
   exit 1
 }
 
-if [[ ! -d backend/.venv ]]; then
-  "${PYTHON_BIN}" -m venv backend/.venv
+if [[ ! -e "${PROJECT_ROOT}/data" ]]; then
+  mkdir -p "${PROJECT_ROOT}/data"
 fi
-backend/.venv/bin/python -m pip install -r backend/requirements.txt
+RUNTIME_DIRECTORY="$(cd "${PROJECT_ROOT}/data" && pwd -P)"
+VENV_CACHE_ROOT="${RUNTIME_DIRECTORY}/python-venvs"
+REQUIREMENTS_HASH="$(sha256sum backend/requirements.txt | awk '{print $1}')"
+[[ "${REQUIREMENTS_HASH}" =~ ^[a-f0-9]{64}$ ]] || {
+  echo "Could not calculate a valid requirements hash." >&2
+  exit 1
+}
+
+VENV_LINK="${PROJECT_ROOT}/backend/.venv"
+CACHED_VENV="${VENV_CACHE_ROOT}/${REQUIREMENTS_HASH}"
+ACTIVE_VENV="${CACHED_VENV}"
+
+# A standalone install may already have a real backend/.venv. Keep using it for
+# compatibility, while new versioned releases use the persistent runtime cache.
+if [[ -d "${VENV_LINK}" && ! -L "${VENV_LINK}" ]]; then
+  ACTIVE_VENV="${VENV_LINK}"
+elif [[ -L "${VENV_LINK}" ]]; then
+  linked_venv="$(readlink -f "${VENV_LINK}" 2>/dev/null || true)"
+  if [[ "${linked_venv}" != "${CACHED_VENV}" ]]; then
+    rm -f -- "${VENV_LINK}"
+  fi
+fi
+
+mkdir -p "${VENV_CACHE_ROOT}"
+exec 8>"${VENV_CACHE_ROOT}/install.lock"
+flock -x 8
+
+venv_matches_requirements() {
+  local venv_directory="$1"
+  [[ -x "${venv_directory}/bin/python" ]] || return 1
+  [[ -f "${venv_directory}/.requirements.sha256" ]] || return 1
+  [[ "$(tr -d '\r\n' <"${venv_directory}/.requirements.sha256")" == "${REQUIREMENTS_HASH}" ]] || return 1
+  "${venv_directory}/bin/python" -m pip check >/dev/null 2>&1
+}
+
+if venv_matches_requirements "${ACTIVE_VENV}"; then
+  echo "Python dependencies unchanged; reusing cached virtual environment."
+else
+  echo "Python dependency cache is missing or stale; installing requirements."
+  if [[ "${ACTIVE_VENV}" == "${CACHED_VENV}" ]]; then
+    venv_stage="$(mktemp -d "${VENV_CACHE_ROOT}/.staging-${REQUIREMENTS_HASH}.XXXXXX")"
+    cleanup_venv_stage() {
+      if [[ -n "${venv_stage:-}" && -d "${venv_stage}" ]]; then
+        rm -rf -- "${venv_stage}"
+      fi
+    }
+    trap cleanup_venv_stage EXIT
+    "${PYTHON_BIN}" -m venv "${venv_stage}"
+    "${venv_stage}/bin/python" -m pip install --quiet --disable-pip-version-check --no-input -r backend/requirements.txt
+    "${venv_stage}/bin/python" -m pip check
+    printf '%s\n' "${REQUIREMENTS_HASH}" >"${venv_stage}/.requirements.sha256"
+    rm -rf -- "${CACHED_VENV}"
+    mv -- "${venv_stage}" "${CACHED_VENV}"
+    venv_stage=""
+  else
+    "${PYTHON_BIN}" -m venv "${ACTIVE_VENV}"
+    "${ACTIVE_VENV}/bin/python" -m pip install --quiet --disable-pip-version-check --no-input -r backend/requirements.txt
+    "${ACTIVE_VENV}/bin/python" -m pip check
+    printf '%s\n' "${REQUIREMENTS_HASH}" >"${ACTIVE_VENV}/.requirements.sha256"
+  fi
+fi
+
+if [[ "${ACTIVE_VENV}" == "${CACHED_VENV}" && ! -L "${VENV_LINK}" ]]; then
+  ln -s "${CACHED_VENV}" "${VENV_LINK}"
+fi
+exec 8>&-
 
 if [[ "${RUN_TESTS}" == true ]]; then
-  backend/.venv/bin/python -m ruff check backend/app backend/tests
-  backend/.venv/bin/python -m pytest -q backend/tests
+  echo "Running backend checks..."
+  test_output="$(mktemp)"
+  if ! {
+    backend/.venv/bin/python -m ruff check backend/app backend/tests
+    backend/.venv/bin/python -m pytest -q backend/tests
+  } >"${test_output}" 2>&1; then
+    cat "${test_output}" >&2
+    rm -f -- "${test_output}"
+    exit 1
+  fi
+  tail -n 1 "${test_output}"
+  rm -f -- "${test_output}"
 fi
 
 if [[ -e "${TEST_PROJECT_DIRECTORY}" && "${REFRESH_TEST_PROJECTS}" == true ]]; then

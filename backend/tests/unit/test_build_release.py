@@ -26,6 +26,18 @@ def test_copy_release_file_normalizes_shell_line_endings(tmp_path: Path) -> None
     assert target.read_bytes() == b"#!/usr/bin/env bash\nset -euo pipefail\n"
 
 
+def test_copy_release_file_normalizes_environment_template_line_endings(tmp_path: Path) -> None:
+    script = _load_script()
+    source = tmp_path / "107-native-interactive.env.example"
+    target = tmp_path / "release" / source.name
+    source.write_bytes(b"APP_ENV=production\r\nSLURM_DATA_SOURCE=native\r\n")
+    target.parent.mkdir()
+
+    script.copy_release_file(source, target)
+
+    assert target.read_bytes() == b"APP_ENV=production\nSLURM_DATA_SOURCE=native\n"
+
+
 def test_copy_release_file_preserves_non_shell_bytes(tmp_path: Path) -> None:
     script = _load_script()
     source = tmp_path / "config.txt"
@@ -56,6 +68,19 @@ def test_validate_shell_line_endings_rejects_carriage_returns(tmp_path: Path) ->
 def test_windows_client_only_sources_are_marked_for_exclusion() -> None:
     script = _load_script()
 
+    assert Path("scripts/build-107-frontend.mjs") in script.CLIENT_ONLY_PATHS
+    assert Path("scripts/build-107-frontend.ps1") in script.CLIENT_ONLY_PATHS
     assert Path("scripts/build-windows-client.py") in script.CLIENT_ONLY_PATHS
     assert Path("scripts/run-windows-client.ps1") in script.CLIENT_ONLY_PATHS
     assert Path("backend/tests/unit/test_build_windows_client.py") in script.CLIENT_ONLY_PATHS
+
+
+def test_release_installer_reuses_runtime_venv_for_unchanged_requirements() -> None:
+    installer = (PROJECT_ROOT / "deploy" / "release" / "install.sh").read_text(encoding="utf-8")
+
+    assert 'VENV_CACHE_ROOT="${RUNTIME_DIRECTORY}/python-venvs"' in installer
+    assert "REQUIREMENTS_HASH=\"$(sha256sum backend/requirements.txt" in installer
+    assert ".requirements.sha256" in installer
+    assert "pip check" in installer
+    assert "pip install --quiet" in installer
+    assert "reusing cached virtual environment" in installer

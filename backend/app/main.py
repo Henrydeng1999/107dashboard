@@ -118,7 +118,9 @@ def create_app(
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
         if settings.serve_frontend:
-            if request.url.path == "/" or request.url.path.endswith("/index.html"):
+            if request.url.path in {"/", "/107-dashboard", "/107-dashboard/"} or request.url.path.endswith(
+                "/index.html"
+            ):
                 response.headers["Cache-Control"] = "no-cache, must-revalidate"
             elif "/assets/" in request.url.path or request.url.path.startswith("/assets/"):
                 response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
@@ -145,20 +147,30 @@ def create_app(
         allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["*"],
     )
-    application.include_router(health_router, prefix="/api")
-    application.include_router(jobs_router, prefix="/api")
-    application.include_router(projects_router, prefix="/api")
-    application.include_router(product_router, prefix="/api")
-    application.include_router(repositories_router, prefix="/api")
+    for api_prefix, include_in_schema in (("/api", True), ("/107-dashboard/api", False)):
+        application.include_router(
+            health_router, prefix=api_prefix, include_in_schema=include_in_schema
+        )
+        application.include_router(
+            jobs_router, prefix=api_prefix, include_in_schema=include_in_schema
+        )
+        application.include_router(
+            projects_router, prefix=api_prefix, include_in_schema=include_in_schema
+        )
+        application.include_router(
+            product_router, prefix=api_prefix, include_in_schema=include_in_schema
+        )
+        application.include_router(
+            repositories_router, prefix=api_prefix, include_in_schema=include_in_schema
+        )
     if settings.serve_frontend:
         frontend_index = settings.frontend_dist_directory / "index.html"
         if not frontend_index.is_file():
             raise ValueError("SERVE_FRONTEND requires a built frontend index.html")
-        application.mount(
-            "/",
-            StaticFiles(directory=settings.frontend_dist_directory, html=True),
-            name="frontend",
-        )
+        frontend_files = StaticFiles(directory=settings.frontend_dist_directory, html=True)
+        # The direct SSH tunnel keeps the public prefix; the optional reverse proxy strips it.
+        application.mount("/107-dashboard", frontend_files, name="frontend-prefixed")
+        application.mount("/", frontend_files, name="frontend")
     return application
 
 

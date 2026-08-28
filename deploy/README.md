@@ -33,6 +33,10 @@ EXE 同级的 `data/client-settings.json`，更新时保留该目录。
 当前版本和上一个版本，更旧的版本目录及服务包会被清理。数据库、日志和作业数据位于
 `runtime/`，不参与版本清理。
 
+Python 虚拟环境也不再随每个版本目录重复创建。发布安装脚本按
+`backend/requirements.txt` 的 SHA-256 在 `runtime/python-venvs/` 中复用环境；前后端代码更新
+但依赖不变时不会重新执行整套 `pip install`，只有依赖哈希变化或 `pip check` 失败时才安装。
+
 `proxy/107-dashboard.nginx.conf.example` 是供平台管理员使用的共享入口模板。应用继续只监听
 回环地址；Windows 客户端默认通过用户自己的 SSH 隧道访问，不要求共享反向代理。若平台改为
 提供统一 URL，反向代理仍必须配置认证、VPN 或 IP 白名单。
@@ -46,7 +50,8 @@ EXE 同级的 `data/client-settings.json`，更新时保留该目录。
 - `SERVE_FRONTEND=true` 时，后端会从 `FRONTEND_DIST_DIRECTORY` 提供静态页面；目录缺少 `index.html` 时启动会立即失败并提示先构建。
 - `DEMO_FALLBACK_ENABLED=true` 只允许 Native 读取失败后切换到脱敏 Fixture。回退期间提交、取消、克隆全部强制关闭，不能作为绕过 Slurm 或权限门禁的路径。
 
-107 没有系统级 Node.js；正式发布统一执行 `npm run build:107`，可在开发电脑构建后复制未跟踪的 `frontend/dist/`，也可使用服务器用户目录下已配置的 Node 执行。该命令和启动预检都会强制 `/107-dashboard/assets/`、`/107-dashboard/api` 前缀并拒绝 localhost API，避免独立端口构建覆盖子路径入口。仅执行后端集中验收时可设置 `SERVE_FRONTEND=false`，不依赖静态产物。
+107 没有系统级 Node.js；正式发布统一执行 `npm run build:107`，可在开发电脑构建后复制未跟踪的 `frontend/dist/`，也可使用服务器用户目录下已配置的 Node 执行。该入口按系统选择原生 shell：Windows 使用 PowerShell，Linux 使用 Bash；Windows 不依赖 Git Bash。该命令和启动预检都会强制 `/107-dashboard/assets/`、`/107-dashboard/api` 前缀并拒绝 localhost API，避免独立端口构建覆盖子路径入口。仅执行后端集中验收时可设置 `SERVE_FRONTEND=false`，不依赖静态产物。
+后端同时保留 `/api/...` 作为反向代理剥离前缀后的兼容入口，并提供 `/107-dashboard/api/...` 作为直接访问带前缀静态页面时的 API 入口。
 
 正式产品入口使用统一导航构建。在开发电脑执行 `npm run build:navigation` 并传输 `frontend/dist/` 后，在 107 执行：
 

@@ -34,4 +34,4 @@ API Key 只写入后端配置的用户私有目录，浏览器和 SQLite 都不�
 
 桌面验收视口为 `1600×800`，最低为 `1440×720`；增长型页面允许主内容区纵向滚动，但页面和面板不得产生横向滚动或裁剪资源行。窄屏允许改为纵向布局。
 
-107 的唯一正式发布命令是 `npm run build:107`。它先在临时目录生成 `/107-dashboard/` 子路径构建，校验静态资源使用 `/107-dashboard/assets/`、API 使用 `/107-dashboard/api` 且不含开发地址，全部通过后才替换当前 `dist/`。`build` 和 `build:navigation` 仅用于普通开发或定向检查，不应直接覆盖 107 正式产物。
+107 的唯一正式发布命令是 `npm run build:107`。它先在临时目录生成 `/107-dashboard/` 子路径构建，校验静态资源使用 `/107-dashboard/assets/`、API 使用 `/107-dashboard/api` 且不含开发地址，全部通过后才替换当前 `dist/`。该入口按操作系统选择原生 shell：Windows 使用 PowerShell，Linux 使用 Bash；不会在 Windows 上调用 Git Bash。需要显式调用时，Windows 使用 `npm run build:107:windows`，Linux 使用 `npm run build:107:linux`。`build` 和 `build:navigation` 仅用于普通开发或定向检查，不应直接覆盖 107 正式产物。

@@ -22,6 +22,8 @@ import { HelpWorkspace, SettingsWorkspace, type WorkspaceDestination } from "./H
 import { RepositoriesWorkspace } from "./RepositoriesWorkspace";
 import { OverviewWorkspace } from "./OverviewWorkspace";
 
+const brandLogo = `${import.meta.env.BASE_URL}107dashboard.ico`;
+
 type ModuleId = "overview" | "jobs" | "reports" | "projects" | "repositories" | "ai";
 
 type NavModule = {
@@ -274,10 +276,9 @@ export function WorkspacePrototype() {
     <ThemeProvider>
     <div className={`prototype-shell${sidebarCollapsed ? " is-sidebar-collapsed" : ""}${sidebarPreview ? " is-sidebar-preview" : ""}`}>
       <aside className="prototype-sidebar" onMouseEnter={() => sidebarCollapsed && setSidebarPreview(true)} onMouseLeave={() => setSidebarPreview(false)} onFocus={() => sidebarCollapsed && setSidebarPreview(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setSidebarPreview(false); }}>
-        <button className="prototype-brand" type="button" onClick={() => { scrollWorkspaceToTop(); setUtilityPage(null); setActiveModule("overview"); }} aria-label="返回总览"><span>107</span><div><strong>Dashboard</strong><small>Student Workspace</small></div></button>
+        <button className="prototype-brand" type="button" onClick={() => { scrollWorkspaceToTop(); setUtilityPage(null); setActiveModule("overview"); }} aria-label="返回总览"><span className="prototype-brand-mark"><img src={brandLogo} alt="" aria-hidden="true" /></span><div><strong>Dashboard</strong><small>Student Workspace</small></div></button>
         <label className="prototype-nav-search"><Search aria-hidden="true" /><input type="search" value={navQuery} onChange={(event) => setNavQuery(event.target.value)} placeholder="快速搜索…" aria-label="搜索模块和页面" /><kbd>Ctrl K</kbd></label>
         <nav className="prototype-nav" aria-label="产品主导航">
-          <span className="prototype-nav-label">工作空间</span>
           {filteredModules.map((module) => {
             const expanded = navQuery.trim().length > 0 || expandedModules.has(module.id);
             const ModuleIcon = module.icon;
@@ -305,7 +306,7 @@ export function WorkspacePrototype() {
             <button type="button" aria-current={utilityPage === "help" ? "page" : undefined} className={`prototype-mobile-utility${utilityPage === "help" ? " is-current" : ""}`} onClick={() => navigate({ kind: "utility", page: "help" })}>帮助</button>
             <button type="button" aria-current={utilityPage === "settings" ? "page" : undefined} className={`prototype-mobile-utility${utilityPage === "settings" ? " is-current" : ""}`} onClick={() => navigate({ kind: "utility", page: "settings" })}>设置</button>
           </nav>
-          <div className="prototype-page-header"><div><span>{utilityPage ? utilityMeta.eyebrow : meta.eyebrow}</span><h1>{utilityPage ? utilityMeta.title : meta.title}</h1><p>{utilityPage ? utilityMeta.description : meta.description}</p></div><div className="prototype-page-actions">{!utilityPage && activeModule === "jobs" && <button className="prototype-primary" type="button" onClick={() => setActiveItems((current) => ({ ...current, jobs: "新建作业" }))}>＋ 新建作业</button>}</div></div>
+          <div className="prototype-page-header"><div><span>{utilityPage ? utilityMeta.eyebrow : meta.eyebrow}</span><h1>{utilityPage ? utilityMeta.title : meta.title}</h1><p>{utilityPage ? utilityMeta.description : meta.description}</p></div><div className="prototype-page-actions">{utilityPage && <button className="prototype-secondary" type="button" onClick={() => navigate({ kind: "module", module: "overview", item: "总览" })}>返回工作空间</button>}{!utilityPage && activeModule === "jobs" && <button className="prototype-primary" type="button" onClick={() => setActiveItems((current) => ({ ...current, jobs: "新建作业" }))}>＋ 新建作业</button>}</div></div>
           <div className="prototype-workspace">
             {utilityPage === "help" && <HelpWorkspace onNavigate={navigate} />}
             {utilityPage === "settings" && <SettingsWorkspace onNavigate={navigate} />}

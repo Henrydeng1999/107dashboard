@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:navigation": "tsc -b && vite build --mode navigation --base=/107-dashboard/",
-    "build:107": "bash ../scripts/build-107-frontend.sh",
+    "build:107": "node ../scripts/build-107-frontend.mjs",
+    "build:107:windows": "pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File ../scripts/build-107-frontend.ps1",
+    "build:107:linux": "bash ../scripts/build-107-frontend.sh",
     "preview": "vite preview",
     "lint": "tsc --noEmit"
   },

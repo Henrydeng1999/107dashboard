@@ -13,6 +13,14 @@ def test_health_check() -> None:
     assert response.json()["service"] == "dashboard-api"
 
 
+def test_prefixed_api_health_check() -> None:
+    response = TestClient(app).get("/107-dashboard/api/health")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    assert response.json()["service"] == "dashboard-api"
+
+
 def test_explicit_test_runtime_reports_fixture_capabilities() -> None:
     response = TestClient(app).get("/api/runtime")
 
@@ -52,7 +60,11 @@ def test_built_frontend_can_be_served_without_hiding_api(tmp_path) -> None:
     frontend_response = client.get("/")
     assert frontend_response.text == "<h1>Dashboard</h1>"
     assert frontend_response.headers["cache-control"] == "no-cache, must-revalidate"
+    prefixed_response = client.get("/107-dashboard/")
+    assert prefixed_response.text == "<h1>Dashboard</h1>"
+    assert prefixed_response.headers["cache-control"] == "no-cache, must-revalidate"
     assert client.get("/api/health").json()["status"] == "ok"
+    assert client.get("/107-dashboard/api/health").json()["status"] == "ok"
 
 
 def test_frontend_serving_fails_fast_when_build_is_missing(tmp_path) -> None:

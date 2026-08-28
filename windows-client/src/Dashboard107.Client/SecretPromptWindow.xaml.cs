@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
+using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace Dashboard107.Client;
 
@@ -30,7 +31,7 @@ public partial class SecretPromptWindow : Window
 
     private void Confirm_Click(object sender, RoutedEventArgs e) => DialogResult = true;
 
-    private void SecretBox_KeyDown(object sender, KeyEventArgs e)
+    private void SecretBox_KeyDown(object sender, WpfKeyEventArgs e)
     {
         if (e.Key == Key.Enter)
         {

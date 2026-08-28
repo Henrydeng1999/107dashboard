@@ -24,6 +24,8 @@ LOCAL_RELEASE_PATHS = (
 FORBIDDEN_PARTS = {".git", ".venv", "node_modules", "data", "__pycache__"}
 CLIENT_ONLY_ROOTS = {"windows-client"}
 CLIENT_ONLY_PATHS = {
+    Path("scripts/build-107-frontend.mjs"),
+    Path("scripts/build-107-frontend.ps1"),
     Path("scripts/build-windows-client.py"),
     Path("scripts/run-windows-client.ps1"),
     Path("backend/tests/unit/test_build_windows_client.py"),
@@ -132,7 +134,7 @@ def file_digest(path: Path) -> str:
 
 
 def copy_release_file(source: Path, target: Path) -> None:
-    if source.suffix.lower() == ".sh":
+    if source.suffix.lower() == ".sh" or source.name.lower().endswith(".env.example"):
         contents = source.read_bytes()
         target.write_bytes(contents.replace(b"\r\n", b"\n").replace(b"\r", b"\n"))
         return

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import hashlib
 import json
 import os
@@ -24,6 +25,16 @@ BUILD_DIRECTORY = PROJECT_ROOT / "data/windows-client-build"
 
 def run(*arguments: str) -> None:
     subprocess.run(arguments, cwd=PROJECT_ROOT, check=True)
+
+
+def shutdown_build_servers(dotnet: str) -> None:
+    subprocess.run(
+        [dotnet, "build-server", "shutdown"],
+        cwd=PROJECT_ROOT,
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 def find_dotnet() -> str:
@@ -76,9 +87,14 @@ def build_portable_bundle(
     ) + "\n"
     instructions = """107 Dashboard portable Windows client
 
-Run 107Dashboard.exe directly from this folder.
-The data directory stores local connection settings. Keep it when replacing the client.
+Run 107Dashboard.exe directly from this folder. The client opens the remote dashboard in its
+own window and can be minimized to the system tray.
+The data directory stores local connection settings, deployment metadata, and the WebView2
+profile. Keep it when replacing the client. Delete data/deployment-cache.json only when you want
+to force a full remote environment check; the client also invalidates it automatically when the
+lightweight service probe fails.
 The client does not store private keys, private-key passphrases, verification codes, or TOTP secrets.
+Microsoft Edge WebView2 Runtime must be installed on the computer.
 """
     with ZipFile(
         output_path,
@@ -129,6 +145,8 @@ def parse_arguments() -> argparse.Namespace:
 def main() -> int:
     arguments = parse_arguments()
     dotnet = find_dotnet()
+    shutdown_build_servers(dotnet)
+    atexit.register(shutdown_build_servers, dotnet)
     if BUILD_DIRECTORY.exists():
         shutil.rmtree(BUILD_DIRECTORY)
     server_output = BUILD_DIRECTORY / "server"
@@ -152,7 +170,15 @@ def main() -> int:
     archive_path = archives[0].resolve()
     version, commit = read_release_metadata(archive_path)
 
-    run(dotnet, "test", str(SOLUTION_FILE), "-c", "Release", "--nologo")
+    run(
+        dotnet,
+        "test",
+        str(SOLUTION_FILE),
+        "-c",
+        "Release",
+        "--nologo",
+        "--disable-build-servers",
+    )
     run(
         dotnet,
         "publish",
@@ -168,6 +194,7 @@ def main() -> int:
         "-p:IncludeNativeLibrariesForSelfExtract=true",
         "-p:DebugType=None",
         "-p:DebugSymbols=false",
+        "--disable-build-servers",
         f"-p:PayloadPath={archive_path}",
         "-o",
         str(publish_output),
