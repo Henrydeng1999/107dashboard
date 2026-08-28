@@ -23,9 +23,15 @@ backend/.venv/Scripts/python.exe scripts/build-release.py
 解压后执行 `bash deploy/release/install.sh`，详细限制和参数见 `deploy/release/README.md`。
 
 Windows 一键交付使用 `scripts/build-windows-client.py`。该脚本先生成同一 Linux 发布包，
-再运行客户端测试并把服务包嵌入自包含 `win-x64` EXE；产物同样位于未跟踪的
-`data/releases/`。客户端通过 SFTP 上传、SHA-256 校验和版本目录安装，不要求普通用户
-拥有 Gitee 凭据。
+再运行客户端测试并把服务包嵌入自包含 `win-x64` EXE，同时生成包含 EXE、`data/` 和说明
+文件的便携 ZIP；产物同样位于未跟踪的 `data/releases/`。客户端通过 SFTP 上传、SHA-256
+校验和版本目录安装，不要求普通用户拥有 Gitee 凭据。Windows 客户端的连接配置写入
+EXE 同级的 `data/client-settings.json`，更新时保留该目录。
+
+远端更新使用 `$HOME/.local/share/107dashboard` 下的 `releases/<release-id>` 版本目录和
+`current`/`previous` 软链接。更新锁保证同一账号不会并发切换版本；服务成功启动后只保留
+当前版本和上一个版本，更旧的版本目录及服务包会被清理。数据库、日志和作业数据位于
+`runtime/`，不参与版本清理。
 
 `proxy/107-dashboard.nginx.conf.example` 是供平台管理员使用的共享入口模板。应用继续只监听
 回环地址；Windows 客户端默认通过用户自己的 SSH 隧道访问，不要求共享反向代理。若平台改为

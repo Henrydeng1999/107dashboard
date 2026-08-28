@@ -83,7 +83,8 @@
 - `windows-client/src/` 保存 WPF 客户端、SSH 双因素交互、发布上传、服务控制和本地隧道；
 - `windows-client/tests/` 保存不连接真实平台的输入、发布元数据和命令边界测试；
 - 客户端只部署当前用户自己的单 Unix 账号服务，不实现账号委托或跨 owner 分析；
-- EXE 和临时服务包属于未跟踪构建产物，统一写入 `data/`。
+- EXE、便携 ZIP 和临时服务包属于未跟踪构建产物，统一写入 `data/`；便携客户端运行时
+  将配置写在 EXE 同级的 `data/client-settings.json`。
 
 ## 运行时文件
 

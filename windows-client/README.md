@@ -17,9 +17,11 @@ Windows EXE
   -> /107-dashboard/ in the default browser
 ```
 
-The client stores the host, port, username, private-key path, and accepted SSH host fingerprint
-under `%LocalAppData%/107Dashboard`. It does not store the private-key passphrase, verification
-code, private key contents, or a TOTP secret.
+The portable client stores the host, port, username, private-key path, and accepted SSH host
+fingerprint in `data/client-settings.json` next to the EXE. When this is the first launch of a
+portable copy and the legacy `%LocalAppData%/107Dashboard/client-settings.json` exists, the client
+imports it once and continues using the portable copy. It does not store the private-key passphrase,
+verification code, private key contents, or a TOTP secret.
 
 The first install or an update opens a second SSH authentication exchange for SFTP. A normal
 launch of an already installed matching version uses one SSH connection.
@@ -36,7 +38,13 @@ backend/.venv/Scripts/python.exe scripts/build-windows-client.py
 
 Use `--skip-frontend-build` only when `frontend/dist/` already contains a validated
 `/107-dashboard/` production build. Use `--require-clean` for a formal team release. The ignored
-`data/releases/` directory receives one self-contained `win-x64` EXE and its SHA-256 file.
+`data/releases/` receives a self-contained `win-x64` EXE, a portable ZIP containing the EXE and
+empty `data/` directory, and a SHA-256 file for each artifact. Keep `data/` when replacing a
+portable client with a newer ZIP.
+
+Remote updates are installed into immutable version directories. The client switches `current`
+only after installation and startup succeed, keeps `previous` for rollback, and removes releases
+older than those two versions. Runtime data remains under the remote `runtime/` directory.
 
 ## Current Validation Boundary
 

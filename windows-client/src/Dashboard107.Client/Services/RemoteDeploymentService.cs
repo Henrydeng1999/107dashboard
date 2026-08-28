@@ -23,7 +23,7 @@ public sealed class RemoteDeploymentService
               echo '缺少 Python 3.12' >&2
               exit 10
             fi
-            for command in git tmux sbatch scancel squeue sacct sha256sum tar; do
+            for command in git tmux sbatch scancel squeue sacct sha256sum tar flock; do
               command -v "$command" >/dev/null 2>&1 || { echo "缺少命令: $command" >&2; exit 11; }
             done
             printf 'PYTHON_BIN=%s\nUSER=%s\nHOME=%s\n' "$PYTHON_BIN" "$(id -un)" "$HOME"
@@ -75,34 +75,63 @@ public sealed class RemoteDeploymentService
             Bash("mkdir -p \"$HOME/.local/share/107dashboard/packages\" \"$HOME/.local/share/107dashboard/releases\" \"$HOME/.local/share/107dashboard/runtime\""),
             cancellationToken);
 
-        var remoteArchive = $"{sftpClient.WorkingDirectory.TrimEnd('/')}/{RemoteRoot}/packages/{info.ReleaseId}.tar.gz";
+        var uploadName = $".{info.ReleaseId}.{Guid.NewGuid():N}.upload";
+        var remoteUpload = $"{sftpClient.WorkingDirectory.TrimEnd('/')}/{RemoteRoot}/packages/{uploadName}";
         using (var content = package.OpenRead())
         {
             await Task.Run(
                 () => sftpClient.UploadFile(
                     content,
-                    remoteArchive,
-                    true,
+                    remoteUpload,
+                    false,
                     uploaded => progress?.Report((double)uploaded / content.Length)),
                 cancellationToken);
         }
 
+        return await RunCheckedAsync(
+            sshClient,
+            Bash(BuildDeploymentScript(info, uploadName)),
+            cancellationToken);
+    }
+
+    internal static string BuildDeploymentScript(ReleaseInfo info, string uploadName)
+    {
         var releaseId = ShellQuote.Posix(info.ReleaseId);
         var archiveRoot = ShellQuote.Posix(info.ArchiveRoot);
         var checksum = ShellQuote.Posix(info.Sha256);
-        var script = $$"""
+        var quotedUploadName = ShellQuote.Posix(uploadName);
+        return $$"""
             set -euo pipefail
             ROOT="$HOME/.local/share/107dashboard"
+            mkdir -p "$ROOT/packages" "$ROOT/releases" "$ROOT/runtime"
+            exec 9>"$ROOT/update.lock"
+            if ! flock -n 9; then
+              echo '已有另一个更新操作正在进行，请稍后重试' >&2
+              exit 23
+            fi
             RELEASE_ID={{releaseId}}
             ARCHIVE_ROOT={{archiveRoot}}
             EXPECTED_SHA={{checksum}}
+            UPLOADED_NAME={{quotedUploadName}}
             ARCHIVE="$ROOT/packages/$RELEASE_ID.tar.gz"
+            UPLOADED_ARCHIVE="$ROOT/packages/$UPLOADED_NAME"
             TARGET="$ROOT/releases/$RELEASE_ID"
-            ACTUAL_SHA="$(sha256sum "$ARCHIVE" | awk '{print $1}')"
+            STAGE=""
+            cleanup() {
+              if [ -n "$STAGE" ]; then
+                rm -rf -- "$STAGE"
+              fi
+              if [ -e "$UPLOADED_ARCHIVE" ]; then
+                rm -f -- "$UPLOADED_ARCHIVE"
+              fi
+            }
+            trap cleanup EXIT
+            [ -f "$UPLOADED_ARCHIVE" ] || { echo '临时服务包不存在' >&2; exit 19; }
+            ACTUAL_SHA="$(sha256sum "$UPLOADED_ARCHIVE" | awk '{print $1}')"
             [ "$ACTUAL_SHA" = "$EXPECTED_SHA" ] || { echo '服务包 SHA-256 校验失败' >&2; exit 20; }
+            mv -f -- "$UPLOADED_ARCHIVE" "$ARCHIVE"
             if [ ! -d "$TARGET" ]; then
               STAGE="$(mktemp -d "$ROOT/releases/.staging-XXXXXX")"
-              trap 'rm -rf "$STAGE"' EXIT
               tar -xzf "$ARCHIVE" -C "$STAGE"
               [ -d "$STAGE/$ARCHIVE_ROOT" ] || { echo '服务包顶层目录不正确' >&2; exit 21; }
               mv "$STAGE/$ARCHIVE_ROOT" "$TARGET"
@@ -116,7 +145,10 @@ public sealed class RemoteDeploymentService
               PYTHON_BIN=/public/app/python3.12/3.12/bin/python3
             fi
             PYTHON_BIN="$PYTHON_BIN" bash "$TARGET/deploy/release/install.sh" --no-start
-            PREVIOUS="$(readlink "$ROOT/current" 2>/dev/null || true)"
+            PREVIOUS="$(readlink -f "$ROOT/current" 2>/dev/null || true)"
+            if [ -z "$PREVIOUS" ] || [ ! -d "$PREVIOUS" ] || [[ "$PREVIOUS" != "$ROOT/releases/"* ]]; then
+              PREVIOUS=""
+            fi
             if [ -x "$ROOT/current/scripts/107-dashboard-service.sh" ]; then
               bash "$ROOT/current/scripts/107-dashboard-service.sh" stop || true
             fi
@@ -137,9 +169,34 @@ public sealed class RemoteDeploymentService
               echo '新版本启动失败，已尝试恢复上一版本' >&2
               exit 22
             fi
+            if [ -n "$PREVIOUS" ]; then
+              ln -sfnT "$PREVIOUS" "$ROOT/previous"
+            else
+              rm -f -- "$ROOT/previous"
+            fi
+            cleanup_old_versions() {
+              local path
+              for path in "$ROOT/releases"/.staging-*; do
+                if [[ -d "$path" && ! -L "$path" ]]; then
+                  rm -rf -- "$path" || return 1
+                fi
+              done
+              for path in "$ROOT/releases"/*; do
+                if [[ -d "$path" && ! -L "$path" && "$path" != "$TARGET" && "$path" != "$PREVIOUS" ]]; then
+                  rm -rf -- "$path" || return 1
+                fi
+              done
+              for path in "$ROOT/packages"/*.tar.gz; do
+                if [[ -f "$path" && "$path" != "$ARCHIVE" ]]; then
+                  rm -f -- "$path" || return 1
+                fi
+              done
+            }
+            if ! cleanup_old_versions; then
+              echo '服务已启动，但旧版本清理失败，请稍后手动检查' >&2
+            fi
             printf 'DEPLOYED=%s\nPORT=%s\n' "$RELEASE_ID" "$PORT"
             """;
-        return await RunCheckedAsync(sshClient, Bash(script), cancellationToken);
     }
 
     public async Task<int> EnsureStartedAsync(

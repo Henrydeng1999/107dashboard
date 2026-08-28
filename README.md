@@ -164,17 +164,17 @@ backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --rel
 
 ## Windows 客户端
 
-比赛交付可生成一个自包含 `win-x64` EXE。客户端使用每位用户自己的 SSH 公钥与
+比赛交付可生成一个自包含 `win-x64` EXE 和便携 ZIP。客户端使用每位用户自己的 SSH 公钥与
 Google Authenticator 动态验证码登录 107，按版本安装或更新 Linux 服务包，通过 tmux
 启动只监听回环地址的服务，再建立本地 SSH 隧道并打开 `/107-dashboard/`。客户端不保存
-私钥口令、动态验证码或 TOTP secret。
+私钥口令、动态验证码或 TOTP secret；便携版连接配置写在 EXE 同级的 `data/` 目录。
 
 ```powershell
 $env:DOTNET_EXE = "$env:USERPROFILE\.dotnet\dotnet.exe"
 backend/.venv/Scripts/python.exe scripts/build-windows-client.py
 ```
 
-EXE 与 SHA-256 文件写入未跟踪的 `data/releases/`。详细构建和验收边界见
+EXE、便携 ZIP 及各自的 SHA-256 文件写入未跟踪的 `data/releases/`。详细构建和验收边界见
 `windows-client/README.md`。
 
 ## 当前状态

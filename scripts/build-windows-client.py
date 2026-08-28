@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+from zipfile import ZIP_DEFLATED, ZipFile
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +47,51 @@ def digest(path: Path) -> str:
     return checksum.hexdigest()
 
 
+def write_checksum(path: Path) -> str:
+    checksum = digest(path)
+    path.with_suffix(path.suffix + ".sha256").write_text(
+        f"{checksum}  {path.name}\n",
+        encoding="ascii",
+    )
+    return checksum
+
+
+def build_portable_bundle(
+    executable: Path,
+    output_path: Path,
+    version: str,
+    commit: str,
+) -> None:
+    bundle_root = output_path.stem
+    metadata = json.dumps(
+        {
+            "product": "107 Dashboard",
+            "version": version,
+            "commit": commit,
+            "architecture": "win-x64",
+            "portable_data_directory": "data",
+        },
+        ensure_ascii=True,
+        indent=2,
+    ) + "\n"
+    instructions = """107 Dashboard portable Windows client
+
+Run 107Dashboard.exe directly from this folder.
+The data directory stores local connection settings. Keep it when replacing the client.
+The client does not store private keys, private-key passphrases, verification codes, or TOTP secrets.
+"""
+    with ZipFile(
+        output_path,
+        "w",
+        compression=ZIP_DEFLATED,
+        compresslevel=9,
+    ) as archive:
+        archive.write(executable, f"{bundle_root}/107Dashboard.exe")
+        archive.writestr(f"{bundle_root}/data/", "")
+        archive.writestr(f"{bundle_root}/version.json", metadata)
+        archive.writestr(f"{bundle_root}/README.txt", instructions)
+
+
 def read_release_metadata(archive_path: Path) -> tuple[str, str]:
     with tarfile.open(archive_path, "r:gz") as archive:
         manifest = next(
@@ -65,7 +111,7 @@ def parse_arguments() -> argparse.Namespace:
         "--output-directory",
         type=Path,
         default=DEFAULT_OUTPUT_DIRECTORY,
-        help="Directory for the Windows EXE and checksum",
+        help="Directory for the Windows EXE, portable ZIP, and checksums",
     )
     parser.add_argument(
         "--skip-frontend-build",
@@ -134,12 +180,16 @@ def main() -> int:
     output_directory.mkdir(parents=True, exist_ok=True)
     output_path = output_directory / f"107Dashboard-Windows-x64-{version}-{commit[:8]}.exe"
     shutil.copy2(built_exe, output_path)
-    checksum = digest(output_path)
-    checksum_path = output_path.with_suffix(output_path.suffix + ".sha256")
-    checksum_path.write_text(f"{checksum}  {output_path.name}\n", encoding="ascii")
+    checksum = write_checksum(output_path)
+    portable_path = output_directory / f"107Dashboard-Windows-x64-{version}-{commit[:8]}.zip"
+    build_portable_bundle(output_path, portable_path, version, commit)
+    portable_checksum = write_checksum(portable_path)
     print(f"Windows client: {output_path}")
     print(f"SHA-256: {checksum}")
     print(f"Size: {output_path.stat().st_size} bytes")
+    print(f"Portable bundle: {portable_path}")
+    print(f"Portable SHA-256: {portable_checksum}")
+    print(f"Portable size: {portable_path.stat().st_size} bytes")
     return 0
 
 

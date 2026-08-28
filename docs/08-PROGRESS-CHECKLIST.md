@@ -106,7 +106,7 @@
 | <span class="status-badge status-done">✓</span> | 数据源隔离 | 产品代码默认 Native，本地无 Slurm 时展示空态/不可用框架；Fixture 仅由自动化测试或单独演示回退显式启用，回退期间写操作强制关闭 | 测试入口显式设置 Fixture；107 产品 readiness 要求 `fixture_influence=false`，故障、冷却恢复、HTTP 503 与零 Native 写调用回归通过 |
 | <span class="status-badge status-done">✓</span> | 演示部署骨架 | FastAPI 托管预构建前端；正式发布先暂存构建并强制 `/107-dashboard/` 资源/API 前缀，错误前缀或开发地址快速失败 | `build:107` 原子替换、启动双重门禁、Shell 语法和公开入口 HTML/JS/CSS/API 检查通过 |
 | <span class="status-badge status-active">→</span> | Linux 发布包 | 跨平台打包器生成预构建前端、后端源码、安装/校验脚本、Nginx 模板和 SHA-256 文件；排除运行数据、密钥、虚拟环境与 Node 依赖 | Windows 本地试包 194 个文件逐项哈希通过，Shell/Python 检查和生产依赖审计通过；107 解压安装与服务启动待验收 |
-| <span class="status-badge status-active">→</span> | Windows 一键客户端 | WPF 单文件 EXE 使用公钥与 keyboard-interactive 登录，按版本上传 Linux 服务包、校验 SHA-256、启动 tmux、建立本地 SSH 隧道并打开网页 | 3 个核心测试、压缩自包含 Release 编译、内嵌载荷和本机启动布局通过；真实 107 双因素认证、远程安装和隧道待账号持有人验收 |
+| <span class="status-badge status-active">→</span> | Windows 一键客户端 | WPF 单文件 EXE/便携 ZIP 使用公钥与 keyboard-interactive 登录，按版本上传 Linux 服务包、校验 SHA-256、启动 tmux、建立本地 SSH 隧道并打开网页；本地配置写入 EXE 同级 `data/`，远端保留当前和上一个版本 | 客户端测试、压缩自包含 Release 编译、内嵌载荷、便携 ZIP 和本机启动布局通过；真实 107 双因素认证、远程安装和隧道待账号持有人验收 |
 | <span class="status-badge status-done">✓</span> | 发布验收脚本 | 一条命令集中验证真实 Native 读取与模拟 Fixture 回退，真实查询降级时拒绝误报通过 | 提交 `b253ac0` 在 107 通过：Native 4 个作业、Fixture 5 个作业、写请求 503、`would_invoke_sbatch=false` |
 | <span class="status-badge status-done">✓</span> | 整页演示部署 | 固定统一导航构建、SSH 隧道恢复和桌面/移动端整页检查 | 提交 `0d2c1d7` 在 107 与本机统一入口通过；无资源、控制台、溢出或重叠错误 |
 | <span class="status-badge status-done">✓</span> | Native 全交互综合链 | 通过真实 HTTP 路由集中覆盖提交、终态、日志、usage、取消、克隆、再次取消、幂等与审计 | 提交 `85c9646` 在 107 通过；Job `24159` 完成，Job `24160/24161` 取消，5 条幂等记录及审计链完整，无活动作业遗留 |

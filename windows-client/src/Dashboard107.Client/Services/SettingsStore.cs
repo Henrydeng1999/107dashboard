@@ -9,13 +9,12 @@ public sealed class SettingsStore
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private readonly string _settingsPath;
 
-    public SettingsStore()
+    public SettingsStore(string? applicationDirectory = null, string? legacySettingsPath = null)
     {
-        var directory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "107Dashboard");
+        var directory = Path.Combine(applicationDirectory ?? AppContext.BaseDirectory, "data");
         Directory.CreateDirectory(directory);
         _settingsPath = Path.Combine(directory, "client-settings.json");
+        ImportLegacySettings(legacySettingsPath ?? GetLegacySettingsPath());
     }
 
     public ClientSettings Load()
@@ -42,4 +41,39 @@ public sealed class SettingsStore
         File.WriteAllText(temporaryPath, JsonSerializer.Serialize(settings, JsonOptions));
         File.Move(temporaryPath, _settingsPath, true);
     }
+
+    private void ImportLegacySettings(string legacySettingsPath)
+    {
+        if (File.Exists(_settingsPath) || !File.Exists(legacySettingsPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var settings = JsonSerializer.Deserialize<ClientSettings>(
+                File.ReadAllText(legacySettingsPath));
+            if (settings is not null)
+            {
+                Save(settings);
+            }
+        }
+        catch (JsonException)
+        {
+            // Ignore malformed legacy settings and use the defaults.
+        }
+        catch (IOException)
+        {
+            // A portable copy must still be able to start if the old file is unavailable.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // A portable copy must still be able to start if the old file is inaccessible.
+        }
+    }
+
+    private static string GetLegacySettingsPath() => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "107Dashboard",
+        "client-settings.json");
 }

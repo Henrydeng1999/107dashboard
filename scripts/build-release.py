@@ -127,13 +127,21 @@ def file_digest(path: Path) -> str:
     return digest.hexdigest()
 
 
+def copy_release_file(source: Path, target: Path) -> None:
+    if source.suffix.lower() == ".sh":
+        contents = source.read_bytes()
+        target.write_bytes(contents.replace(b"\r\n", b"\n").replace(b"\r", b"\n"))
+        return
+    shutil.copy2(source, target)
+
+
 def copy_release_files(paths: list[Path], destination: Path) -> list[dict[str, object]]:
     entries: list[dict[str, object]] = []
     for relative in paths:
         source = PROJECT_ROOT / relative
         target = destination / relative
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, target)
+        copy_release_file(source, target)
         entries.append(
             {
                 "path": relative.as_posix(),
@@ -142,6 +150,15 @@ def copy_release_files(paths: list[Path], destination: Path) -> list[dict[str, o
             }
         )
     return entries
+
+
+def validate_shell_line_endings(root: Path) -> None:
+    for path in root.rglob("*"):
+        if not path.is_file() or path.suffix.lower() != ".sh":
+            continue
+        if b"\r" in path.read_bytes():
+            relative = path.relative_to(root).as_posix()
+            raise RuntimeError(f"release shell script contains carriage returns: {relative}")
 
 
 def archive_filter(info: tarfile.TarInfo) -> tarfile.TarInfo:
@@ -202,6 +219,7 @@ def main() -> int:
         release_root = Path(temporary) / release_name
         release_root.mkdir()
         entries = copy_release_files(paths, release_root)
+        validate_shell_line_endings(release_root)
         (release_root / "VERSION").write_text(
             f"version={version}\ncommit={commit}\ndirty={str(dirty).lower()}\n",
             encoding="ascii",

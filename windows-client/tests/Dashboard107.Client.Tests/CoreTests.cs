@@ -62,4 +62,65 @@ public sealed class CoreTests
             File.Delete(path);
         }
     }
+
+    [Fact]
+    public void SettingsStoreImportsLegacySettingsIntoPortableDataDirectory()
+    {
+        var applicationDirectory = Path.Combine(Path.GetTempPath(), $"107dashboard-{Guid.NewGuid():N}");
+        var legacyPath = Path.Combine(applicationDirectory, "legacy", "client-settings.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(legacyPath)!);
+        File.WriteAllText(
+            legacyPath,
+            """
+            {
+              "Host": "107.ustc.edu.cn",
+              "Port": 2222,
+              "Username": "pb24030760",
+              "PrivateKeyPath": "C:\\Users\\tester\\.ssh\\id_ed25519",
+              "TrustedHostFingerprint": "SHA256:test"
+            }
+            """);
+
+        try
+        {
+            var store = new SettingsStore(applicationDirectory, legacyPath);
+
+            var settings = store.Load();
+
+            Assert.Equal("107.ustc.edu.cn", settings.Host);
+            Assert.Equal(2222, settings.Port);
+            Assert.Equal("pb24030760", settings.Username);
+            Assert.Equal(
+                "C:\\Users\\tester\\.ssh\\id_ed25519",
+                settings.PrivateKeyPath);
+            Assert.True(File.Exists(Path.Combine(applicationDirectory, "data", "client-settings.json")));
+            Assert.True(File.Exists(legacyPath));
+        }
+        finally
+        {
+            Directory.Delete(applicationDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void DeploymentScriptSerializesLockedRollbackAndCleanupFlow()
+    {
+        var script = RemoteDeploymentService.BuildDeploymentScript(
+            new ReleaseInfo(
+                "0.1.0",
+                new string('a', 40),
+                "0.1.0-aaaaaaaa-11111111",
+                "107dashboard-0.1.0-aaaaaaaa-local",
+                new string('b', 64)),
+            ".upload-token");
+
+        Assert.Contains("exec 9>\"$ROOT/update.lock\"", script);
+        Assert.Contains("flock -n 9", script);
+        Assert.Contains("mv -f -- \"$UPLOADED_ARCHIVE\" \"$ARCHIVE\"", script);
+        Assert.Contains("ln -sfnT \"$PREVIOUS\" \"$ROOT/previous\"", script);
+        Assert.Contains("cleanup_old_versions()", script);
+        Assert.Contains("\"$path\" != \"$TARGET\"", script);
+        Assert.Contains("\"$path\" != \"$PREVIOUS\"", script);
+        Assert.DoesNotContain("rm -rf -- \"$ROOT/runtime\"", script);
+    }
 }

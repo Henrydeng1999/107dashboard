@@ -1,0 +1,47 @@
+import json
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
+from zipfile import ZipFile
+
+
+PROJECT_ROOT = Path(__file__).parents[3]
+SCRIPT_PATH = PROJECT_ROOT / "scripts" / "build-windows-client.py"
+
+
+def _load_script():
+    spec = spec_from_file_location("build_windows_client", SCRIPT_PATH)
+    assert spec is not None and spec.loader is not None
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_build_portable_bundle_contains_executable_data_and_metadata(tmp_path: Path) -> None:
+    script = _load_script()
+    executable = tmp_path / "107Dashboard.exe"
+    output_path = tmp_path / "107Dashboard-Windows-x64-0.1.0-abcdef12.zip"
+    executable.write_bytes(b"portable-test-executable")
+
+    script.build_portable_bundle(executable, output_path, "0.1.0", "abcdef1234567890")
+
+    with ZipFile(output_path) as archive:
+        assert archive.namelist() == [
+            "107Dashboard-Windows-x64-0.1.0-abcdef12/107Dashboard.exe",
+            "107Dashboard-Windows-x64-0.1.0-abcdef12/data/",
+            "107Dashboard-Windows-x64-0.1.0-abcdef12/version.json",
+            "107Dashboard-Windows-x64-0.1.0-abcdef12/README.txt",
+        ]
+        assert archive.read(
+            "107Dashboard-Windows-x64-0.1.0-abcdef12/107Dashboard.exe"
+        ) == b"portable-test-executable"
+        metadata = json.loads(
+            archive.read("107Dashboard-Windows-x64-0.1.0-abcdef12/version.json")
+        )
+
+    assert metadata == {
+        "product": "107 Dashboard",
+        "version": "0.1.0",
+        "commit": "abcdef1234567890",
+        "architecture": "win-x64",
+        "portable_data_directory": "data",
+    }
