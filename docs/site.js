@@ -7,6 +7,8 @@ const documents = [
   { path: '06-PLATFORM-DEPLOYMENT.md', id: '06-算力平台部署与更新', label: '平台部署' },
   { path: '07-MVP-API-DESIGN.md', id: '07-MVP API 设计', label: 'API 设计' },
   { path: '08-PROGRESS-CHECKLIST.md', id: '08-项目完成情况检查表', label: '项目进度' },
+  { path: '09-AI-ENABLEMENT-PLAN.md', id: '09-AI 赋能实施计划', label: 'AI 计划' },
+  { path: '10-COMPETITION-SUBMISSION-READINESS.md', id: '10-比赛验收与提交收尾审查', label: '提交审查' },
 ];
 
 const content = document.querySelector('#doc-content');

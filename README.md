@@ -52,7 +52,9 @@
 │   ├── 05-DIRECTORY-STRUCTURE.md # 项目目录规范
 │   ├── 06-PLATFORM-DEPLOYMENT.md # 算力平台部署与更新
 │   ├── 07-MVP-API-DESIGN.md # MVP 作业模型与 API 设计
-│   └── 08-PROGRESS-CHECKLIST.md # 项目进度与功能检查表
+│   ├── 08-PROGRESS-CHECKLIST.md # 项目进度与功能检查表
+│   ├── 09-AI-ENABLEMENT-PLAN.md # AI 赋能实施计划
+│   └── 10-COMPETITION-SUBMISSION-READINESS.md # 比赛验收与提交收尾审查
 ├── examples/             # 可公开的示例作业
 ├── fixtures/             # 脱敏 mock 数据
 ├── scripts/              # 平台检查和维护脚本
@@ -76,6 +78,8 @@
 | `docs/06-PLATFORM-DEPLOYMENT.md` | 算力平台只读部署、更新和安全操作 |
 | `docs/07-MVP-API-DESIGN.md` | MVP 作业模型、状态与 API 契约 |
 | `docs/08-PROGRESS-CHECKLIST.md` | 彩色项目进度与已完成功能检查表 |
+| `docs/09-AI-ENABLEMENT-PLAN.md` | AI 赋能实施计划与只读能力边界 |
+| `docs/10-COMPETITION-SUBMISSION-READINESS.md` | 比赛验收、提交材料与正式发布门禁 |
 | `backend/README.md` | FastAPI 后端目录说明 |
 | `frontend/README.md` | React 前端目录说明 |
 | `deploy/README.md` | 用户级服务和部署配置说明 |
