@@ -25,6 +25,7 @@ FORBIDDEN_PARTS = {".git", ".venv", "node_modules", "data", "__pycache__"}
 CLIENT_ONLY_ROOTS = {"windows-client"}
 CLIENT_ONLY_PATHS = {
     Path("scripts/build-windows-client.py"),
+    Path("scripts/run-windows-client.ps1"),
     Path("backend/tests/unit/test_build_windows_client.py"),
 }
 ALLOWED_ENV_FILES = {".env.example", "frontend/.env.navigation"}

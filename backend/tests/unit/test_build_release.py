@@ -57,4 +57,5 @@ def test_windows_client_only_sources_are_marked_for_exclusion() -> None:
     script = _load_script()
 
     assert Path("scripts/build-windows-client.py") in script.CLIENT_ONLY_PATHS
+    assert Path("scripts/run-windows-client.ps1") in script.CLIENT_ONLY_PATHS
     assert Path("backend/tests/unit/test_build_windows_client.py") in script.CLIENT_ONLY_PATHS
